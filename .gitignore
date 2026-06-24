@@ -1,0 +1,35 @@
+# Arquivos do Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+pubspec.lock
+
+# IDEs
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Android
+android/.gradle/
+android/captures/
+android/local.properties
+android/key.properties
+*.keystore
+*.jks
+
+# iOS / macOS
+ios/Pods/
+ios/.symlinks/
+**/Flutter/Flutter.framework
+**/Flutter/Generated.xcconfig
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+*.log

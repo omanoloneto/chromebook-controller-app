@@ -1,0 +1,29 @@
+name: controle_de_aula
+description: Controle remoto do Chromebook do professor (app do celular). Função inicial: enviar URL/abrir aba via WebRTC na rede local.
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.22.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Conexão WebRTC / DataChannel com a extensão (papel "answerer").
+  flutter_webrtc: ^0.11.0
+  # Leitura do QR #1 (offer) pela câmera.
+  mobile_scanner: ^5.0.0
+  # Geração do QR #2 (answer) mostrado para o Chromebook.
+  qr_flutter: ^4.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+# Versões dos pacotes são um ponto de partida; ajuste com `flutter pub upgrade`.
+
+flutter:
+  uses-material-design: true
