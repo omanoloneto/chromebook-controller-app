@@ -1,7 +1,7 @@
-// Modelos das mensagens do protocolo — ver docs/protocolo.md.
+// Mensagens do protocolo do DataChannel — ver docs/protocolo.md.
 // Mantenha em sincronia com a extensão (src/lib/protocol.js).
-//
-// Esboço: estruturas básicas; a serialização completa será adicionada depois.
+
+import 'dart:convert';
 
 const int kProtocolVersion = 1;
 
@@ -19,33 +19,58 @@ class MessageType {
   static const String focusMode = 'focus_mode';
 }
 
-/// Comando para abrir uma URL no Chromebook (função prioritária — MVP).
-class OpenUrlCommand {
-  OpenUrlCommand({
-    required this.id,
-    required this.url,
-    this.newTab = true,
-    this.focus = true,
+int _seq = 0;
+String _nextId() {
+  _seq = (_seq + 1) % 1000000000;
+  return 'a$_seq';
+}
+
+int _nowMs() => DateTime.now().millisecondsSinceEpoch;
+
+/// Monta a mensagem `open_url` (função prioritária — MVP) como JSON em uma linha.
+String buildOpenUrlMessage(String url, {bool newTab = true, bool focus = true}) {
+  return jsonEncode({
+    'v': kProtocolVersion,
+    'type': MessageType.openUrl,
+    'id': _nextId(),
+    'ts': _nowMs(),
+    'payload': {
+      'url': url,
+      'newTab': newTab,
+      'focus': focus,
+    },
   });
+}
+
+/// Monta uma mensagem `ping` (keepalive).
+String buildPingMessage() {
+  return jsonEncode({
+    'v': kProtocolVersion,
+    'type': MessageType.ping,
+    'id': _nextId(),
+    'ts': _nowMs(),
+  });
+}
+
+/// Representa um ACK recebido do Chromebook.
+class Ack {
+  Ack({required this.id, required this.ok, this.error});
 
   final String id;
-  final String url;
-  final bool newTab;
-  final bool focus;
+  final bool ok;
+  final String? error;
 
-  /// Serializa para o formato do protocolo (JSON em uma linha).
-  Map<String, dynamic> toJson() {
-    return {
-      'v': kProtocolVersion,
-      'type': MessageType.openUrl,
-      'id': id,
-      // TODO: usar timestamp real ao enviar.
-      'ts': 0,
-      'payload': {
-        'url': url,
-        'newTab': newTab,
-        'focus': focus,
-      },
-    };
+  static Ack? tryParse(String raw) {
+    try {
+      final m = jsonDecode(raw) as Map<String, dynamic>;
+      if (m['type'] != MessageType.ack) return null;
+      return Ack(
+        id: m['id'] as String? ?? '',
+        ok: m['ok'] == true,
+        error: m['error'] as String?,
+      );
+    } catch (_) {
+      return null;
+    }
   }
 }

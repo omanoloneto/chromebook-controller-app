@@ -72,10 +72,11 @@ chromebook-controller-app/
 
 ## Roteiro
 
-- [ ] Pareamento por QR code (handshake WebRTC sem servidor)
-- [ ] Comando **abrir URL / nova aba** (função prioritária)
-- [ ] Tela inicial com campo de URL e atalhos
-- [ ] Indicador de status da conexão
+- [x] Pareamento por QR code (handshake WebRTC sem servidor)
+- [x] Comando **abrir URL / nova aba** (função prioritária)
+- [x] Tela inicial com campo de URL
+- [x] Indicador de status da conexão
+- [ ] Atalhos de sites favoritos
 - [ ] Comandos futuros: bloquear/liberar tela, mensagem na tela, fechar abas
 
 ## Contribuindo
