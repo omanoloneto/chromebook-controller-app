@@ -1,11 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- WebRTC: comunicação pela rede local -->
+    <!-- Servidor HTTP local na LAN: abrir socket e aceitar conexões da extensão -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Detectar Wi-Fi / estado da rede -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
-    <!-- Câmera: leitura do QR do Chromebook (mobile_scanner) -->
-    <uses-permission android:name="android.permission.CAMERA"/>
-    <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
     <application
         android:label="Controle de Aula"

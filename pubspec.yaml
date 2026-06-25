@@ -11,12 +11,12 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Conexão WebRTC / DataChannel com a extensão (papel "answerer").
-  flutter_webrtc: ^1.5.2
-  # Leitura do QR #1 (offer) pela câmera.
-  mobile_scanner: ^7.2.0
-  # Geração do QR #2 (answer) mostrado para o Chromebook.
+  # Geração do QR de pareamento (ip/porta/chave) mostrado ao Chromebook.
   qr_flutter: ^4.1.0
+  # Criptografia ponta-a-ponta dos comandos (AES-256-GCM).
+  cryptography: ^2.9.0
+  # Utilidades de hash (HMAC/SHA-256).
+  crypto: ^3.0.0
 
 dev_dependencies:
   flutter_test:

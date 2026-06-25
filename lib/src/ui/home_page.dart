@@ -1,18 +1,16 @@
-// Tela inicial do controle: parear (ler QR #1 -> mostrar QR #2) e, conectado,
-// enviar uma URL para o Chromebook.
+// Tela inicial: o celular vira servidor, mostra 1 QR e dispara comandos.
+// O Chromebook escaneia o QR e conecta. Sem botão de cancelar.
 
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
-import '../commands/command.dart';
 import '../pairing/pairing_controller.dart';
-import '../webrtc/webrtc_client.dart';
-
-enum _Step { inicio, lendoQr, mostrandoQr, conectado }
 
 class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.autoStart = true});
+
+  /// Em testes, passe false para não iniciar o servidor/timers.
+  final bool autoStart;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -23,43 +21,50 @@ class _HomePageState extends State<HomePage> {
   final TextEditingController _urlCtrl =
       TextEditingController(text: 'https://');
 
-  _Step _step = _Step.inicio;
-  String? _answerPayload;
-  bool _tratandoLeitura = false;
-  MobileScannerController? _scanner;
+  bool _iniciando = true;
+  bool _conectado = false;
+  String? _erro;
 
   @override
   void initState() {
     super.initState();
-    _pairing.onState = _aoMudarEstado;
-    _pairing.onMessage = _aoReceberMensagem;
+    if (widget.autoStart) _iniciar();
+  }
+
+  Future<void> _iniciar() async {
+    _pairing.onConnection = (c) {
+      if (mounted) setState(() => _conectado = c);
+    };
+    _pairing.onAck = (ack) {
+      if (mounted) {
+        _snack(ack.ok ? 'Aberto no Chromebook ✅' : 'Erro: ${ack.error}');
+      }
+    };
+    try {
+      await _pairing.start();
+      if (mounted) {
+        setState(() {
+          _iniciando = false;
+          _erro = _pairing.ip == null
+              ? 'Sem Wi-Fi detectado. Conecte o celular à rede da escola.'
+              : null;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _iniciando = false;
+          _erro = 'Não foi possível iniciar: $e';
+        });
+      }
+    }
   }
 
   @override
   void dispose() {
-    _scanner?.dispose();
-    _pairing.dispose();
+    _pairing.stop();
     _urlCtrl.dispose();
     super.dispose();
-  }
-
-  void _aoMudarEstado(ConnState state) {
-    if (!mounted) return;
-    setState(() {
-      if (state == ConnState.connected) {
-        _step = _Step.conectado;
-      } else if (state == ConnState.disconnected &&
-          _step == _Step.conectado) {
-        _step = _Step.inicio;
-      }
-    });
-  }
-
-  void _aoReceberMensagem(String raw) {
-    final ack = Ack.tryParse(raw);
-    if (ack != null && mounted) {
-      _snack(ack.ok ? 'Aberto no Chromebook ✅' : 'Erro: ${ack.error}');
-    }
   }
 
   void _snack(String texto) {
@@ -68,52 +73,10 @@ class _HomePageState extends State<HomePage> {
       ..showSnackBar(SnackBar(content: Text(texto)));
   }
 
-  void _iniciarLeitura() {
-    _scanner?.dispose();
-    _scanner = MobileScannerController(formats: const [BarcodeFormat.qrCode]);
-    setState(() {
-      _tratandoLeitura = false;
-      _step = _Step.lendoQr;
-    });
-  }
-
-  Future<void> _aoDetectar(BarcodeCapture cap) async {
-    if (_tratandoLeitura) return;
-    final code = cap.barcodes.isNotEmpty ? cap.barcodes.first.rawValue : null;
-    if (code == null || code.isEmpty) return;
-    _tratandoLeitura = true;
-    await _scanner?.stop();
-
-    try {
-      final answer = await _pairing.handleScannedOffer(code);
-      if (!mounted) return;
-      setState(() {
-        _answerPayload = answer;
-        _step = _Step.mostrandoQr;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      _snack('QR inválido ($e). Tente novamente.');
-      _tratandoLeitura = false;
-      await _scanner?.start();
-    }
-  }
-
-  Future<void> _enviarUrl() async {
+  void _enviarUrl() {
     final url = _urlCtrl.text.trim();
     if (url.isEmpty) return;
-    try {
-      await _pairing.sendOpenUrl(url);
-    } catch (e) {
-      _snack('Falha ao enviar: $e');
-    }
-  }
-
-  Future<void> _desconectar() async {
-    await _pairing.dispose();
-    _scanner?.dispose();
-    _scanner = null;
-    if (mounted) setState(() => _step = _Step.inicio);
+    _pairing.sendOpenUrl(url);
   }
 
   @override
@@ -122,103 +85,81 @@ class _HomePageState extends State<HomePage> {
       appBar: AppBar(
         title: const Text('Controle de Aula'),
         actions: [
-          if (_step == _Step.conectado)
-            IconButton(
-              onPressed: _desconectar,
-              icon: const Icon(Icons.link_off),
-              tooltip: 'Desconectar',
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: Center(
+              child: Text(
+                _conectado ? 'Conectado' : 'Aguardando',
+                style: TextStyle(
+                  color: _conectado ? const Color(0xFF00E676) : Colors.white70,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
+          ),
         ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: switch (_step) {
-          _Step.inicio => _inicio(),
-          _Step.lendoQr => _lendoQr(),
-          _Step.mostrandoQr => _mostrandoQr(),
-          _Step.conectado => _conectado(),
-        },
+        child: _iniciando
+            ? const Center(child: CircularProgressIndicator())
+            : _erro != null
+                ? _erroView()
+                : _conectado
+                    ? _controleView()
+                    : _qrView(),
       ),
     );
   }
 
-  Widget _inicio() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Icon(Icons.cast, size: 72, color: Color(0xFF2962FF)),
-        const SizedBox(height: 16),
-        const Text(
-          'Conecte-se ao Chromebook do professor para enviar sites para a tela.',
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 24),
-        FilledButton.icon(
-          onPressed: _iniciarLeitura,
-          icon: const Icon(Icons.qr_code_scanner),
-          label: const Text('Parear'),
-        ),
-      ],
+  Widget _erroView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.wifi_off, size: 64, color: Colors.redAccent),
+          const SizedBox(height: 16),
+          Text(_erro!, textAlign: TextAlign.center),
+        ],
+      ),
     );
   }
 
-  Widget _lendoQr() {
-    return Column(
-      children: [
-        const Text(
-          '1. Aponte para o QR mostrado na extensão do Chromebook.',
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: MobileScanner(
-              controller: _scanner,
-              onDetect: _aoDetectar,
+  Widget _qrView() {
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          const Text(
+            'Escaneie este código com a câmera da extensão no Chromebook.',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          Container(
+            padding: const EdgeInsets.all(12),
+            color: Colors.white,
+            child: QrImageView(
+              data: _pairing.qrPayload ?? '',
+              version: QrVersions.auto,
+              size: 260,
             ),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _mostrandoQr() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Text(
-          '2. Mostre este QR para a câmera do Chromebook.',
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(12),
-          color: Colors.white,
-          child: QrImageView(
-            data: _answerPayload ?? '',
-            version: QrVersions.auto,
-            size: 260,
-            errorStateBuilder: (context, error) => const SizedBox(
-              width: 260,
-              height: 260,
-              child: Center(child: Text('Não foi possível gerar o QR.')),
-            ),
+          const SizedBox(height: 16),
+          Text(
+            '${_pairing.ip}:${_pairing.port}',
+            style: const TextStyle(fontFamily: 'monospace', color: Colors.grey),
           ),
-        ),
-        const SizedBox(height: 16),
-        const Text('Aguardando o Chromebook conectar…'),
-        const SizedBox(height: 8),
-        const SizedBox(
-          width: 24,
-          height: 24,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
-      ],
+          const SizedBox(height: 8),
+          const Text(
+            'Mantenha este app aberto. A conexão é direta e criptografada.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _conectado() {
+  Widget _controleView() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -226,7 +167,7 @@ class _HomePageState extends State<HomePage> {
           children: [
             Icon(Icons.check_circle, color: Color(0xFF00897B)),
             SizedBox(width: 8),
-            Text('Conectado ao Chromebook'),
+            Expanded(child: Text('Conectado ao Chromebook')),
           ],
         ),
         const SizedBox(height: 24),

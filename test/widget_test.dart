@@ -1,17 +1,20 @@
 // Teste de fumaça (smoke test) básico do app.
-// Garante que o app sobe e a tela inicial renderiza.
+// autoStart: false para não subir o servidor HTTP nem timers durante o teste.
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:controle_de_aula/main.dart';
+import 'package:controle_de_aula/src/ui/home_page.dart';
 
 void main() {
   testWidgets('app sobe e mostra a tela inicial', (WidgetTester tester) async {
-    await tester.pumpWidget(const ControleDeAulaApp());
+    await tester.pumpWidget(
+      const MaterialApp(home: HomePage(autoStart: false)),
+    );
 
     // O título da AppBar deve aparecer.
     expect(find.text('Controle de Aula'), findsOneWidget);
-    // O botão de parear deve existir.
-    expect(find.text('Parear'), findsOneWidget);
+    // Sem autostart, fica no estado "iniciando" (spinner).
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 }

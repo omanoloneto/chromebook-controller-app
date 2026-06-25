@@ -39,19 +39,21 @@ flutter pub get
 flutter run
 ```
 
-## Uso (quando implementado)
+## Uso
 
-1. No Chromebook, a extensão mostra o **QR #1**.
-2. No app, toque em **Parear** e escaneie o QR #1.
-3. O app mostra o **QR #2**; aponte-o para a câmera do Chromebook.
-4. Conectado! Digite/escolha uma URL e ela abre no Chromebook.
+1. Abra o app — ele inicia o servidor local e mostra **1 QR** (e o `ip:porta`).
+2. No **Chromebook**, abra a extensão → **Parear** → aponte a câmera para este QR.
+3. Quando o Chromebook conectar, o app mostra o campo de URL.
+4. Digite/cole uma URL e toque em **Abrir no Chromebook**.
 
-Detalhes do handshake em [`protocolo.md`](protocolo.md).
+> Mantenha o app **aberto** (o servidor roda em foreground). A conexão é direta e
+> **criptografada** — a chave vai só no QR. Detalhes em [`protocolo.md`](protocolo.md).
 
 ## Problemas comuns
 
-- **Não conecta:** confirme que celular e Chromebook estão na **mesma rede
-  Wi-Fi**. Redes de escola às vezes isolam aparelhos (*client isolation*); nesse
-  caso, peça ao suporte de TI para liberar.
-- **Câmera não abre:** confira a permissão de câmera do app nas configurações do
-  Android.
+- **Chromebook não conecta:** mesma **Wi-Fi**, **sem client isolation**. Teste
+  cru: no Chromebook, abra `http://<ip>:<porta>/` (mostrados no app) numa aba —
+  deve responder `controle-de-aula`. Se não responder, é a rede (isolamento).
+- **"Sem Wi-Fi detectado":** conecte o celular ao Wi-Fi da escola (não use só
+  dados móveis — precisa estar na mesma LAN do Chromebook).
+- **IP mudou:** se trocar de rede, o QR antigo expira; reabra o app e repareie.

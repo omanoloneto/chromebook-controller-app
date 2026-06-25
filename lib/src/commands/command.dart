@@ -1,11 +1,9 @@
-// Mensagens do protocolo do DataChannel — ver docs/protocolo.md.
-// Mantenha em sincronia com a extensão (src/lib/protocol.js).
-
-import 'dart:convert';
+// Mensagens do protocolo (texto em claro, ANTES de cifrar) — ver docs/protocolo.md.
+// A cifragem AES-GCM e os campos seq/ts são adicionados pela camada de transporte
+// (control_server.dart via crypto.dart). Aqui só montamos/parseamos o conteúdo.
 
 const int kProtocolVersion = 1;
 
-/// Tipos de mensagem (espelham docs/protocolo.md).
 class MessageType {
   static const String openUrl = 'open_url';
   static const String ack = 'ack';
@@ -25,34 +23,21 @@ String _nextId() {
   return 'a$_seq';
 }
 
-int _nowMs() => DateTime.now().millisecondsSinceEpoch;
-
-/// Monta a mensagem `open_url` (função prioritária — MVP) como JSON em uma linha.
-String buildOpenUrlMessage(String url, {bool newTab = true, bool focus = true}) {
-  return jsonEncode({
+/// Monta o objeto do comando `open_url` (será cifrado pelo servidor).
+Map<String, dynamic> buildOpenUrl(String url, {bool newTab = true, bool focus = true}) {
+  return {
     'v': kProtocolVersion,
     'type': MessageType.openUrl,
     'id': _nextId(),
-    'ts': _nowMs(),
     'payload': {
       'url': url,
       'newTab': newTab,
       'focus': focus,
     },
-  });
+  };
 }
 
-/// Monta uma mensagem `ping` (keepalive).
-String buildPingMessage() {
-  return jsonEncode({
-    'v': kProtocolVersion,
-    'type': MessageType.ping,
-    'id': _nextId(),
-    'ts': _nowMs(),
-  });
-}
-
-/// Representa um ACK recebido do Chromebook.
+/// Representa um ACK recebido do Chromebook (já decifrado).
 class Ack {
   Ack({required this.id, required this.ok, this.error});
 
@@ -60,17 +45,12 @@ class Ack {
   final bool ok;
   final String? error;
 
-  static Ack? tryParse(String raw) {
-    try {
-      final m = jsonDecode(raw) as Map<String, dynamic>;
-      if (m['type'] != MessageType.ack) return null;
-      return Ack(
-        id: m['id'] as String? ?? '',
-        ok: m['ok'] == true,
-        error: m['error'] as String?,
-      );
-    } catch (_) {
-      return null;
-    }
+  static Ack? fromMap(Map<String, dynamic> m) {
+    if (m['type'] != MessageType.ack) return null;
+    return Ack(
+      id: m['id'] as String? ?? '',
+      ok: m['ok'] == true,
+      error: m['error'] as String?,
+    );
   }
 }

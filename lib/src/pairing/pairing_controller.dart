@@ -1,36 +1,45 @@
-// Pareamento no app — junta a leitura do QR (offer), a geração do answer e o
-// envio de comandos. Ver docs/protocolo.md.
+// Orquestra o servidor de controle e expõe o necessário para a UI.
 
 import '../commands/command.dart';
-import '../signal/signal.dart';
-import '../webrtc/webrtc_client.dart';
+import '../server/control_server.dart';
+import 'pairing_payload.dart';
 
 class PairingController {
   PairingController({this.deviceName = 'Celular do professor'});
 
   final String deviceName;
-  final WebrtcAnswerer _client = WebrtcAnswerer();
+  final ControlServer _server = ControlServer();
 
-  /// Último answer gerado (texto que vira o QR #2).
-  String? answerPayload;
+  /// Texto do QR de pareamento (null até o servidor iniciar).
+  String? qrPayload;
 
-  set onState(void Function(ConnState state) cb) => _client.onState = cb;
-  set onMessage(void Function(String raw) cb) => _client.onMessage = cb;
+  void Function(bool connected)? onConnection;
+  void Function(Ack ack)? onAck;
 
-  bool get isConnected => _client.isConnected;
+  String? get ip => _server.ip;
+  int get port => _server.port;
+  bool get isConnected => _server.isConnected;
 
-  /// Recebe o texto do QR #1 (offer), gera o answer e devolve o payload do QR #2.
-  Future<String> handleScannedOffer(String qrText) async {
-    final offer = OfferSignal.parse(qrText); // valida role/versão/sdp
-    final answerSdp = await _client.answerFromOffer(offer.sdp);
-    answerPayload = makeAnswerSignal(answerSdp, deviceName);
-    return answerPayload!;
+  /// Inicia o servidor e prepara o QR.
+  Future<void> start() async {
+    _server.onConnection = (c) => onConnection?.call(c);
+    _server.onAck = (m) {
+      final a = Ack.fromMap(m);
+      if (a != null) onAck?.call(a);
+    };
+    await _server.start();
+    qrPayload = buildPairingQr(
+      ip: _server.ip ?? '0.0.0.0',
+      port: _server.port,
+      key: _server.key,
+      name: deviceName,
+    );
   }
 
-  /// Envia o comando para abrir uma URL no Chromebook.
-  Future<void> sendOpenUrl(String url, {bool newTab = true}) async {
-    await _client.send(buildOpenUrlMessage(url, newTab: newTab));
+  /// Dispara o comando para abrir uma URL no Chromebook.
+  void sendOpenUrl(String url, {bool newTab = true}) {
+    _server.enqueueCommand(buildOpenUrl(url, newTab: newTab));
   }
 
-  Future<void> dispose() => _client.close();
+  Future<void> stop() => _server.stop();
 }

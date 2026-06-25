@@ -1,88 +1,79 @@
 # Controle de Aula — App (controle no celular)
 
-App **Flutter** (Android) que funciona como **controle remoto** do Chromebook do
-professor. Faz parte do projeto **Controle de Aula**, formado por dois
-componentes independentes:
+App **Flutter** (Android) que vira um **servidor local** na rede da escola e
+controla o Chromebook do professor. Faz parte do projeto **Controle de Aula**:
 
-| Componente | Repositório | Onde roda |
-|------------|-------------|-----------|
-| **App de controle** (este repo) | `chromebook-controller-app` | Celular Android do professor |
-| **Extensão** | [`chromebook-controller-extension`](https://github.com/omanoloneto/chromebook-controller-extension) | Chromebook do professor (ligado ao projetor) |
+| Componente | Repositório | Papel |
+|------------|-------------|-------|
+| **App de controle** (este repo) | `chromebook-controller-app` | **Servidor** no celular Android |
+| **Extensão** | [`chromebook-controller-extension`](https://github.com/omanoloneto/chromebook-controller-extension) | **Cliente** no Chromebook |
 
-> ⚠️ **Status:** projeto em fase inicial. Este repositório contém a **estrutura,
-> a documentação e os esqueletos de código**. As funções ainda **não estão
-> implementadas** — veja o [roteiro](#roteiro).
+> ⚠️ **Status:** em desenvolvimento. Pareamento e comando **abrir URL** já
+> implementados. Não testado ainda entre dois aparelhos reais.
 
-## Para que serve
+## Como funciona
 
-O professor liga o Chromebook ao projetor/TV e instala a extensão. Com este app
-no celular, ele controla a tela projetada **sem voltar à mesa** — andando pela
-sala.
-
-A **primeira função** prevista é **enviar uma URL / abrir uma aba**: o professor
-digita ou escolhe um site no celular e ele abre na hora no Chromebook.
-
-## Como funciona (resumo)
-
-- Comunicação **direta entre celular e Chromebook**, pela **rede local** da escola.
-- Sem servidor central e **sem nuvem** — usa **WebRTC (DataChannel)**.
-- O pareamento é por **QR code** (handshake de dois QR codes). Veja
-  [`docs/protocolo.md`](docs/protocolo.md).
+- O **app roda um servidor HTTP** local e mostra **1 QR** (`ip`, `porta`, `chave`).
+- A **extensão (Chromebook) é cliente**: lê o QR e faz **long-poll** buscando
+  comandos.
+- O professor digita uma URL no app → ela abre no Chromebook.
+- Tudo **criptografado ponta-a-ponta** (AES-256-GCM); a chave vai **só no QR**.
+- **Sem nuvem.** Direto na LAN.
 
 ```
-┌─────────────┐   comando (JSON)    ┌──────────────────────┐
-│  Celular    │ ──────────────────► │  Chromebook          │
-│  (este app) │   WebRTC DataChannel│  (extensão)          │
-│  controle   │ ◄────────────────── │  abre a aba/URL      │
-└─────────────┘        ACK          └──────────────────────┘
-        \_______________ rede local da escola _______________/
+CELULAR (este app, servidor)               CHROMEBOOK (extensão, cliente)
+abre porta + mostra QR  ── câmera ──────►  lê o QR
+professor digita URL                                    
+open_url (cifrado) ─────────────────────►  abre a aba
+                   ◄──────── ACK cifrado    confirma
 ```
 
-Detalhes em [`docs/arquitetura.md`](docs/arquitetura.md).
+> **Por que o celular é o servidor?** A extensão MV3 **não pode abrir porta**; só
+> faz conexões de saída. Detalhes em [`docs/arquitetura.md`](docs/arquitetura.md)
+> e [`docs/protocolo.md`](docs/protocolo.md).
 
 ## Estrutura do repositório
 
 ```
 chromebook-controller-app/
 ├── lib/
-│   ├── main.dart                 # ponto de entrada
+│   ├── main.dart
 │   └── src/
-│       ├── pairing/             # leitura do QR e geração do QR de resposta
-│       ├── webrtc/            # cliente WebRTC (papel "answerer")
-│       ├── commands/         # modelos de mensagem (protocolo)
-│       └── ui/             # telas
-├── android/             # projeto Android (org: pro.omanoloneto)
-├── test/               # testes
-├── docs/              # documentação (arquitetura, protocolo, instalação)
-├── pubspec.yaml
-└── README.md
+│       ├── server/          # control_server.dart (HttpServer), lan.dart (IP)
+│       ├── secure/         # crypto.dart (AES-256-GCM)
+│       ├── pairing/       # pairing_payload.dart (QR), pairing_controller.dart
+│       ├── commands/     # command.dart (open_url, Ack)
+│       └── ui/          # home_page.dart (mostra QR, dispara comandos)
+├── test/              # crypto_test.dart (paridade com o JS) + smoke test
+├── android/          # projeto Android (org: pro.omanoloneto)
+├── docs/            # arquitetura, protocolo, instalação
+└── pubspec.yaml
 ```
 
-> **Plataforma:** Android, com applicationId `pro.omanoloneto.controle_de_aula`.
-> Para rodar, veja [`docs/instalacao.md`](docs/instalacao.md).
+## Tecnologias
 
-## Tecnologias previstas
+- **Flutter / Dart**, `dart:io HttpServer` (servidor local)
+- [`cryptography`](https://pub.dev/packages/cryptography) — AES-256-GCM
+- [`qr_flutter`](https://pub.dev/packages/qr_flutter) — gera o QR de pareamento
 
-- **Flutter / Dart**
-- **WebRTC** via [`flutter_webrtc`](https://pub.dev/packages/flutter_webrtc)
-- **Leitura de QR** via [`mobile_scanner`](https://pub.dev/packages/mobile_scanner)
-- **Geração de QR** via [`qr_flutter`](https://pub.dev/packages/qr_flutter)
+## Rodando
 
-(Pacotes listados como pretendidos; ainda não fixados.)
+`flutter pub get` e `flutter run` (Android). Plataforma já incluída
+(`applicationId pro.omanoloneto.controle_de_aula`). Uso em
+[`docs/instalacao.md`](docs/instalacao.md).
 
 ## Roteiro
 
-- [x] Pareamento por QR code (handshake WebRTC sem servidor)
-- [x] Comando **abrir URL / nova aba** (função prioritária)
-- [x] Tela inicial com campo de URL
-- [x] Indicador de status da conexão
+- [x] Servidor local + **1 QR** de pareamento
+- [x] Transporte cifrado (AES-256-GCM) com anti-replay
+- [x] Comando **abrir URL** + status de conexão
+- [ ] *Foreground service* (servir com a tela apagada)
 - [ ] Atalhos de sites favoritos
-- [ ] Comandos futuros: bloquear/liberar tela, mensagem na tela, fechar abas
+- [ ] Comandos futuros: bloquear/liberar tela, mensagem, fechar abas
 
 ## Contribuindo
 
-Veja [`CONTRIBUTING.md`](CONTRIBUTING.md). Toda a documentação do projeto é em
-português.
+Veja [`CONTRIBUTING.md`](CONTRIBUTING.md). Documentação em português.
 
 ## Licença
 
