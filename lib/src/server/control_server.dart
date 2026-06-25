@@ -27,8 +27,6 @@ class ControlServer {
   int port = 0;
 
   final List<Map<String, dynamic>> _queue = [];
-  Completer<Map<String, dynamic>>? _heldPoll;
-  Timer? _heldTimer;
   Timer? _livenessTimer;
 
   int _serverSeq = 0; // servidor -> cliente
@@ -36,9 +34,8 @@ class ControlServer {
   DateTime? _lastPollAt;
   bool _connected = false;
 
-  static const Duration _pollHold = Duration(seconds: 25);
   static const int _tsWindowMs = 120000;
-  static const Duration _connTimeout = Duration(seconds: 35);
+  static const Duration _connTimeout = Duration(seconds: 8);
 
   /// Chamado quando o Chromebook conecta/desconecta (baseado nos polls).
   void Function(bool connected)? onConnection;
@@ -62,11 +59,6 @@ class ControlServer {
 
   Future<void> stop() async {
     _livenessTimer?.cancel();
-    _heldTimer?.cancel();
-    if (_heldPoll != null && !_heldPoll!.isCompleted) {
-      _heldPoll!.complete(_pong());
-    }
-    _heldPoll = null;
     await _server?.close(force: true);
     _server = null;
     _setConnected(false);
@@ -75,21 +67,11 @@ class ControlServer {
   /// Enfileira um comando para entregar ao Chromebook no próximo poll.
   void enqueueCommand(Map<String, dynamic> cmd) {
     _queue.add(cmd);
-    _flush();
   }
 
   // ---- internos -------------------------------------------------------------
 
   Map<String, dynamic> _pong() => {'type': 'pong'};
-
-  void _flush() {
-    if (_heldPoll != null && !_heldPoll!.isCompleted && _queue.isNotEmpty) {
-      _heldTimer?.cancel();
-      final held = _heldPoll!;
-      _heldPoll = null;
-      held.complete(_queue.removeAt(0));
-    }
-  }
 
   void _setConnected(bool v) {
     if (_connected != v) {
@@ -189,21 +171,8 @@ class ControlServer {
       return;
     }
     _markPoll();
-
-    if (_queue.isNotEmpty) {
-      await _respondSealed(req, _queue.removeAt(0));
-      return;
-    }
-
-    final completer = Completer<Map<String, dynamic>>();
-    _heldPoll = completer;
-    _heldTimer = Timer(_pollHold, () {
-      if (!completer.isCompleted) {
-        _heldPoll = null;
-        completer.complete(_pong());
-      }
-    });
-    final obj = await completer.future;
+    // Short-poll: responde na hora (comando da fila ou pong).
+    final obj = _queue.isNotEmpty ? _queue.removeAt(0) : _pong();
     await _respondSealed(req, obj);
   }
 
