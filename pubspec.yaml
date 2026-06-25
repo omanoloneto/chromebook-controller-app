@@ -11,12 +11,12 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Geração do QR de pareamento (ip/porta/chave) mostrado ao Chromebook.
-  qr_flutter: ^4.1.0
-  # Criptografia ponta-a-ponta dos comandos (AES-256-GCM).
+  # Criptografia ponta-a-ponta (AES-256-GCM) + handshake X25519/HKDF.
   cryptography: ^2.9.0
   # Utilidades de hash (HMAC/SHA-256).
   crypto: ^3.0.0
+  # Persistir o par de chaves do professor entre execuções.
+  path_provider: ^2.1.0
 
 dev_dependencies:
   flutter_test:

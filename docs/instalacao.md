@@ -39,21 +39,25 @@ flutter pub get
 flutter run
 ```
 
-## Uso
+## Uso (sem QR)
 
-1. Abra o app — ele inicia o servidor local e mostra **1 QR** (e o `ip:porta`).
-2. No **Chromebook**, abra a extensão → **Parear** → aponte a câmera para este QR.
-3. Quando o Chromebook conectar, o app mostra o campo de URL.
-4. Digite/cole uma URL e toque em **Abrir no Chromebook**.
+1. Abra o app — ele inicia o servidor local (porta 47615) e mostra o seu `ip:porta`.
+2. Os Chromebooks com a extensão **se descobrem sozinhos** e aparecem na lista
+   ("online"). O 1º professor a encontrar cada PC fica vinculado a ele (TOFU).
+3. Digite/cole uma URL → **"Abrir na turma toda"** (todos) ou toque no ícone de um
+   PC para abrir só nele.
 
-> Mantenha o app **aberto** (o servidor roda em foreground). A conexão é direta e
-> **criptografada** — a chave vai só no QR. Detalhes em [`protocolo.md`](protocolo.md).
+> Mantenha o app **aberto** (servidor em foreground). A conexão é direta e
+> **criptografada**; a chave é derivada por X25519 (nunca trafega). Detalhes em
+> [`protocolo.md`](protocolo.md).
 
 ## Problemas comuns
 
-- **Chromebook não conecta:** mesma **Wi-Fi**, **sem client isolation**. Teste
-  cru: no Chromebook, abra `http://<ip>:<porta>/` (mostrados no app) numa aba —
-  deve responder `controle-de-aula`. Se não responder, é a rede (isolamento).
-- **"Sem Wi-Fi detectado":** conecte o celular ao Wi-Fi da escola (não use só
-  dados móveis — precisa estar na mesma LAN do Chromebook).
-- **IP mudou:** se trocar de rede, o QR antigo expira; reabra o app e repareie.
+- **Nenhum PC aparece:** mesma **Wi-Fi**, **sem client isolation**. No Chromebook,
+  abra `http://<ip-do-celular>:47615/` (o `ip` aparece no app) numa aba — deve
+  responder um JSON com `"app":"controle-de-aula"`. Se não, é a rede (isolamento)
+  ou o app não está aberto.
+- **Descoberta lenta/atípica:** no popup da extensão, informe o **IP do celular**
+  manualmente.
+- **"Sem Wi-Fi detectado":** conecte o celular ao Wi-Fi da escola (não dados
+  móveis — precisa estar na mesma LAN dos Chromebooks).

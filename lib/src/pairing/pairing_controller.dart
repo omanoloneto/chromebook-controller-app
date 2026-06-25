@@ -1,45 +1,44 @@
-// Orquestra o servidor de controle e expõe o necessário para a UI.
+// Orquestra o servidor multi-cliente: carrega o par de chaves do professor,
+// inicia o servidor e expõe a lista de PCs + envio de comandos.
 
 import '../commands/command.dart';
+import '../secure/key_store.dart';
 import '../server/control_server.dart';
-import 'pairing_payload.dart';
+import '../server/session_registry.dart';
 
 class PairingController {
-  PairingController({this.deviceName = 'Celular do professor'});
+  PairingController({this.deviceName = 'Professor'});
 
   final String deviceName;
-  final ControlServer _server = ControlServer();
+  ControlServer? _server;
 
-  /// Texto do QR de pareamento (null até o servidor iniciar).
-  String? qrPayload;
+  /// Notifica a UI quando a lista de PCs muda.
+  void Function()? onChange;
 
-  void Function(bool connected)? onConnection;
-  void Function(Ack ack)? onAck;
-
-  String? get ip => _server.ip;
-  int get port => _server.port;
-  bool get isConnected => _server.isConnected;
-
-  /// Inicia o servidor e prepara o QR.
   Future<void> start() async {
-    _server.onConnection = (c) => onConnection?.call(c);
-    _server.onAck = (m) {
-      final a = Ack.fromMap(m);
-      if (a != null) onAck?.call(a);
-    };
-    await _server.start();
-    qrPayload = buildPairingQr(
-      ip: _server.ip ?? '0.0.0.0',
-      port: _server.port,
-      key: _server.key,
-      name: deviceName,
-    );
+    final teacher = await KeyStore.loadOrCreate();
+    final server = ControlServer(teacher: teacher, deviceName: deviceName);
+    server.registry.onChange = () => onChange?.call();
+    await server.start();
+    _server = server;
   }
 
-  /// Dispara o comando para abrir uma URL no Chromebook.
-  void sendOpenUrl(String url, {bool newTab = true}) {
-    _server.enqueueCommand(buildOpenUrl(url, newTab: newTab));
+  String? get ip => _server?.ip;
+  int get port => _server?.port ?? 0;
+
+  List<PcSession> get pcs => _server?.registry.all ?? const [];
+
+  bool isOnline(PcSession s) => s.online(DateTime.now());
+
+  /// Abre uma URL em TODOS os PCs (turma toda).
+  void abrirEmTodos(String url) {
+    _server?.registry.enqueueAll(buildOpenUrl(url));
   }
 
-  Future<void> stop() => _server.stop();
+  /// Abre uma URL em um PC específico.
+  void abrirEm(String deviceId, String url) {
+    _server?.registry.enqueueOne(deviceId, buildOpenUrl(url));
+  }
+
+  Future<void> stop() => _server?.stop() ?? Future.value();
 }
