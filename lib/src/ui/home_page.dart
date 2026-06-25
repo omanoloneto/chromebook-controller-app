@@ -166,6 +166,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _vazio() {
+    final ips = _pairing.ips.isNotEmpty ? _pairing.ips : ['?'];
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -175,13 +176,30 @@ class _HomePageState extends State<HomePage> {
             const Icon(Icons.devices_other, size: 56, color: Colors.grey),
             const SizedBox(height: 12),
             const Text(
-              'Procurando PCs na rede…\nAbra um Chromebook com a extensão instalada na mesma Wi-Fi.',
+              'Procurando PCs na rede…\n'
+              'Abra um Chromebook com a extensão na mesma Wi-Fi.',
               textAlign: TextAlign.center,
             ),
+            const SizedBox(height: 16),
+            const Text(
+              'Endereços deste celular (porta 47615):',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+            const SizedBox(height: 4),
+            for (final ip in ips)
+              SelectableText(
+                '$ip:47615',
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             const SizedBox(height: 12),
-            Text(
-              'Este celular: ${_pairing.ip}:${_pairing.port}',
-              style: const TextStyle(fontFamily: 'monospace', color: Colors.grey),
+            const Text(
+              'Se não aparecer sozinho, abra o popup da extensão e digite um '
+              'destes IPs.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey),
             ),
           ],
         ),

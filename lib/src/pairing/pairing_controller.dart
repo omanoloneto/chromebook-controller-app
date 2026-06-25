@@ -24,6 +24,7 @@ class PairingController {
   }
 
   String? get ip => _server?.ip;
+  List<String> get ips => _server?.ips ?? const [];
   int get port => _server?.port ?? 0;
 
   List<PcSession> get pcs => _server?.registry.all ?? const [];

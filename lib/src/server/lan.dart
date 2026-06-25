@@ -37,3 +37,18 @@ Future<String?> descobrirIpLan() async {
   }
   return fallback;
 }
+
+/// Todos os IPv4 privados do celular (para o teste cru / IP manual).
+Future<List<String>> descobrirIpsLan() async {
+  final interfaces = await NetworkInterface.list(
+    type: InternetAddressType.IPv4,
+    includeLoopback: false,
+  );
+  final out = <String>[];
+  for (final iface in interfaces) {
+    for (final addr in iface.addresses) {
+      if (_isPrivate(addr.address)) out.add(addr.address);
+    }
+  }
+  return out;
+}

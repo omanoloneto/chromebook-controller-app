@@ -28,12 +28,14 @@ class ControlServer {
 
   HttpServer? _server;
   String? ip;
+  List<String> ips = const [];
   int port = kFixedPort;
 
   static const int _tsWindowMs = 120000;
 
   Future<void> start() async {
     ip = await descobrirIpLan();
+    ips = await descobrirIpsLan();
     _server = await HttpServer.bind(InternetAddress.anyIPv4, kFixedPort);
     port = _server!.port;
     _server!.listen(_handle, onError: (_) {});
