@@ -51,14 +51,15 @@ chromebook-controller-app/
 │       ├── webrtc/            # cliente WebRTC (papel "answerer")
 │       ├── commands/         # modelos de mensagem (protocolo)
 │       └── ui/             # telas
-├── docs/                 # documentação (arquitetura, protocolo, instalação)
+├── android/             # projeto Android (org: pro.omanoloneto)
+├── test/               # testes
+├── docs/              # documentação (arquitetura, protocolo, instalação)
 ├── pubspec.yaml
 └── README.md
 ```
 
-> Os diretórios de plataforma (`android/`, `ios/`, etc.) ainda **não** foram
-> gerados. Veja [`docs/instalacao.md`](docs/instalacao.md) para criar o projeto
-> Flutter sobre este esqueleto.
+> **Plataforma:** Android, com applicationId `pro.omanoloneto.controle_de_aula`.
+> Para rodar, veja [`docs/instalacao.md`](docs/instalacao.md).
 
 ## Tecnologias previstas
 

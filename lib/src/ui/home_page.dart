@@ -34,11 +34,11 @@ class HomePage extends StatelessWidget {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
+      floatingActionButton: const FloatingActionButton.extended(
         // TODO: iniciar o pareamento (abrir câmera para ler o QR #1).
         onPressed: null,
-        icon: const Icon(Icons.qr_code_scanner),
-        label: const Text('Parear'),
+        icon: Icon(Icons.qr_code_scanner),
+        label: Text('Parear'),
       ),
     );
   }

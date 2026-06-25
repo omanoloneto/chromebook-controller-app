@@ -1,5 +1,5 @@
 name: controle_de_aula
-description: Controle remoto do Chromebook do professor (app do celular). Função inicial: enviar URL/abrir aba via WebRTC na rede local.
+description: "Controle remoto do Chromebook do professor (app do celular). Função inicial: enviar URL/abrir aba via WebRTC na rede local."
 publish_to: "none"
 version: 0.1.0+1
 

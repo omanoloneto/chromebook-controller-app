@@ -6,7 +6,7 @@
 build/
 .flutter-plugins
 .flutter-plugins-dependencies
-pubspec.lock
+# pubspec.lock é versionado (projeto de aplicativo, não pacote).
 
 # IDEs
 .idea/

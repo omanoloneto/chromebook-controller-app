@@ -10,18 +10,18 @@
 - Android Studio ou apenas o Android SDK + um celular/emulador Android.
 - Este repositório clonado.
 
-## Gerando os arquivos de plataforma
+## Plataforma Android
 
-Este repositório versiona apenas `lib/`, `docs/` e a configuração. Os diretórios
-de plataforma (`android/`, etc.) **não** estão versionados. Para criá-los sobre
-o esqueleto, na raiz do projeto rode:
+O projeto **já inclui** a pasta `android/`, gerada com a organização
+`pro.omanoloneto` (applicationId `pro.omanoloneto.controle_de_aula`). Não é
+preciso gerar nada.
+
+Se algum dia precisar **regenerar** os arquivos de plataforma (ou adicionar
+outra, como iOS), rode na raiz — o comando **não apaga** o que existe em `lib/`:
 
 ```bash
-flutter create --org com.omanoloneto --project-name controle_de_aula .
+flutter create --org pro.omanoloneto --project-name controle_de_aula --platforms=android .
 ```
-
-> O comando preenche `android/`, `ios/`, etc., **sem apagar** o que já existe em
-> `lib/`. Depois, confira o `pubspec.yaml` (já incluído aqui).
 
 ## Instalando as dependências
 
