@@ -25,7 +25,9 @@ import 'students_store.dart';
 class PairingController extends ChangeNotifier {
   PairingController({this.deviceName = 'Professor'});
 
-  final String deviceName;
+  /// Nome do professor (popup da extensão). Alterável em Ajustes.
+  String deviceName;
+
   FirebaseTransport? _transport;
   NameStore? _names;
   RulesStore? _rules;
@@ -36,34 +38,68 @@ class PairingController extends ChangeNotifier {
   int _ultimoOnline = -1;
   String? _wallpaperHash;
 
+  /// Estado de inicialização (a UI observa; start() não lança).
+  bool iniciando = true;
+  String? erroDeConexao;
+
   Future<void> start() async {
-    final teacher = await KeyStore.loadOrCreate();
-    _names = await NameStore.load();
-    _rules = await RulesStore.load();
-    _favorites = await FavoritesStore.load();
-    _students = await StudentsStore.load();
-    _session = await ClassSessionStore.load();
+    if (_transport != null) return; // idempotente (retry não duplica listeners)
+    try {
+      final teacher = await KeyStore.loadOrCreate();
+      _names = await NameStore.load();
+      _rules = await RulesStore.load();
+      _favorites = await FavoritesStore.load();
+      _students = await StudentsStore.load();
+      _session = await ClassSessionStore.load();
 
-    // Auth anônima: o uid identifica este professor nas Security Rules.
-    // Persiste entre execuções; some só se o app for reinstalado (recovery:
-    // aluno desvincula pelo popup e re-escaneia).
-    final auth = FirebaseAuth.instance;
-    final user = auth.currentUser ?? (await auth.signInAnonymously()).user;
-    if (user == null) {
-      throw StateError('auth_anonima_falhou');
+      // Auth anônima: o uid identifica este professor nas Security Rules.
+      // Persiste entre execuções; some só se o app for reinstalado (recovery:
+      // aluno desvincula pelo popup e re-escaneia).
+      final auth = FirebaseAuth.instance;
+      final user = auth.currentUser ?? (await auth.signInAnonymously()).user;
+      if (user == null) {
+        throw StateError('auth_anonima_falhou');
+      }
+
+      final transport = FirebaseTransport(
+        teacher: teacher,
+        teacherUid: user.uid,
+        teacherName: deviceName,
+      );
+      transport.comandosDeEstado = _comandosDeEstado;
+      transport.registry.onChange = _scheduleNotify;
+      transport.registry.avaliarAlerta = _avaliarAlerta;
+      await transport.start();
+      _transport = transport;
+      await iniciarServicoAula();
+      erroDeConexao = null;
+    } catch (e) {
+      // Só erros de config/auth chegam aqui; queda de rede transitória o
+      // FlutterFire reconecta sozinho.
+      erroDeConexao = 'Não foi possível conectar ao Firebase: $e\n'
+          'Verifique a internet do celular.';
+    } finally {
+      iniciando = false;
+      notifyListeners();
     }
+  }
 
-    final transport = FirebaseTransport(
-      teacher: teacher,
-      teacherUid: user.uid,
-      teacherName: deviceName,
-    );
-    transport.comandosDeEstado = _comandosDeEstado;
-    transport.registry.onChange = _scheduleNotify;
-    transport.registry.avaliarAlerta = _avaliarAlerta;
-    await transport.start();
-    _transport = transport;
-    await iniciarServicoAula();
+  /// Retry manual após erro de inicialização.
+  Future<void> tentarNovamente() async {
+    if (_transport != null) return;
+    iniciando = true;
+    erroDeConexao = null;
+    notifyListeners();
+    await start();
+  }
+
+  /// Atualiza o nome exibido no popup da extensão (vale para os PRÓXIMOS
+  /// pareamentos; PCs já pareados mantêm o nome antigo até re-parear).
+  void atualizarNomeProfessor(String nome) {
+    final n = nome.trim();
+    deviceName = n.isEmpty ? 'Professor' : n;
+    _transport?.teacherName = deviceName;
+    notifyListeners();
   }
 
   // Comandos de estado vigentes (gravados em state/* a cada pareamento):

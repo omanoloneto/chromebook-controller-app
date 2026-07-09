@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../pairing/pairing_controller.dart';
+import 'theme.dart';
 
 class ScanPage extends StatefulWidget {
   const ScanPage({super.key, required this.pairing});
@@ -49,18 +50,26 @@ class _ScanPageState extends State<ScanPage> {
     if (!mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
+    final scheme = Theme.of(context).colorScheme;
+    final c = cores(context);
     messenger.hideCurrentSnackBar();
     if (erro == null) {
       setState(() => _pareados++);
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('✅ PC pareado! Pode escanear o próximo.'),
-          backgroundColor: Color(0xFF00897B),
+        SnackBar(
+          content: Text(
+            '✅ PC pareado! Pode escanear o próximo.',
+            style: TextStyle(color: c.onOnline),
+          ),
+          backgroundColor: c.online,
         ),
       );
     } else {
       messenger.showSnackBar(
-        SnackBar(content: Text(erro), backgroundColor: Colors.red.shade700),
+        SnackBar(
+          content: Text(erro, style: TextStyle(color: scheme.onError)),
+          backgroundColor: scheme.error,
+        ),
       );
     }
   }
@@ -87,6 +96,8 @@ class _ScanPageState extends State<ScanPage> {
           MobileScanner(controller: _scanner, onDetect: _onDetect),
           Align(
             alignment: Alignment.bottomCenter,
+            // black54/white de propósito: o overlay fica sobre o feed da
+            // câmera (sempre "escuro"), independe do tema claro/escuro.
             child: Container(
               width: double.infinity,
               color: Colors.black54,

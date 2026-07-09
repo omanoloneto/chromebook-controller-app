@@ -49,7 +49,9 @@ lib/src/
 ├── pairing/   # pairing_controller.dart (orquestra), name/rules/favorites stores
 ├── commands/  # command.dart (open_url, close_tabs, ...), domain_rules.dart
 ├── service/   # foreground_service.dart (conexão viva com a tela apagada)
-└── ui/        # home_page, scan_page (QR), device_page, rules_page, favorites_page
+└── ui/        # theme.dart (claro/escuro), app_shell (4 abas), aula_page,
+               # students_page, sites_page (favoritos+regras), settings_page,
+               # device_page, scan_page (QR)
 firebase/      # database.rules.json (Security Rules, canônico) + emuladores
 test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 ```

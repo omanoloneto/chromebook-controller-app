@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 
 import '../pairing/pairing_controller.dart';
+import 'theme.dart';
 
 /// Domínio de uma URL para exibição compacta ("pt.khanacademy.org").
 String dominioDe(String url) {
@@ -251,10 +252,22 @@ class _DevicePageState extends State<DevicePage> {
               nome,
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.link_off),
-            tooltip: 'Esquecer este PC',
-            onPressed: () => _confirmarEsquecer(nome),
+          // Ação destrutiva fora da barra: evita toque acidental.
+          PopupMenuButton<String>(
+            tooltip: 'Mais opções',
+            onSelected: (v) {
+              if (v == 'esquecer') _confirmarEsquecer(nome);
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'esquecer',
+                child: ListTile(
+                  leading: Icon(Icons.link_off),
+                  title: Text('Esquecer este PC'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -266,14 +279,19 @@ class _DevicePageState extends State<DevicePage> {
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.red.shade50,
-                borderRadius: BorderRadius.circular(8),
+                color: cores(context).alertaBg,
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.warning_amber, color: Colors.red),
+                  Icon(Icons.warning_amber, color: cores(context).alertaFg),
                   const SizedBox(width: 8),
-                  Expanded(child: Text('Alerta: aba de ${s.alerta} aberta')),
+                  Expanded(
+                    child: Text(
+                      'Alerta: aba de ${s.alerta} aberta',
+                      style: TextStyle(color: cores(context).alertaFg),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -282,14 +300,16 @@ class _DevicePageState extends State<DevicePage> {
               Icon(
                 Icons.circle,
                 size: 12,
-                color: on ? const Color(0xFF00897B) : Colors.grey,
+                color: on ? cores(context).online : cores(context).offline,
               ),
               const SizedBox(width: 8),
               Text(on ? 'online' : 'offline'),
               const Spacer(),
               Text(
                 _atualizadoHa(s.lastReportAt),
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
               ),
             ],
           ),
@@ -307,24 +327,33 @@ class _DevicePageState extends State<DevicePage> {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed: _liberarSites,
-              icon: const Icon(Icons.lock_open),
-              label: Text(
-                widget.pairing.liberacoesDe(widget.deviceId).isEmpty
-                    ? 'Liberar sites para este PC (nesta aula)'
-                    : 'Sites liberados: '
-                        '${widget.pairing.liberacoesDe(widget.deviceId).length} '
-                        '(toque para gerenciar)',
-              ),
-            ),
           ],
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: on ? _confirmarFecharTudo : null,
-            icon: const Icon(Icons.tab_unselected),
-            label: const Text('Fechar todas as abas deste PC'),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (widget.pairing.aulaAtiva) ...[
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: _liberarSites,
+                    icon: const Icon(Icons.lock_open),
+                    label: Text(
+                      widget.pairing.liberacoesDe(widget.deviceId).isEmpty
+                          ? 'Liberar sites'
+                          : 'Liberados: '
+                              '${widget.pairing.liberacoesDe(widget.deviceId).length}',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: on ? _confirmarFecharTudo : null,
+                  icon: const Icon(Icons.tab_unselected),
+                  label: const Text('Fechar abas'),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           Text('Aba ativa', style: Theme.of(context).textTheme.titleMedium),
@@ -366,7 +395,9 @@ class _DevicePageState extends State<DevicePage> {
               dense: true,
               leading: Icon(
                 t.active ? Icons.tab : Icons.tab_unselected,
-                color: t.active ? const Color(0xFF00897B) : Colors.grey,
+                color: t.active
+                    ? cores(context).online
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               title: Text(
                 t.title.isEmpty ? '(sem título)' : t.title,
@@ -374,18 +405,32 @@ class _DevicePageState extends State<DevicePage> {
                 overflow: TextOverflow.ellipsis,
               ),
               subtitle: Text(dominioDe(t.url)),
+              // Long-press = atalho; o menu ⋮ é a affordance visível.
               onLongPress: () => _fecharPorDominio(t.url),
-              trailing: IconButton(
-                icon: const Icon(Icons.close),
-                tooltip: 'Fechar esta aba',
-                onPressed: () {
-                  widget.pairing.fecharAbaEm(widget.deviceId, t.url);
-                  ScaffoldMessenger.of(context)
-                    ..hideCurrentSnackBar()
-                    ..showSnackBar(
-                      const SnackBar(content: Text('Fechando a aba…')),
-                    );
+              trailing: PopupMenuButton<String>(
+                tooltip: 'Opções da aba',
+                onSelected: (v) {
+                  if (v == 'aba') {
+                    widget.pairing.fecharAbaEm(widget.deviceId, t.url);
+                    ScaffoldMessenger.of(context)
+                      ..hideCurrentSnackBar()
+                      ..showSnackBar(
+                        const SnackBar(content: Text('Fechando a aba…')),
+                      );
+                  } else if (v == 'dominio') {
+                    _fecharPorDominio(t.url);
+                  }
                 },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                    value: 'aba',
+                    child: Text('Fechar esta aba'),
+                  ),
+                  PopupMenuItem(
+                    value: 'dominio',
+                    child: Text('Fechar todas de ${dominioDe(t.url)}'),
+                  ),
+                ],
               ),
             ),
           const SizedBox(height: 16),

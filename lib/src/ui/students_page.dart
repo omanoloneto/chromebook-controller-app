@@ -72,7 +72,7 @@ class _StudentsPageState extends State<StudentsPage> {
   Widget build(BuildContext context) {
     final turmas = widget.pairing.turmas;
     return Scaffold(
-      appBar: AppBar(title: const Text('Turmas e alunos')),
+      appBar: AppBar(title: const Text('Turmas')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _dialogoTurma(),
         icon: const Icon(Icons.add),
@@ -100,10 +100,13 @@ class _StudentsPageState extends State<StudentsPage> {
                   key: ValueKey('turma|${t.nome}'),
                   direction: DismissDirection.endToStart,
                   background: Container(
-                    color: Colors.red.shade400,
+                    color: Theme.of(context).colorScheme.error,
                     alignment: Alignment.centerRight,
                     padding: const EdgeInsets.only(right: 16),
-                    child: const Icon(Icons.delete, color: Colors.white),
+                    child: Icon(
+                      Icons.delete,
+                      color: Theme.of(context).colorScheme.onError,
+                    ),
                   ),
                   confirmDismiss: (_) => showDialog<bool>(
                     context: context,
@@ -252,10 +255,13 @@ class _AlunosPageState extends State<_AlunosPage> {
                   key: ValueKey('aluno|$aluno'),
                   direction: DismissDirection.endToStart,
                   background: Container(
-                    color: Colors.red.shade400,
+                    color: Theme.of(context).colorScheme.error,
                     alignment: Alignment.centerRight,
                     padding: const EdgeInsets.only(right: 16),
-                    child: const Icon(Icons.delete, color: Colors.white),
+                    child: Icon(
+                      Icons.delete,
+                      color: Theme.of(context).colorScheme.onError,
+                    ),
                   ),
                   onDismissed: (_) =>
                       widget.pairing.removerAluno(widget.turmaIndice, i),

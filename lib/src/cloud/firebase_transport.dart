@@ -24,7 +24,11 @@ class FirebaseTransport {
 
   final DeviceKeyPair teacher;
   final String teacherUid;
-  final String teacherName;
+
+  /// Nome exibido no popup da extensão. Mutável: renomear em Ajustes vale
+  /// para os PRÓXIMOS pareamentos (o bind existente não é reescrito).
+  String teacherName;
+
   final FirebaseDatabase _db;
 
   final SessionRegistry registry = SessionRegistry();
