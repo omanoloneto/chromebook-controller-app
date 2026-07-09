@@ -118,6 +118,56 @@ class _DevicePageState extends State<DevicePage> {
     return 'Atualizado há ${s ~/ 60}min';
   }
 
+  // Liberar/revogar padrões bloqueados só para este PC, só nesta aula.
+  Future<void> _liberarSites() async {
+    final padroes = widget.pairing.padroesBloqueio;
+    if (padroes.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          const SnackBar(content: Text('Nenhum site bloqueado nas regras.')),
+        );
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final liberados = widget.pairing.liberacoesDe(widget.deviceId);
+          return SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                const ListTile(
+                  title: Text('Liberar sites para este PC'),
+                  subtitle: Text('Vale só até o fim da aula.'),
+                ),
+                const Divider(height: 1),
+                for (final p in padroes)
+                  SwitchListTile(
+                    title: Text(p),
+                    subtitle: Text(
+                      liberados.contains(p) ? 'LIBERADO nesta aula' : 'bloqueado',
+                    ),
+                    value: liberados.contains(p),
+                    onChanged: (ligar) async {
+                      if (ligar) {
+                        await widget.pairing.liberarPara(widget.deviceId, p);
+                      } else {
+                        await widget.pairing
+                            .revogarLiberacao(widget.deviceId, p);
+                      }
+                      setSheet(() {});
+                    },
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _confirmarFecharTudo() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -256,6 +306,18 @@ class _DevicePageState extends State<DevicePage> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: _liberarSites,
+              icon: const Icon(Icons.lock_open),
+              label: Text(
+                widget.pairing.liberacoesDe(widget.deviceId).isEmpty
+                    ? 'Liberar sites para este PC (nesta aula)'
+                    : 'Sites liberados: '
+                        '${widget.pairing.liberacoesDe(widget.deviceId).length} '
+                        '(toque para gerenciar)',
+              ),
             ),
           ],
           const SizedBox(height: 8),

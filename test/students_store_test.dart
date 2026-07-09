@@ -119,6 +119,28 @@ void main() {
       expect(s.vinculos, isEmpty);
       expect(s.turma, 'B');
     });
+
+    test('liberações: liberar/revogar persistem; encerrar limpa', () async {
+      var s = await ClassSessionStore.load(dir: tmp);
+      await s.liberar('pc1', 'youtube.com'); // sem aula = no-op
+      expect(s.excecoesDe('pc1'), isEmpty);
+
+      await s.iniciar('A');
+      await s.liberar('pc1', 'youtube.com');
+      await s.liberar('pc1', 'reddit.com/r/games');
+      await s.liberar('pc2', 'youtube.com');
+      await s.revogar('pc1', 'reddit.com/r/games');
+
+      s = await ClassSessionStore.load(dir: tmp); // persiste
+      expect(s.excecoesDe('pc1'), {'youtube.com'});
+      expect(s.excecoesDe('pc2'), {'youtube.com'});
+      expect(s.devicesComExcecao.toSet(), {'pc1', 'pc2'});
+      expect(s.excecoesDe('pc3'), isEmpty);
+
+      await s.encerrar();
+      s = await ClassSessionStore.load(dir: tmp);
+      expect(s.devicesComExcecao, isEmpty);
+    });
   });
 
   group('buildCloseAllTabs', () {

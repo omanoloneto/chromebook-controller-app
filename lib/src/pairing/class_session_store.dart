@@ -19,6 +19,8 @@ class ClassSessionStore {
   String _turma = '';
   int _inicio = 0;
   final Map<String, String> _vinculos = {}; // deviceId -> aluno
+  // Liberações de bloqueio desta aula: deviceId -> padrões liberados.
+  final Map<String, Set<String>> _excecoes = {};
 
   /// `dir` é injetável para testes; por padrão usa o diretório do app.
   static Future<ClassSessionStore> load({Directory? dir}) async {
@@ -39,6 +41,15 @@ class ClassSessionStore {
               }
             });
           }
+          final e = decoded['excecoes'];
+          if (e is Map) {
+            e.forEach((k, val) {
+              if (k is String && val is List) {
+                final padroes = val.whereType<String>().toSet();
+                if (padroes.isNotEmpty) store._excecoes[k] = padroes;
+              }
+            });
+          }
         }
       } catch (_) {
         // arquivo corrompido -> sem aula ativa
@@ -54,11 +65,34 @@ class ClassSessionStore {
 
   String? alunoDe(String deviceId) => _vinculos[deviceId];
 
+  /// Padrões de bloqueio liberados para um PC nesta aula.
+  Set<String> excecoesDe(String deviceId) =>
+      Set.unmodifiable(_excecoes[deviceId] ?? const {});
+
+  /// PCs com alguma liberação ativa.
+  List<String> get devicesComExcecao => _excecoes.keys.toList();
+
   Future<void> iniciar(String turma) async {
     _ativa = true;
     _turma = turma;
     _inicio = DateTime.now().millisecondsSinceEpoch;
     _vinculos.clear();
+    _excecoes.clear();
+    await _save();
+  }
+
+  /// Libera um padrão de bloqueio para um PC (só durante esta aula).
+  Future<void> liberar(String deviceId, String pattern) async {
+    if (!_ativa) return;
+    (_excecoes[deviceId] ??= {}).add(pattern);
+    await _save();
+  }
+
+  /// Revoga a liberação (o bloqueio volta a valer).
+  Future<void> revogar(String deviceId, String pattern) async {
+    final s = _excecoes[deviceId];
+    if (s == null || !s.remove(pattern)) return;
+    if (s.isEmpty) _excecoes.remove(deviceId);
     await _save();
   }
 
@@ -79,6 +113,7 @@ class ClassSessionStore {
     _turma = '';
     _inicio = 0;
     _vinculos.clear();
+    _excecoes.clear();
     await _save();
   }
 
@@ -89,6 +124,7 @@ class ClassSessionStore {
         'turma': _turma,
         'inicio': _inicio,
         'vinculos': _vinculos,
+        'excecoes': _excecoes.map((k, v) => MapEntry(k, v.toList())),
       }),
     );
   }

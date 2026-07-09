@@ -113,7 +113,7 @@ void main() {
 
     test('applyReport seta e limpa o alerta via avaliarAlerta', () {
       final reg = SessionRegistry();
-      reg.avaliarAlerta = (tabs) {
+      reg.avaliarAlerta = (deviceId, tabs) {
         for (final t in tabs) {
           if (regraCasa('youtube.com', t.url)) return Uri.parse(t.url).host;
         }

@@ -56,8 +56,9 @@ class SessionRegistry {
   void Function()? onChange;
 
   /// Avalia as abas de um relatório e retorna o domínio em alerta (ou null).
-  /// Injetado pelo PairingController (que conhece as regras).
-  String? Function(List<TabInfo> tabs)? avaliarAlerta;
+  /// Injetado pelo PairingController (que conhece as regras e as liberações
+  /// por PC da aula ativa — por isso recebe o deviceId).
+  String? Function(String deviceId, List<TabInfo> tabs)? avaliarAlerta;
 
   PcSession? byId(String deviceId) => _byId[deviceId];
 
@@ -110,7 +111,7 @@ class SessionRegistry {
     s.tabs = r.tabs;
     s.lastReportAt = reportAt ?? DateTime.now();
     // Recalcula a cada relatório: o alerta some sozinho quando a aba fecha.
-    s.alerta = avaliarAlerta?.call(s.tabs);
+    s.alerta = avaliarAlerta?.call(deviceId, s.tabs);
     if (r.events.isNotEmpty) {
       final vistos = <String>{
         for (final e in s.history) '${e.ts}|${e.url}',

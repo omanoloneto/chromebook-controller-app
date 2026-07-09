@@ -67,24 +67,45 @@ class PairingController extends ChangeNotifier {
   }
 
   // Comandos de estado vigentes (gravados em state/* a cada pareamento):
-  // set_rules SEMPRE (mesmo vazio, para limpar regras antigas no cliente);
+  // set_rules SEMPRE (mesmo vazio, para limpar regras antigas no cliente),
+  // já descontando as liberações da aula para AQUELE PC;
   // set_wallpaper se houver imagem publicada.
-  List<Map<String, dynamic>> _comandosDeEstado() {
-    final rules = _rules;
+  List<Map<String, dynamic>> _comandosDeEstado(String deviceId) {
     return [
-      if (rules != null) buildSetRules(rules.regras, rev: rules.rev),
+      if (_rules != null)
+        buildSetRules(_regrasParaDevice(deviceId), rev: _proximoRev()),
       if (_wallpaperHash != null) buildSetWallpaper(_wallpaperHash!),
     ];
   }
 
+  /// Regras válidas para um PC = regras da casa − liberações desta aula.
+  List<DomainRule> _regrasParaDevice(String deviceId) {
+    final regras = _rules?.regras ?? const <DomainRule>[];
+    final liberados = _session?.excecoesDe(deviceId) ?? const <String>{};
+    if (liberados.isEmpty) return regras;
+    return regras.where((r) => !liberados.contains(r.pattern)).toList();
+  }
+
+  // O guard do cliente exige rev estritamente crescente; como o snapshot de
+  // um PC muda também por liberação (não só por edição das regras), cada
+  // distribuição usa um rev novo e monotônico.
+  int _ultimoRev = 0;
+  int _proximoRev() {
+    final agora = DateTime.now().millisecondsSinceEpoch;
+    _ultimoRev = agora > _ultimoRev ? agora : _ultimoRev + 1;
+    return _ultimoRev;
+  }
+
   // Domínio da primeira aba que casa regra `alert` OU `block` (aba bloqueada
-  // ainda aberta = enforcement falhou — o professor precisa ver).
-  String? _avaliarAlerta(List<TabInfo> tabs) {
+  // ainda aberta = enforcement falhou — o professor precisa ver). Padrões
+  // liberados para o PC nesta aula não geram alerta.
+  String? _avaliarAlerta(String deviceId, List<TabInfo> tabs) {
     final regras = _rules?.regras;
     if (regras == null || regras.isEmpty) return null;
+    final liberados = _session?.excecoesDe(deviceId) ?? const <String>{};
     for (final t in tabs) {
       final r = acharRegra(regras, t.url);
-      if (r != null) {
+      if (r != null && !liberados.contains(r.pattern)) {
         try {
           return Uri.parse(t.url).host;
         } catch (_) {
@@ -270,11 +291,16 @@ class PairingController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Encerra a aula: fecha o NAVEGADOR (todas as janelas) em todos os PCs e
-  /// limpa os vínculos aluno↔PC desta sessão.
+  /// Encerra a aula: fecha o NAVEGADOR (todas as janelas) em todos os PCs,
+  /// limpa os vínculos aluno↔PC e derruba as liberações (o bloqueio integral
+  /// volta a valer nos PCs que tinham exceção).
   Future<void> encerrarAula() async {
     await _transport?.sendToAll(buildCloseAllTabs(closeWindows: true));
+    final comExcecao = _session?.devicesComExcecao ?? const <String>[];
     await _session?.encerrar();
+    for (final deviceId in comExcecao) {
+      _distribuirRegrasPara(deviceId); // snapshot volta ao completo
+    }
     notifyListeners();
   }
 
@@ -298,9 +324,46 @@ class PairingController extends ChangeNotifier {
   }
 
   void _distribuirRegras() {
-    final rules = _rules;
-    if (rules == null) return;
-    _transport?.setStateAll(buildSetRules(rules.regras, rev: rules.rev));
+    final transport = _transport;
+    if (_rules == null || transport == null) return;
+    // Snapshot por PC: liberações da aula variam por device.
+    for (final s in transport.registry.all) {
+      _distribuirRegrasPara(s.deviceId);
+    }
+    notifyListeners();
+  }
+
+  void _distribuirRegrasPara(String deviceId) {
+    _transport?.setStateOne(
+      deviceId,
+      buildSetRules(_regrasParaDevice(deviceId), rev: _proximoRev()),
+    );
+  }
+
+  // ---- Liberações por PC (valem só durante a aula) --------------------------------
+
+  /// Padrões de bloqueio liberados para um PC nesta aula.
+  Set<String> liberacoesDe(String deviceId) =>
+      _session?.excecoesDe(deviceId) ?? const {};
+
+  /// Padrões de bloqueio cadastrados (candidatos a liberação).
+  List<String> get padroesBloqueio => [
+        for (final r in regras)
+          if (r.action == RuleAction.block) r.pattern,
+      ];
+
+  /// Libera um padrão bloqueado para UM PC até o fim da aula.
+  Future<void> liberarPara(String deviceId, String pattern) async {
+    if (!aulaAtiva) return;
+    await _session?.liberar(deviceId, pattern);
+    _distribuirRegrasPara(deviceId);
+    notifyListeners();
+  }
+
+  /// Revoga a liberação (o bloqueio volta a valer na hora).
+  Future<void> revogarLiberacao(String deviceId, String pattern) async {
+    await _session?.revogar(deviceId, pattern);
+    _distribuirRegrasPara(deviceId);
     notifyListeners();
   }
 

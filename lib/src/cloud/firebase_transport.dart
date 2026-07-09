@@ -30,8 +30,9 @@ class FirebaseTransport {
   final SessionRegistry registry = SessionRegistry();
 
   /// Chamado ao (re)parear um PC — devolve os comandos de estado vigentes
-  /// (set_rules sempre; set_wallpaper se houver). Injetado pelo controller.
-  List<Map<String, dynamic>> Function()? comandosDeEstado;
+  /// PARA AQUELE PC (set_rules sempre — pode variar por liberações da aula;
+  /// set_wallpaper se houver). Injetado pelo controller.
+  List<Map<String, dynamic>> Function(String deviceId)? comandosDeEstado;
 
   // Época de sessão (anti-replay): amostrada 1x por vida do processo.
   final int _sid = DateTime.now().millisecondsSinceEpoch;
@@ -98,7 +99,7 @@ class FirebaseTransport {
     if (!_deviceSubs.containsKey(qr.deviceId)) _attach(qr.deviceId);
 
     // Estado vigente (regras/wallpaper) — o PC atrasado lê state/* ao conectar.
-    for (final cmd in comandosDeEstado?.call() ?? const []) {
+    for (final cmd in comandosDeEstado?.call(qr.deviceId) ?? const []) {
       await setStateOne(qr.deviceId, cmd);
     }
   }
