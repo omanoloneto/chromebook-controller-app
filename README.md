@@ -1,32 +1,39 @@
 # Controle de Aula — App (controle no celular)
 
-App **Flutter** (Android) que vira um **servidor local** e **reconhece
-automaticamente** os Chromebooks da rede que têm a extensão — listando-os para o
-professor controlar. Faz parte do projeto **Controle de Aula**:
+App **Flutter** (Android) do professor: pareia Chromebooks por **QR** e os
+controla via **Firebase Realtime Database**, com **criptografia ponta-a-ponta**
+— funciona mesmo com os aparelhos em **redes Wi-Fi diferentes**. Faz parte do
+projeto **Controle de Aula**:
 
 | Componente | Repositório | Papel |
 |------------|-------------|-------|
-| **App de controle** (este repo) | `chromebook-controller-app` | **Servidor** no celular Android |
-| **Extensão** | [`chromebook-controller-extension`](https://github.com/omanoloneto/chromebook-controller-extension) | **Cliente** no Chromebook |
+| **App de controle** (este repo) | `chromebook-controller-app` | Celular do professor |
+| **Extensão** | [`chromebook-controller-extension`](https://github.com/omanoloneto/chromebook-controller-extension) | Cliente no Chromebook |
 
-> ⚠️ **Status:** em desenvolvimento. Servidor multi-cliente, vínculo TOFU e o
-> comando **abrir URL** já implementados (handshake/cripto validados em teste).
-> Conexão real entre 2 aparelhos ainda não testada em campo.
+> ⚠️ **Status:** em desenvolvimento. Protocolo v4 (Firebase) implementado nos
+> dois lados; conexão real entre 2 aparelhos ainda não testada em campo.
 
-## Como funciona (sem QR)
+## Como funciona (pareamento por QR)
 
-- O **app roda um servidor HTTP** local (porta fixa 47615) e publica um **banner**.
-- Os **Chromebooks (extensão) se descobrem** sozinhos, **vinculam-se** (TOFU) e
-  aparecem na **lista** do app.
+- Cada Chromebook (extensão) exibe um **QR**; o professor **escaneia com o
+  app** (1x por PC). O vínculo é **exclusivo** (TOFU imposto nas Security
+  Rules) e o token do QR é de **uso único**.
+- Depois disso o PC **conecta sozinho de qualquer rede** — o transporte é o
+  RTDB (projeto `controle-de-aula-f53bd`), sem servidor local e sem varredura
+  de LAN.
 - O professor digita uma URL → **"Abrir na turma toda"** ou em um PC específico.
-- Tudo **criptografado ponta-a-ponta** (X25519 → AES-256-GCM). Sem nuvem.
+- Cada PC **informa a aba ativa, as abas abertas e o histórico de navegação**
+  (somente URLs/títulos — **sem captura de tela**; dados só na memória do
+  celular).
+- O professor pode **renomear cada PC** com o nome do aluno (fica no celular).
+- Tudo **criptografado ponta-a-ponta** (X25519 → AES-256-GCM): o Firebase só
+  carrega envelopes cifrados.
 
 ```
-CELULAR (este app, servidor :47615)     CHROMEBOOKS (extensão, clientes)
-GET / -> banner               ◄────     varrem a LAN
-POST /bind (X25519)           ◄────     vinculam (TOFU)
-open_url (cifrado) ───────────────►     abrem a aba
-professor: "abrir em todos" / um PC
+APP (professor)                RTDB               CHROMEBOOKS (extensão)
+escaneia QR ─► grava bind ───►  ◄───────────────  exibem QR {id, pub, token}
+cmd/state (cifrado) ─────────►  ◄── stream SSE ── executam, ack
+◄──────── report (cifrado) ──   ◄───────────────  abas + histórico
 ```
 
 Detalhes: [`docs/arquitetura.md`](docs/arquitetura.md) e
@@ -36,32 +43,44 @@ Detalhes: [`docs/arquitetura.md`](docs/arquitetura.md) e
 
 ```
 lib/src/
-├── server/    # control_server.dart (HttpServer), session_registry.dart, lan.dart
+├── cloud/     # firebase_transport.dart, session_registry.dart,
+│              # replay_guard.dart (anti-replay), qr_payload.dart
 ├── secure/    # crypto.dart (AES-GCM), keypair.dart (X25519+HKDF), key_store.dart
-├── pairing/   # pairing_controller.dart (orquestra o servidor)
-├── commands/  # command.dart (open_url, Ack)
-└── ui/        # home_page.dart (lista de PCs + ação na turma)
-test/          # crypto_test + keypair_test (paridade com o JS) + smoke test
+├── pairing/   # pairing_controller.dart (orquestra), name/rules/favorites stores
+├── commands/  # command.dart (open_url, close_tabs, ...), domain_rules.dart
+├── service/   # foreground_service.dart (conexão viva com a tela apagada)
+└── ui/        # home_page, scan_page (QR), device_page, rules_page, favorites_page
+firebase/      # database.rules.json (Security Rules, canônico) + emuladores
+test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 ```
 
 ## Tecnologias
 
-- **Flutter / Dart**, `dart:io HttpServer`
+- **Flutter / Dart**, FlutterFire (`firebase_core`, `firebase_auth` anônima,
+  `firebase_database`)
 - [`cryptography`](https://pub.dev/packages/cryptography) — AES-256-GCM + X25519/HKDF
-- [`path_provider`](https://pub.dev/packages/path_provider) — persiste o par do professor
+- [`mobile_scanner`](https://pub.dev/packages/mobile_scanner) — leitura do QR
+- [`flutter_foreground_task`](https://pub.dev/packages/flutter_foreground_task)
 
 ## Rodando
 
-`flutter pub get` e `flutter run`. Uso em [`docs/instalacao.md`](docs/instalacao.md).
+`flutter pub get` e `flutter run`. Setup do Firebase (console + rules) e uso em
+[`docs/instalacao.md`](docs/instalacao.md).
 
 ## Roteiro
 
-- [x] Servidor multi-cliente + descoberta automática (banner)
-- [x] Vínculo exclusivo (TOFU) X25519 + AES-256-GCM por sessão
+- [x] Transporte Firebase RTDB (protocolo v4) + Auth anônima
+- [x] Pareamento por **QR** (token one-time; TOFU nas Security Rules)
 - [x] Lista de PCs + **abrir na turma toda** / individual
-- [ ] *Foreground service* (servir com a tela apagada)
-- [ ] Renomear PCs / favoritos de sites
-- [ ] Comandos futuros: bloquear tela, mensagem, fechar abas
+- [x] **Monitorar abas** (aba ativa, abas abertas, histórico — sem captura de tela)
+- [x] **Renomear PCs** / **esquecer PC**
+- [x] **Fechar abas/sites** (na turma toda, num PC ou uma aba específica)
+- [x] **Regras de sites**: bloquear (vale nos Chromebooks) ou alertar (cartão vermelho)
+- [x] **Favoritos** ilimitados (chips na home, reordenáveis)
+- [x] ***Foreground service*** (conexão viva com a tela apagada)
+- [x] **Papel de parede** da turma (galeria → Chromebooks; só ChromeOS)
+- [ ] Teste de campo (professor + turma real)
+- [ ] Comandos futuros: bloquear tela, mensagem
 
 ## Licença
 

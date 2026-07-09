@@ -1,11 +1,17 @@
 // Controle de Aula — app de controle (celular).
-// Ponto de entrada. Esboço: a navegação e as telas ainda serão construídas.
+// Ponto de entrada: inicializa o Firebase (transporte v4) e o serviço de aula.
 
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'firebase_options.dart';
+import 'src/service/foreground_service.dart';
 import 'src/ui/home_page.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  prepararServicoAula();
   runApp(const ControleDeAulaApp());
 }
 

@@ -1,7 +1,7 @@
 name: controle_de_aula
-description: "Controle remoto do Chromebook do professor (app do celular). Função inicial: enviar URL/abrir aba via WebRTC na rede local."
+description: "Controle de aula (app do celular): abre URLs nos Chromebooks e mostra abas/URLs visitadas, cifrado ponta-a-ponta via Firebase RTDB (funciona entre redes diferentes)."
 publish_to: "none"
-version: 0.1.0+1
+version: 0.4.0+4
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -17,6 +17,14 @@ dependencies:
   crypto: ^3.0.0
   # Persistir o par de chaves do professor entre execuções.
   path_provider: ^2.1.0
+  # Foreground service: servidor vivo com a tela apagada.
+  flutter_foreground_task: ^9.2.0
+  # Escolher a imagem do papel de parede (Photo Picker, sem permissão runtime).
+  image_picker: ^1.2.0
+  firebase_core: ^4.11.0
+  firebase_auth: ^6.5.4
+  firebase_database: ^12.4.4
+  mobile_scanner: ^7.2.0
 
 dev_dependencies:
   flutter_test:

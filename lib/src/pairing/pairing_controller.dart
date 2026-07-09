@@ -1,45 +1,262 @@
-// Orquestra o servidor multi-cliente: carrega o par de chaves do professor,
-// inicia o servidor e expõe a lista de PCs + envio de comandos.
+// Orquestra o transporte Firebase: carrega o par de chaves do professor,
+// autentica (Auth anônima), liga o FirebaseTransport e expõe a lista de PCs +
+// comandos + nomes + regras + favoritos + papel de parede. É um
+// ChangeNotifier: as telas observam.
 
+import 'dart:async';
+
+import 'package:crypto/crypto.dart' as c;
+import 'package:firebase_auth/firebase_auth.dart'; // também exporta FirebaseException
+import 'package:flutter/foundation.dart';
+
+import '../cloud/firebase_transport.dart';
+import '../cloud/qr_payload.dart';
+import '../cloud/session_registry.dart';
 import '../commands/command.dart';
+import '../commands/domain_rules.dart';
 import '../secure/key_store.dart';
-import '../server/control_server.dart';
-import '../server/session_registry.dart';
+import '../service/foreground_service.dart';
+import 'favorites_store.dart';
+import 'name_store.dart';
+import 'rules_store.dart';
 
-class PairingController {
+class PairingController extends ChangeNotifier {
   PairingController({this.deviceName = 'Professor'});
 
   final String deviceName;
-  ControlServer? _server;
-
-  /// Notifica a UI quando a lista de PCs muda.
-  void Function()? onChange;
+  FirebaseTransport? _transport;
+  NameStore? _names;
+  RulesStore? _rules;
+  FavoritesStore? _favorites;
+  Timer? _notifyTimer;
+  int _ultimoOnline = -1;
+  String? _wallpaperHash;
 
   Future<void> start() async {
     final teacher = await KeyStore.loadOrCreate();
-    final server = ControlServer(teacher: teacher, deviceName: deviceName);
-    server.registry.onChange = () => onChange?.call();
-    await server.start();
-    _server = server;
+    _names = await NameStore.load();
+    _rules = await RulesStore.load();
+    _favorites = await FavoritesStore.load();
+
+    // Auth anônima: o uid identifica este professor nas Security Rules.
+    // Persiste entre execuções; some só se o app for reinstalado (recovery:
+    // aluno desvincula pelo popup e re-escaneia).
+    final auth = FirebaseAuth.instance;
+    final user = auth.currentUser ?? (await auth.signInAnonymously()).user;
+    if (user == null) {
+      throw StateError('auth_anonima_falhou');
+    }
+
+    final transport = FirebaseTransport(
+      teacher: teacher,
+      teacherUid: user.uid,
+      teacherName: deviceName,
+    );
+    transport.comandosDeEstado = _comandosDeEstado;
+    transport.registry.onChange = _scheduleNotify;
+    transport.registry.avaliarAlerta = _avaliarAlerta;
+    await transport.start();
+    _transport = transport;
+    await iniciarServicoAula();
   }
 
-  String? get ip => _server?.ip;
-  List<String> get ips => _server?.ips ?? const [];
-  int get port => _server?.port ?? 0;
+  // Comandos de estado vigentes (gravados em state/* a cada pareamento):
+  // set_rules SEMPRE (mesmo vazio, para limpar regras antigas no cliente);
+  // set_wallpaper se houver imagem publicada.
+  List<Map<String, dynamic>> _comandosDeEstado() {
+    final rules = _rules;
+    return [
+      if (rules != null) buildSetRules(rules.regras, rev: rules.rev),
+      if (_wallpaperHash != null) buildSetWallpaper(_wallpaperHash!),
+    ];
+  }
 
-  List<PcSession> get pcs => _server?.registry.all ?? const [];
+  // Domínio da primeira aba que casa regra `alert` OU `block` (aba bloqueada
+  // ainda aberta = enforcement falhou — o professor precisa ver).
+  String? _avaliarAlerta(List<TabInfo> tabs) {
+    final regras = _rules?.regras;
+    if (regras == null || regras.isEmpty) return null;
+    for (final t in tabs) {
+      final r = acharRegra(regras, t.url);
+      if (r != null) {
+        try {
+          return Uri.parse(t.url).host;
+        } catch (_) {
+          return r.pattern;
+        }
+      }
+    }
+    return null;
+  }
 
-  bool isOnline(PcSession s) => s.online(DateTime.now());
+  // Coalesce: presença/report da turma toda dispara muitos onChange por
+  // segundo; a UI só precisa de ~4 quadros/s.
+  void _scheduleNotify() {
+    _notifyTimer ??= Timer(const Duration(milliseconds: 250), () {
+      _notifyTimer = null;
+      _atualizarNotificacao();
+      notifyListeners();
+    });
+  }
+
+  void _atualizarNotificacao() {
+    final online = pcs.where(isOnline).length;
+    if (online != _ultimoOnline) {
+      _ultimoOnline = online;
+      atualizarNotificacaoAula('$online PC(s) conectados');
+    }
+  }
+
+  List<PcSession> get pcs => _transport?.registry.all ?? const [];
+
+  PcSession? pcPorId(String deviceId) => _transport?.registry.byId(deviceId);
+
+  bool isOnline(PcSession s) =>
+      s.online(_transport?.nowServer() ?? DateTime.now());
+
+  /// Nome dado pelo professor, ou o label do aparelho (renomeável no popup).
+  String nomeDe(PcSession s) => _names?.nameOf(s.deviceId) ?? s.label;
+
+  /// Salva o nome do aluno para este PC (vazio remove).
+  Future<void> renomear(String deviceId, String nome) async {
+    await _names?.setName(deviceId, nome);
+    notifyListeners();
+  }
+
+  // ---- Pareamento (QR) ----------------------------------------------------------
+
+  /// Processa o conteúdo de um QR escaneado. Retorna null em caso de sucesso
+  /// ou uma mensagem de erro (PT-BR) para a UI.
+  Future<String?> parearComQr(String raw) async {
+    final qr = QrPairPayload.parse(raw);
+    if (qr == null) return 'QR inválido — use o QR do popup da extensão.';
+    final transport = _transport;
+    if (transport == null) return 'Ainda conectando ao Firebase — tente de novo.';
+    try {
+      await transport.pairDevice(qr);
+      _scheduleNotify();
+      return null;
+    } on FirebaseException catch (e) {
+      if (e.code == 'permission-denied') {
+        return 'QR expirado ou PC vinculado a outro professor — '
+            'gere um QR novo no popup da extensão.';
+      }
+      return 'Falha ao parear: ${e.message ?? e.code}';
+    } catch (e) {
+      return 'Falha ao parear: $e';
+    }
+  }
+
+  /// Desfaz o vínculo de um PC (a extensão volta a exibir o QR).
+  Future<void> esquecerPc(String deviceId) async {
+    await _transport?.forgetDevice(deviceId);
+    notifyListeners();
+  }
+
+  // ---- Comandos ---------------------------------------------------------------
 
   /// Abre uma URL em TODOS os PCs (turma toda).
   void abrirEmTodos(String url) {
-    _server?.registry.enqueueAll(buildOpenUrl(url));
+    _transport?.sendToAll(buildOpenUrl(url));
   }
 
   /// Abre uma URL em um PC específico.
   void abrirEm(String deviceId, String url) {
-    _server?.registry.enqueueOne(deviceId, buildOpenUrl(url));
+    _transport?.sendCommand(deviceId, buildOpenUrl(url));
   }
 
-  Future<void> stop() => _server?.stop() ?? Future.value();
+  /// Fecha uma aba específica (URL exata) em um PC.
+  void fecharAbaEm(String deviceId, String url) {
+    _transport?.sendCommand(deviceId, buildCloseTabs(url: url));
+  }
+
+  /// Fecha todas as abas de um domínio na turma toda.
+  void fecharSiteEmTodos(String domain) {
+    _transport?.sendToAll(buildCloseTabs(domain: domain));
+  }
+
+  /// Fecha todas as abas de um domínio em um PC.
+  void fecharSiteEm(String deviceId, String domain) {
+    _transport?.sendCommand(deviceId, buildCloseTabs(domain: domain));
+  }
+
+  // ---- Regras -------------------------------------------------------------------
+
+  List<DomainRule> get regras => _rules?.regras ?? const [];
+
+  Future<void> adicionarRegra(String pattern, String action) async {
+    await _rules?.adicionar(pattern, action);
+    _distribuirRegras();
+  }
+
+  Future<void> atualizarRegra(int indice, String pattern, String action) async {
+    await _rules?.atualizarEm(indice, pattern, action);
+    _distribuirRegras();
+  }
+
+  Future<void> removerRegra(int indice) async {
+    await _rules?.removerEm(indice);
+    _distribuirRegras();
+  }
+
+  void _distribuirRegras() {
+    final rules = _rules;
+    if (rules == null) return;
+    _transport?.setStateAll(buildSetRules(rules.regras, rev: rules.rev));
+    notifyListeners();
+  }
+
+  // ---- Favoritos ------------------------------------------------------------------
+
+  List<Favorito> get favoritos => _favorites?.itens ?? const [];
+
+  Future<void> adicionarFavorito(String label, String url) async {
+    await _favorites?.adicionar(label, url);
+    notifyListeners();
+  }
+
+  Future<void> editarFavorito(int indice, String label, String url) async {
+    await _favorites?.editarEm(indice, label, url);
+    notifyListeners();
+  }
+
+  Future<void> removerFavorito(int indice) async {
+    await _favorites?.removerEm(indice);
+    notifyListeners();
+  }
+
+  Future<void> moverFavorito(int de, int para) async {
+    await _favorites?.mover(de, para);
+    notifyListeners();
+  }
+
+  // ---- Papel de parede -------------------------------------------------------------
+
+  String? get wallpaperHash => _wallpaperHash;
+
+  /// Publica o blob no RTDB (compartilhado pela turma) e grava o comando de
+  /// estado (só o hash) em cada PC.
+  Future<void> definirPapelDeParede(Uint8List bytes) async {
+    final transport = _transport;
+    if (transport == null) return;
+    if (bytes.length > 4 * 1024 * 1024) {
+      throw ArgumentError('imagem_grande'); // vira base64 ~5.3MB no banco
+    }
+    final hash = c.sha256.convert(bytes).toString().substring(0, 8);
+    await transport.publishWallpaper(bytes, hash);
+    _wallpaperHash = hash;
+    await transport.setStateAll(buildSetWallpaper(hash));
+    notifyListeners();
+  }
+
+  Future<void> stop() async {
+    await pararServicoAula();
+    await _transport?.stop();
+  }
+
+  @override
+  void dispose() {
+    _notifyTimer?.cancel();
+    super.dispose();
+  }
 }

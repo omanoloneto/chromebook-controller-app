@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "305628431439",
+    "firebase_url": "https://controle-de-aula-f53bd-default-rtdb.firebaseio.com",
+    "project_id": "controle-de-aula-f53bd",
+    "storage_bucket": "controle-de-aula-f53bd.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:305628431439:android:dc5471f9c16ec15630963a",
+        "android_client_info": {
+          "package_name": "pro.omanoloneto.controle_de_aula"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB8zcWIXe2HeRFAxLGUBqtqZkM-zgGBvOE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
