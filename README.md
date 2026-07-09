@@ -79,6 +79,9 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Favoritos** ilimitados (chips na home, reordenáveis)
 - [x] ***Foreground service*** (conexão viva com a tela apagada)
 - [x] **Papel de parede** da turma (galeria → Chromebooks; só ChromeOS)
+- [x] **Turmas e alunos** (cadastro local) + vínculo aluno↔PC por aula
+- [x] **Fechar todas as abas** (turma toda ou um PC)
+- [x] **Encerrar aula**: fecha o navegador de todos os PCs e limpa os vínculos
 - [ ] Teste de campo (professor + turma real)
 - [ ] Comandos futuros: bloquear tela, mensagem
 

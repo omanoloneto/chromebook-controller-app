@@ -16,9 +16,11 @@ import '../commands/command.dart';
 import '../commands/domain_rules.dart';
 import '../secure/key_store.dart';
 import '../service/foreground_service.dart';
+import 'class_session_store.dart';
 import 'favorites_store.dart';
 import 'name_store.dart';
 import 'rules_store.dart';
+import 'students_store.dart';
 
 class PairingController extends ChangeNotifier {
   PairingController({this.deviceName = 'Professor'});
@@ -28,6 +30,8 @@ class PairingController extends ChangeNotifier {
   NameStore? _names;
   RulesStore? _rules;
   FavoritesStore? _favorites;
+  StudentsStore? _students;
+  ClassSessionStore? _session;
   Timer? _notifyTimer;
   int _ultimoOnline = -1;
   String? _wallpaperHash;
@@ -37,6 +41,8 @@ class PairingController extends ChangeNotifier {
     _names = await NameStore.load();
     _rules = await RulesStore.load();
     _favorites = await FavoritesStore.load();
+    _students = await StudentsStore.load();
+    _session = await ClassSessionStore.load();
 
     // Auth anônima: o uid identifica este professor nas Security Rules.
     // Persiste entre execuções; some só se o app for reinstalado (recovery:
@@ -178,6 +184,98 @@ class PairingController extends ChangeNotifier {
   /// Fecha todas as abas de um domínio em um PC.
   void fecharSiteEm(String deviceId, String domain) {
     _transport?.sendCommand(deviceId, buildCloseTabs(domain: domain));
+  }
+
+  /// Fecha TODAS as abas da turma toda (deixa 1 aba vazia em cada PC).
+  void fecharTodasAsAbasEmTodos() {
+    _transport?.sendToAll(buildCloseAllTabs());
+  }
+
+  /// Fecha TODAS as abas de um PC (deixa 1 aba vazia).
+  void fecharTodasAsAbasEm(String deviceId) {
+    _transport?.sendCommand(deviceId, buildCloseAllTabs());
+  }
+
+  // ---- Turmas e alunos (só no celular — nunca vão ao Firebase) -------------------
+
+  List<Turma> get turmas => _students?.turmas ?? const [];
+
+  Future<void> adicionarTurma(String nome) async {
+    await _students?.adicionarTurma(nome);
+    notifyListeners();
+  }
+
+  Future<void> renomearTurma(int indice, String nome) async {
+    await _students?.renomearTurma(indice, nome);
+    notifyListeners();
+  }
+
+  Future<void> removerTurma(int indice) async {
+    await _students?.removerTurma(indice);
+    notifyListeners();
+  }
+
+  Future<void> adicionarAluno(int turmaIndice, String aluno) async {
+    await _students?.adicionarAluno(turmaIndice, aluno);
+    notifyListeners();
+  }
+
+  Future<void> renomearAluno(int turmaIndice, int alunoIndice, String nome) async {
+    await _students?.renomearAluno(turmaIndice, alunoIndice, nome);
+    notifyListeners();
+  }
+
+  Future<void> removerAluno(int turmaIndice, int alunoIndice) async {
+    await _students?.removerAluno(turmaIndice, alunoIndice);
+    notifyListeners();
+  }
+
+  // ---- Sessão de aula --------------------------------------------------------------
+
+  bool get aulaAtiva => _session?.ativa ?? false;
+
+  String get turmaDaAula => _session?.turma ?? '';
+
+  /// Aluno vinculado a um PC nesta aula (null = sem vínculo).
+  String? alunoDe(String deviceId) => _session?.alunoDe(deviceId);
+
+  /// Alunos da turma da aula que ainda não estão em nenhum PC.
+  List<String> get alunosDisponiveis {
+    final s = _session;
+    if (s == null || !s.ativa) return const [];
+    final turma = _students?.turmaPorNome(s.turma);
+    if (turma == null) return const [];
+    final usados = s.vinculos.values.toSet();
+    return turma.alunos.where((a) => !usados.contains(a)).toList();
+  }
+
+  /// Total de alunos da turma da aula (p/ o banner "N/M vinculados").
+  int get totalAlunosDaTurma =>
+      _students?.turmaPorNome(_session?.turma ?? '')?.alunos.length ?? 0;
+
+  int get totalVinculados => _session?.vinculos.length ?? 0;
+
+  Future<void> iniciarAula(String turma) async {
+    await _session?.iniciar(turma);
+    notifyListeners();
+  }
+
+  Future<void> vincularAluno(String deviceId, String aluno) async {
+    await _session?.vincular(deviceId, aluno);
+    notifyListeners();
+  }
+
+  Future<void> desvincularAluno(String deviceId) async {
+    await _session?.desvincular(deviceId);
+    notifyListeners();
+  }
+
+  /// Encerra a aula: fecha o NAVEGADOR (todas as janelas) em todos os PCs e
+  /// limpa os vínculos aluno↔PC desta sessão.
+  Future<void> encerrarAula() async {
+    await _transport?.sendToAll(buildCloseAllTabs(closeWindows: true));
+    await _session?.encerrar();
+    notifyListeners();
   }
 
   // ---- Regras -------------------------------------------------------------------

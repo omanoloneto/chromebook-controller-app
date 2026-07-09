@@ -118,6 +118,34 @@ class _DevicePageState extends State<DevicePage> {
     return 'Atualizado há ${s ~/ 60}min';
   }
 
+  Future<void> _confirmarFecharTudo() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Fechar todas as abas'),
+        content: const Text(
+          'Fechar TODAS as abas deste PC? Ele fica com uma aba vazia.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Fechar tudo'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && mounted) {
+      widget.pairing.fecharTodasAsAbasEm(widget.deviceId);
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Fechando todas as abas…')));
+    }
+  }
+
   Future<void> _confirmarEsquecer(String nome) async {
     final ok = await showDialog<bool>(
       context: context,
@@ -214,6 +242,27 @@ class _DevicePageState extends State<DevicePage> {
                 style: const TextStyle(fontSize: 12, color: Colors.grey),
               ),
             ],
+          ),
+          if (widget.pairing.aulaAtiva) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.person_outline, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    widget.pairing.alunoDe(widget.deviceId) ??
+                        'Nenhum aluno vinculado nesta aula',
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: on ? _confirmarFecharTudo : null,
+            icon: const Icon(Icons.tab_unselected),
+            label: const Text('Fechar todas as abas deste PC'),
           ),
           const SizedBox(height: 16),
           Text('Aba ativa', style: Theme.of(context).textTheme.titleMedium),

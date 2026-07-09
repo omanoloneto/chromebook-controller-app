@@ -13,6 +13,7 @@ class MessageType {
   static const String pong = 'pong';
   static const String tabReport = 'tab_report';
   static const String closeTabs = 'close_tabs';
+  static const String closeAllTabs = 'close_all_tabs';
   static const String setRules = 'set_rules';
   static const String setWallpaper = 'set_wallpaper';
   // Reservados (futuro):
@@ -39,6 +40,18 @@ Map<String, dynamic> buildOpenUrl(String url, {bool newTab = true, bool focus = 
       'newTab': newTab,
       'focus': focus,
     },
+  };
+}
+
+/// Monta o comando `close_all_tabs` — fecha tudo, sem filtro.
+/// [closeWindows] true derruba as janelas inteiras (usado no "encerrar aula");
+/// false fecha as abas deixando 1 vazia.
+Map<String, dynamic> buildCloseAllTabs({bool closeWindows = false}) {
+  return {
+    'v': kProtocolVersion,
+    'type': MessageType.closeAllTabs,
+    'id': _nextId(),
+    'payload': {'closeWindows': closeWindows},
   };
 }
 
