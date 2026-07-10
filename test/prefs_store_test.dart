@@ -33,6 +33,14 @@ void main() {
     expect(p.teacherName, 'Prof. Mano'); // trim aplicado
   });
 
+  test('notificarSites persiste (default true)', () async {
+    var p = await PrefsStore.load(dir: tmp);
+    expect(p.notificarSites, true);
+    await p.setNotificarSites(false);
+    p = await PrefsStore.load(dir: tmp);
+    expect(p.notificarSites, false);
+  });
+
   test('nome vazio volta ao default', () async {
     final p = await PrefsStore.load(dir: tmp);
     await p.setTeacherName('   ');

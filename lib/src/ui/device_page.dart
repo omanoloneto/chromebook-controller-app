@@ -16,6 +16,74 @@ String dominioDe(String url) {
   }
 }
 
+/// Sheet de liberação de sites bloqueados p/ UM PC (usado aqui e no menu ⋮
+/// da aba Aula). Exige aula ativa — a liberação morre no "Encerrar aula".
+Future<void> mostrarSheetLiberarSites(
+  BuildContext context,
+  PairingController pairing,
+  String deviceId,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+  if (!pairing.aulaAtiva) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Inicie uma aula para liberar sites — a liberação vale só até o '
+            'fim da aula.',
+          ),
+        ),
+      );
+    return;
+  }
+  final padroes = pairing.padroesBloqueio;
+  if (padroes.isEmpty) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Nenhum site bloqueado nas regras.')),
+      );
+    return;
+  }
+  await showModalBottomSheet<void>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setSheet) {
+        final liberados = pairing.liberacoesDe(deviceId);
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              const ListTile(
+                title: Text('Desbloquear sites para este PC'),
+                subtitle: Text('Vale só até o fim da aula.'),
+              ),
+              const Divider(height: 1),
+              for (final p in padroes)
+                SwitchListTile(
+                  title: Text(p),
+                  subtitle: Text(
+                    liberados.contains(p) ? 'LIBERADO nesta aula' : 'bloqueado',
+                  ),
+                  value: liberados.contains(p),
+                  onChanged: (ligar) async {
+                    if (ligar) {
+                      await pairing.liberarPara(deviceId, p);
+                    } else {
+                      await pairing.revogarLiberacao(deviceId, p);
+                    }
+                    setSheet(() {});
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    ),
+  );
+}
+
 /// Diálogo de renomear (usado aqui e na home via long-press).
 Future<void> mostrarDialogoRenomear(
   BuildContext context,
@@ -119,55 +187,8 @@ class _DevicePageState extends State<DevicePage> {
     return 'Atualizado há ${s ~/ 60}min';
   }
 
-  // Liberar/revogar padrões bloqueados só para este PC, só nesta aula.
-  Future<void> _liberarSites() async {
-    final padroes = widget.pairing.padroesBloqueio;
-    if (padroes.isEmpty) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(content: Text('Nenhum site bloqueado nas regras.')),
-        );
-      return;
-    }
-    await showModalBottomSheet<void>(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) {
-          final liberados = widget.pairing.liberacoesDe(widget.deviceId);
-          return SafeArea(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                const ListTile(
-                  title: Text('Liberar sites para este PC'),
-                  subtitle: Text('Vale só até o fim da aula.'),
-                ),
-                const Divider(height: 1),
-                for (final p in padroes)
-                  SwitchListTile(
-                    title: Text(p),
-                    subtitle: Text(
-                      liberados.contains(p) ? 'LIBERADO nesta aula' : 'bloqueado',
-                    ),
-                    value: liberados.contains(p),
-                    onChanged: (ligar) async {
-                      if (ligar) {
-                        await widget.pairing.liberarPara(widget.deviceId, p);
-                      } else {
-                        await widget.pairing
-                            .revogarLiberacao(widget.deviceId, p);
-                      }
-                      setSheet(() {});
-                    },
-                  ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
+  Future<void> _liberarSites() =>
+      mostrarSheetLiberarSites(context, widget.pairing, widget.deviceId);
 
   Future<void> _confirmarFecharTudo() async {
     final ok = await showDialog<bool>(
@@ -331,21 +352,19 @@ class _DevicePageState extends State<DevicePage> {
           const SizedBox(height: 12),
           Row(
             children: [
-              if (widget.pairing.aulaAtiva) ...[
-                Expanded(
-                  child: FilledButton.tonalIcon(
-                    onPressed: _liberarSites,
-                    icon: const Icon(Icons.lock_open),
-                    label: Text(
-                      widget.pairing.liberacoesDe(widget.deviceId).isEmpty
-                          ? 'Liberar sites'
-                          : 'Liberados: '
-                              '${widget.pairing.liberacoesDe(widget.deviceId).length}',
-                    ),
+              Expanded(
+                child: FilledButton.tonalIcon(
+                  onPressed: _liberarSites,
+                  icon: const Icon(Icons.lock_open),
+                  label: Text(
+                    widget.pairing.liberacoesDe(widget.deviceId).isEmpty
+                        ? 'Desbloquear sites'
+                        : 'Liberados: '
+                            '${widget.pairing.liberacoesDe(widget.deviceId).length}',
                   ),
                 ),
-                const SizedBox(width: 8),
-              ],
+              ),
+              const SizedBox(width: 8),
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: on ? _confirmarFecharTudo : null,

@@ -84,6 +84,8 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Turmas e alunos** (cadastro local) + vínculo aluno↔PC por aula
 - [x] **Fechar todas as abas** (turma toda ou um PC)
 - [x] **Encerrar aula**: fecha o navegador de todos os PCs e limpa os vínculos
+- [x] **Desbloquear site para 1 PC** durante a aula (menu do PC / tela de detalhe)
+- [x] **Notificações com som**: site de alerta acessado ou bloqueado tentado
 - [ ] Teste de campo (professor + turma real)
 - [ ] Comandos futuros: bloquear tela, mensagem
 

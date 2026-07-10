@@ -38,6 +38,10 @@ class PcSession {
   DateTime? lastReportAt;
   String? alerta; // domínio que disparou alerta (null = sem alerta)
 
+  /// False até o 1º applyReport: o histórico que chega na abertura do app é
+  /// velho e não deve gerar notificações.
+  bool reportJaAplicado = false;
+
   TabInfo? get abaAtiva {
     for (final t in tabs) {
       if (t.active) return t;
@@ -59,6 +63,10 @@ class SessionRegistry {
   /// Injetado pelo PairingController (que conhece as regras e as liberações
   /// por PC da aula ativa — por isso recebe o deviceId).
   String? Function(String deviceId, List<TabInfo> tabs)? avaliarAlerta;
+
+  /// Eventos de navegação INÉDITOS (dedup por ts|url), nunca do 1º report do
+  /// PC. Injetado pelo controller (notificações de alerta/bloqueio).
+  void Function(String deviceId, List<NavEvent> novos)? onNovosEventos;
 
   PcSession? byId(String deviceId) => _byId[deviceId];
 
@@ -108,21 +116,31 @@ class SessionRegistry {
   void applyReport(String deviceId, TabReport r, {DateTime? reportAt}) {
     final s = _byId[deviceId];
     if (s == null) return;
+    final primeiro = !s.reportJaAplicado;
+    s.reportJaAplicado = true;
     s.tabs = r.tabs;
     s.lastReportAt = reportAt ?? DateTime.now();
     // Recalcula a cada relatório: o alerta some sozinho quando a aba fecha.
     s.alerta = avaliarAlerta?.call(deviceId, s.tabs);
+    final novos = <NavEvent>[];
     if (r.events.isNotEmpty) {
       final vistos = <String>{
         for (final e in s.history) '${e.ts}|${e.url}',
       };
       for (final e in r.events) {
-        if (vistos.add('${e.ts}|${e.url}')) s.history.add(e);
+        if (vistos.add('${e.ts}|${e.url}')) {
+          s.history.add(e);
+          novos.add(e);
+        }
       }
       s.history.sort((a, b) => a.ts.compareTo(b.ts));
       if (s.history.length > kMaxHistoryPorPc) {
         s.history.removeRange(0, s.history.length - kMaxHistoryPorPc);
       }
+    }
+    // 1º report = histórico antigo (abertura do app): nunca notifica.
+    if (!primeiro && novos.isNotEmpty) {
+      onNovosEventos?.call(deviceId, novos);
     }
     onChange?.call();
   }

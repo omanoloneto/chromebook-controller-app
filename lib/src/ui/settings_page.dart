@@ -162,6 +162,31 @@ class _SettingsPageState extends State<SettingsPage> {
             trailing: const Icon(Icons.edit_outlined),
             onTap: _editarNome,
           ),
+          _secao('Notificações'),
+          SwitchListTile(
+            secondary: const Icon(Icons.notifications_active_outlined),
+            title: const Text('Avisar com som'),
+            subtitle: const Text(
+              'Quando um PC abrir site de alerta ou tentar um site bloqueado.',
+            ),
+            value: widget.settings.notificarSites,
+            onChanged: (v) => widget.settings.setNotificarSites(v),
+          ),
+          FutureBuilder<bool?>(
+            future: widget.pairing.notificacoes?.habilitadasNoSistema(),
+            builder: (_, snap) => snap.data == false
+                ? ListTile(
+                    leading: Icon(
+                      Icons.notifications_off_outlined,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    title: const Text('Notificações bloqueadas pelo sistema'),
+                    subtitle: const Text(
+                      'Libere nas configurações do Android para ouvir os avisos.',
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          ),
           _secao('Turma'),
           ListTile(
             leading: const Icon(Icons.wallpaper),

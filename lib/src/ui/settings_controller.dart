@@ -12,6 +12,12 @@ class SettingsController extends ChangeNotifier {
 
   ThemeMode get themeMode => _prefs.themeMode;
   String get nomeProfessor => _prefs.teacherName;
+  bool get notificarSites => _prefs.notificarSites;
+
+  Future<void> setNotificarSites(bool valor) async {
+    await _prefs.setNotificarSites(valor);
+    notifyListeners();
+  }
 
   Future<void> setThemeMode(ThemeMode mode) async {
     await _prefs.setThemeMode(mode);

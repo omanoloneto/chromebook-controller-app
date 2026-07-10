@@ -9,6 +9,7 @@ import 'firebase_options.dart';
 import 'src/pairing/pairing_controller.dart';
 import 'src/pairing/prefs_store.dart';
 import 'src/service/foreground_service.dart';
+import 'src/service/notification_service.dart';
 import 'src/ui/app_shell.dart';
 import 'src/ui/settings_controller.dart';
 import 'src/ui/theme.dart';
@@ -38,15 +39,28 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
   late final SettingsController _settings = SettingsController(widget.prefs);
   late final PairingController _pairing =
       PairingController(deviceName: widget.prefs.teacherName);
+  final NotificationService _notificacoes = NotificationService();
 
   @override
   void initState() {
     super.initState();
-    if (widget.autoStart) _pairing.start();
+    _pairing.notificacoes = _notificacoes;
+    _pairing.notificarSites = _settings.notificarSites;
+    // Preferências → controller (toggle de notificações muda em Ajustes).
+    _settings.addListener(_sincronizarPrefs);
+    if (widget.autoStart) {
+      _notificacoes.init();
+      _pairing.start();
+    }
+  }
+
+  void _sincronizarPrefs() {
+    _pairing.notificarSites = _settings.notificarSites;
   }
 
   @override
   void dispose() {
+    _settings.removeListener(_sincronizarPrefs);
     _pairing.stop();
     _pairing.dispose();
     super.dispose();

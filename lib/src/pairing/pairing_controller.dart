@@ -16,6 +16,7 @@ import '../commands/command.dart';
 import '../commands/domain_rules.dart';
 import '../secure/key_store.dart';
 import '../service/foreground_service.dart';
+import '../service/notification_service.dart';
 import 'class_session_store.dart';
 import 'favorites_store.dart';
 import 'name_store.dart';
@@ -41,6 +42,13 @@ class PairingController extends ChangeNotifier {
   /// Estado de inicialização (a UI observa; start() não lança).
   bool iniciando = true;
   String? erroDeConexao;
+
+  /// Notificações com som (alerta/bloqueio). Sincronizado pelo root a partir
+  /// das preferências (Ajustes).
+  bool notificarSites = true;
+
+  /// Injetado pelo root (main.dart) antes do start().
+  NotificationService? notificacoes;
 
   Future<void> start() async {
     if (_transport != null) return; // idempotente (retry não duplica listeners)
@@ -69,6 +77,7 @@ class PairingController extends ChangeNotifier {
       transport.comandosDeEstado = _comandosDeEstado;
       transport.registry.onChange = _scheduleNotify;
       transport.registry.avaliarAlerta = _avaliarAlerta;
+      transport.registry.onNovosEventos = _onNovosEventos;
       await transport.start();
       _transport = transport;
       await iniciarServicoAula();
@@ -150,6 +159,34 @@ class PairingController extends ChangeNotifier {
       }
     }
     return null;
+  }
+
+  // Eventos de navegação inéditos: notifica com som quando um PC acessa site
+  // de "Alertar" ou TENTA um bloqueado (a tentativa chega no histórico — a
+  // extensão registra antes do redirect). Liberações da aula não notificam.
+  void _onNovosEventos(String deviceId, List<NavEvent> novos) {
+    final notifs = notificacoes;
+    if (!notificarSites || notifs == null) return;
+    final regras = _rules?.regras;
+    if (regras == null || regras.isEmpty) return;
+    final liberados = _session?.excecoesDe(deviceId) ?? const <String>{};
+    final s = _transport?.registry.byId(deviceId);
+    final nomePc = (s != null ? alunoDe(deviceId) ?? nomeDe(s) : deviceId);
+    for (final e in novos) {
+      final r = acharRegra(regras, e.url);
+      if (r == null || liberados.contains(r.pattern)) continue;
+      String dominio;
+      try {
+        dominio = Uri.parse(e.url).host;
+      } catch (_) {
+        dominio = r.pattern;
+      }
+      if (r.action == RuleAction.block) {
+        notifs.notificarBloqueado(pc: nomePc, dominio: dominio);
+      } else {
+        notifs.notificarAlerta(pc: nomePc, dominio: dominio);
+      }
+    }
   }
 
   // Coalesce: presença/report da turma toda dispara muitos onChange por

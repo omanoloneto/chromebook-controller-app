@@ -16,6 +16,7 @@ class PrefsStore {
 
   ThemeMode _themeMode = ThemeMode.system;
   String _teacherName = 'Professor';
+  bool _notificarSites = true;
 
   /// `dir` é injetável para testes; por padrão usa o diretório do app.
   static Future<PrefsStore> load({Directory? dir}) async {
@@ -34,6 +35,9 @@ class PrefsStore {
           if (nome is String && nome.trim().isNotEmpty) {
             store._teacherName = nome.trim();
           }
+          if (decoded['notificarSites'] is bool) {
+            store._notificarSites = decoded['notificarSites'] as bool;
+          }
         }
       } catch (_) {
         // arquivo corrompido -> defaults
@@ -44,6 +48,12 @@ class PrefsStore {
 
   ThemeMode get themeMode => _themeMode;
   String get teacherName => _teacherName;
+  bool get notificarSites => _notificarSites;
+
+  Future<void> setNotificarSites(bool valor) async {
+    _notificarSites = valor;
+    await _save();
+  }
 
   Future<void> setThemeMode(ThemeMode mode) async {
     _themeMode = mode;
@@ -65,6 +75,7 @@ class PrefsStore {
           ThemeMode.system => 'system',
         },
         'teacherName': _teacherName,
+        'notificarSites': _notificarSites,
       }),
     );
   }

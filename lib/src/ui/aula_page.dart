@@ -273,6 +273,17 @@ class _AulaPageState extends State<AulaPage> {
                 },
               ),
             ListTile(
+              leading: const Icon(Icons.lock_open),
+              title: const Text('Desbloquear sites deste PC'),
+              subtitle: _pairing.aulaAtiva
+                  ? null
+                  : const Text('exige uma aula em andamento'),
+              onTap: () {
+                Navigator.pop(ctx);
+                mostrarSheetLiberarSites(context, _pairing, s.deviceId);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.edit_outlined),
               title: const Text('Renomear unidade'),
               onTap: () {
