@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 
 import '../pairing/pairing_controller.dart';
+import 'aluno_page.dart';
 
 class StudentsPage extends StatefulWidget {
   const StudentsPage({super.key, required this.pairing});
@@ -195,9 +196,13 @@ class _AlunosPageState extends State<_AlunosPage> {
           controller: ctrl,
           autofocus: true,
           textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Nome do aluno',
             hintText: 'ex.: William',
+            helperText: existente == null
+                ? null
+                : 'O histórico de aulas antigas continua sob o nome anterior.',
+            helperMaxLines: 2,
           ),
         ),
         actions: [
@@ -271,7 +276,20 @@ class _AlunosPageState extends State<_AlunosPage> {
                   child: ListTile(
                     leading: const Icon(Icons.person_outline),
                     title: Text(aluno),
-                    onTap: () => _dialogoAluno(indice: i),
+                    subtitle: const Text('toque para ver as aulas'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.edit_outlined),
+                      tooltip: 'Renomear aluno',
+                      onPressed: () => _dialogoAluno(indice: i),
+                    ),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => AlunoPage(
+                          pairing: widget.pairing,
+                          aluno: aluno,
+                        ),
+                      ),
+                    ),
                   ),
                 );
               },

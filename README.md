@@ -88,6 +88,8 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Notificações com som**: site de alerta acessado ou bloqueado tentado
 - [x] **PC do professor**: fora dos broadcasts/bloqueios; recebe links do
       histórico dos alunos e os avisos (notificação no Chromebook)
+- [x] **Ficha do aluno**: aulas que participou (data) + acessos por aula —
+      persistido no Firebase SEMPRE cifrado (só o celular do professor decifra)
 - [ ] Teste de campo (professor + turma real)
 - [ ] Comandos futuros: bloquear tela, mensagem
 

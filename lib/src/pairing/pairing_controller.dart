@@ -10,10 +10,12 @@ import 'package:firebase_auth/firebase_auth.dart'; // também exporta FirebaseEx
 import 'package:flutter/foundation.dart';
 
 import '../cloud/firebase_transport.dart';
+import '../cloud/history_store.dart';
 import '../cloud/qr_payload.dart';
 import '../cloud/session_registry.dart';
 import '../commands/command.dart';
 import '../commands/domain_rules.dart';
+import '../secure/history_crypto.dart';
 import '../secure/key_store.dart';
 import '../service/foreground_service.dart';
 import '../service/notification_service.dart';
@@ -30,6 +32,7 @@ class PairingController extends ChangeNotifier {
   String deviceName;
 
   FirebaseTransport? _transport;
+  HistoryStore? _history;
   NameStore? _names;
   RulesStore? _rules;
   FavoritesStore? _favorites;
@@ -119,6 +122,20 @@ class PairingController extends ChangeNotifier {
       transport.registry.pcProfessorId = _pcProfessorId;
       await transport.start();
       _transport = transport;
+
+      // Histórico de aulas: cifrado com chave derivada da keypair do
+      // professor; re-anexa à sessão aberta se o app fechou no meio da aula.
+      _history = HistoryStore(
+        teacherUid: user.uid,
+        crypto: await historyCryptoFrom(teacher),
+      );
+      final session = _session;
+      if (session != null && session.ativa) {
+        await _history!.abrirSessao(
+          session.turma,
+          session.inicio.millisecondsSinceEpoch,
+        );
+      }
       await iniciarServicoAula();
       erroDeConexao = null;
     } catch (e) {
@@ -206,6 +223,13 @@ class PairingController extends ChangeNotifier {
   // de "Alertar" ou TENTA um bloqueado (a tentativa chega no histórico — a
   // extensão registra antes do redirect). Liberações da aula não notificam.
   void _onNovosEventos(String deviceId, List<NavEvent> novos) {
+    // Histórico persistente: só de PCs com aluno vinculado numa aula ativa
+    // (TODOS os eventos, não só os com regra). PC do professor nunca emite.
+    if (aulaAtiva) {
+      final aluno = alunoDe(deviceId);
+      if (aluno != null) _history?.registrar(aluno, novos);
+    }
+
     final notifs = notificacoes;
     if (!notificarSites || notifs == null) return;
     final regras = _rules?.regras;
@@ -344,6 +368,32 @@ class PairingController extends ChangeNotifier {
     _transport?.sendCommand(deviceId, buildCloseAllTabs());
   }
 
+  // ---- Histórico de aulas (Firebase, cifrado; ver history_store.dart) -------------
+
+  /// Aulas em que o aluno aparece, mais recentes primeiro (vazio se o
+  /// transporte ainda não subiu).
+  Future<List<AulaMeta>> aulasDoAluno(String aluno) async =>
+      await _history?.aulasDoAluno(aluno) ?? const [];
+
+  /// Eventos do aluno numa aula, ordenados por hora.
+  Future<List<NavEvent>> eventosDoAluno(String sessionId, String aluno) async =>
+      await _history?.eventosDoAluno(sessionId, aluno) ?? const [];
+
+  Future<void> apagarAulaDoHistorico(String sessionId) async {
+    await _history?.apagarSessao(sessionId);
+    notifyListeners();
+  }
+
+  Future<void> apagarHistoricoDoAluno(String aluno) async {
+    await _history?.apagarAluno(aluno);
+    notifyListeners();
+  }
+
+  Future<void> apagarTodoHistorico() async {
+    await _history?.apagarTudo();
+    notifyListeners();
+  }
+
   // ---- Turmas e alunos (só no celular — nunca vão ao Firebase) -------------------
 
   List<Turma> get turmas => _students?.turmas ?? const [];
@@ -405,6 +455,13 @@ class PairingController extends ChangeNotifier {
 
   Future<void> iniciarAula(String turma) async {
     await _session?.iniciar(turma);
+    final session = _session;
+    if (session != null && session.ativa) {
+      await _history?.abrirSessao(
+        turma,
+        session.inicio.millisecondsSinceEpoch,
+      );
+    }
     notifyListeners();
   }
 
@@ -423,6 +480,7 @@ class PairingController extends ChangeNotifier {
   /// volta a valer nos PCs que tinham exceção).
   Future<void> encerrarAula() async {
     await _transport?.sendToAll(buildCloseAllTabs(closeWindows: true));
+    await _history?.fecharSessao();
     final comExcecao = _session?.devicesComExcecao ?? const <String>[];
     await _session?.encerrar();
     for (final deviceId in comExcecao) {
