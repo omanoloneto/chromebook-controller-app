@@ -225,6 +225,36 @@ class _DevicePageState extends State<DevicePage> {
   Future<void> _liberarSites() =>
       mostrarSheetLiberarSites(context, widget.pairing, widget.deviceId);
 
+  void _abrirNoTelao(String url) {
+    widget.pairing.abrirNoPcProfessor(url);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(content: Text('Abrindo no PC do professor…')),
+      );
+  }
+
+  /// Item de menu "Abrir no PC do professor" (usado na aba ativa, nas abas
+  /// abertas e no histórico). Desabilitado explica o porquê.
+  PopupMenuItem<String> _itemMenuTelao() {
+    return PopupMenuItem(
+      value: 'telao',
+      enabled: widget.pairing.pcProfessorOnline,
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: const Icon(Icons.co_present),
+        title: const Text('Abrir no PC do professor'),
+        subtitle: widget.pairing.pcProfessorOnline
+            ? null
+            : Text(
+                widget.pairing.pcProfessorId == null
+                    ? 'nenhum PC marcado como do professor'
+                    : 'PC do professor está offline',
+              ),
+      ),
+    );
+  }
+
   Future<void> _confirmarFecharTudo() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -400,20 +430,38 @@ class _DevicePageState extends State<DevicePage> {
               padding: const EdgeInsets.all(12),
               child: ativa == null
                   ? const Text('Sem aba ativa informada.')
-                  : Column(
+                  : Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          ativa.title.isEmpty ? '(sem título)' : ativa.title,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        SelectableText(
-                          ativa.url,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontFamily: 'monospace',
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                ativa.title.isEmpty
+                                    ? '(sem título)'
+                                    : ativa.title,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              SelectableText(
+                                ativa.url,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ],
                           ),
+                        ),
+                        PopupMenuButton<String>(
+                          tooltip: 'Opções da aba ativa',
+                          onSelected: (v) {
+                            if (v == 'telao') _abrirNoTelao(ativa.url);
+                          },
+                          itemBuilder: (_) => [_itemMenuTelao()],
                         ),
                       ],
                     ),
@@ -456,9 +504,12 @@ class _DevicePageState extends State<DevicePage> {
                       );
                   } else if (v == 'dominio') {
                     _fecharPorDominio(t.url);
+                  } else if (v == 'telao') {
+                    _abrirNoTelao(t.url);
                   }
                 },
                 itemBuilder: (_) => [
+                  _itemMenuTelao(),
                   const PopupMenuItem(
                     value: 'aba',
                     child: Text('Fechar esta aba'),
@@ -495,35 +546,9 @@ class _DevicePageState extends State<DevicePage> {
                 trailing: PopupMenuButton<String>(
                   tooltip: 'Opções do link',
                   onSelected: (v) {
-                    if (v == 'telao') {
-                      widget.pairing.abrirNoPcProfessor(e.url);
-                      ScaffoldMessenger.of(context)
-                        ..hideCurrentSnackBar()
-                        ..showSnackBar(
-                          const SnackBar(
-                            content: Text('Abrindo no PC do professor…'),
-                          ),
-                        );
-                    }
+                    if (v == 'telao') _abrirNoTelao(e.url);
                   },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(
-                      value: 'telao',
-                      enabled: widget.pairing.pcProfessorOnline,
-                      child: ListTile(
-                        contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.co_present),
-                        title: const Text('Abrir no PC do professor'),
-                        subtitle: widget.pairing.pcProfessorOnline
-                            ? null
-                            : Text(
-                                widget.pairing.pcProfessorId == null
-                                    ? 'nenhum PC marcado como do professor'
-                                    : 'PC do professor está offline',
-                              ),
-                      ),
-                    ),
-                  ],
+                  itemBuilder: (_) => [_itemMenuTelao()],
                 ),
               ),
           ] else ...[
