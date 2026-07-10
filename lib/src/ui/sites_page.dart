@@ -171,6 +171,7 @@ class _SitesPageState extends State<SitesPage>
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'fab_sites',
         onPressed: () => _tabs.index == 0 ? _dialogoFavorito() : _dialogoRegra(),
         icon: const Icon(Icons.add),
         label: Text(_tabs.index == 0 ? 'Novo favorito' : 'Nova regra'),

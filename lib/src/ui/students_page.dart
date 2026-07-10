@@ -74,6 +74,8 @@ class _StudentsPageState extends State<StudentsPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Turmas')),
       floatingActionButton: FloatingActionButton.extended(
+        // Tag única: FABs de abas irmãs ficam montados juntos no IndexedStack.
+        heroTag: 'fab_turmas',
         onPressed: () => _dialogoTurma(),
         icon: const Icon(Icons.add),
         label: const Text('Nova turma'),
@@ -231,6 +233,7 @@ class _AlunosPageState extends State<_AlunosPage> {
     return Scaffold(
       appBar: AppBar(title: Text(turma.nome)),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'fab_alunos',
         onPressed: () => _dialogoAluno(),
         icon: const Icon(Icons.person_add),
         label: const Text('Novo aluno'),
