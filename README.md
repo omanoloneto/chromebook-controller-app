@@ -90,6 +90,8 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
       histórico dos alunos e os avisos (notificação no Chromebook)
 - [x] **Ficha do aluno**: aulas que participou (data) + acessos por aula —
       persistido no Firebase SEMPRE cifrado (só o celular do professor decifra)
+- [x] **Login Google + backup por PIN**: trocar de celular levando tudo
+      (chave cifrada pelo PIN; stores sincronizados)
 - [ ] Teste de campo (professor + turma real)
 - [ ] Comandos futuros: bloquear tela, mensagem
 

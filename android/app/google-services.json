@@ -13,7 +13,12 @@
           "package_name": "pro.omanoloneto.controle_de_aula"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "305628431439-tco3ac2lgab00tu09pnesvhr9l52kbho.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyB8zcWIXe2HeRFAxLGUBqtqZkM-zgGBvOE"
@@ -21,7 +26,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "305628431439-tco3ac2lgab00tu09pnesvhr9l52kbho.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

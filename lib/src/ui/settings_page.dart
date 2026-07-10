@@ -110,6 +110,102 @@ class _SettingsPageState extends State<SettingsPage> {
     _snack('Papel de parede enviado para $n PC(s). (Só funciona em ChromeOS.)');
   }
 
+  Future<String?> _pedirPin({required String titulo, required String acao}) {
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(titulo),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          obscureText: true,
+          maxLength: 12,
+          decoration: const InputDecoration(
+            labelText: 'PIN de backup',
+            helperText: 'Mínimo 6 dígitos. Guarde bem — sem ele o backup '
+                'não abre em outro celular.',
+            helperMaxLines: 3,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (ctrl.text.trim().length >= 6) {
+                Navigator.pop(ctx, ctrl.text.trim());
+              }
+            },
+            child: Text(acao),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _entrarComGoogle() async {
+    _snack('Entrando com o Google…');
+    final r = await widget.pairing.entrarComGoogle();
+    if (!mounted) return;
+    if (r == 'linked') {
+      final pin =
+          await _pedirPin(titulo: 'Criar PIN de backup', acao: 'Ativar backup');
+      if (pin == null || !mounted) return;
+      await widget.pairing.ativarBackup(pin);
+      if (mounted) _snack('Backup ativado. Seus dados vão para a nuvem.');
+    } else if (r == 'switched') {
+      final tem = await widget.pairing.temBackupNaNuvem();
+      if (!mounted) return;
+      if (tem) {
+        await _restaurar();
+      } else {
+        final pin = await _pedirPin(
+          titulo: 'Criar PIN de backup',
+          acao: 'Ativar backup',
+        );
+        if (pin == null || !mounted) return;
+        await widget.pairing.ativarBackup(pin);
+        if (mounted) _snack('Backup ativado.');
+      }
+    } else if (r.startsWith('erro:') &&
+        !r.toLowerCase().contains('cancel')) {
+      _snack('Não deu para entrar: ${r.substring(5)}');
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _restaurar() async {
+    final pin = await _pedirPin(titulo: 'Restaurar backup', acao: 'Restaurar');
+    if (pin == null || !mounted) return;
+    _snack('Restaurando…');
+    final erro = await widget.pairing.restaurarBackup(pin);
+    if (!mounted) return;
+    if (erro == null) {
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Backup restaurado'),
+          content: const Text(
+            'Feche e abra o app para carregar os dados restaurados '
+            '(PCs pareados, histórico, turmas).',
+          ),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Entendi'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      _snack(erro);
+    }
+  }
+
   Widget _secao(String titulo) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
@@ -154,6 +250,54 @@ class _SettingsPageState extends State<SettingsPage> {
                   widget.settings.setThemeMode(sel.first),
             ),
           ),
+          _secao('Conta (backup e troca de celular)'),
+          if (!widget.pairing.logadoComGoogle)
+            ListTile(
+              leading: const Icon(Icons.cloud_upload_outlined),
+              title: const Text('Entrar com o Google'),
+              subtitle: const Text(
+                'Guarda seus dados na nuvem para trocar de celular depois.',
+              ),
+              onTap: _entrarComGoogle,
+            )
+          else ...[
+            ListTile(
+              leading: Icon(
+                widget.pairing.backupAtivo
+                    ? Icons.cloud_done_outlined
+                    : Icons.cloud_off_outlined,
+              ),
+              title: Text('Conectado: ${widget.pairing.emailGoogle ?? 'Google'}'),
+              subtitle: Text(
+                widget.pairing.backupAtivo
+                    ? 'Backup ativo — dados sincronizados na nuvem.'
+                    : 'Backup ainda não ativado neste celular.',
+              ),
+            ),
+            if (!widget.pairing.backupAtivo)
+              ListTile(
+                leading: const Icon(Icons.backup_outlined),
+                title: const Text('Ativar backup (criar PIN)'),
+                onTap: () async {
+                  final pin = await _pedirPin(
+                    titulo: 'Criar PIN de backup',
+                    acao: 'Ativar backup',
+                  );
+                  if (pin == null || !mounted) return;
+                  await widget.pairing.ativarBackup(pin);
+                  if (mounted) {
+                    _snack('Backup ativado.');
+                    setState(() {});
+                  }
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.restore),
+              title: const Text('Restaurar backup neste celular'),
+              subtitle: const Text('Traz os dados de outro aparelho (pede o PIN).'),
+              onTap: _restaurar,
+            ),
+          ],
           _secao('Professor'),
           ListTile(
             leading: const Icon(Icons.badge_outlined),

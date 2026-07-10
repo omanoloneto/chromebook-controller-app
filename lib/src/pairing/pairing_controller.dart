@@ -7,8 +7,12 @@ import 'dart:async';
 
 import 'package:crypto/crypto.dart' as c;
 import 'package:firebase_auth/firebase_auth.dart'; // também exporta FirebaseException
+import 'package:firebase_database/firebase_database.dart' show FirebaseDatabase;
 import 'package:flutter/foundation.dart';
 
+import 'package:google_sign_in/google_sign_in.dart';
+
+import '../cloud/backup_store.dart';
 import '../cloud/firebase_transport.dart';
 import '../cloud/history_store.dart';
 import '../cloud/qr_payload.dart';
@@ -33,6 +37,11 @@ class PairingController extends ChangeNotifier {
 
   FirebaseTransport? _transport;
   HistoryStore? _history;
+  BackupStore? _backup;
+  Timer? _backupTimer;
+
+  /// Keypair do professor já está na nuvem (backup ativado)?
+  bool backupAtivo = false;
   NameStore? _names;
   RulesStore? _rules;
   FavoritesStore? _favorites;
@@ -125,10 +134,10 @@ class PairingController extends ChangeNotifier {
 
       // Histórico de aulas: cifrado com chave derivada da keypair do
       // professor; re-anexa à sessão aberta se o app fechou no meio da aula.
-      _history = HistoryStore(
-        teacherUid: user.uid,
-        crypto: await historyCryptoFrom(teacher),
-      );
+      final hCrypto = await historyCryptoFrom(teacher);
+      _history = HistoryStore(teacherUid: user.uid, crypto: hCrypto);
+      _backup = BackupStore(uid: user.uid, historyCrypto: hCrypto);
+      backupAtivo = await _backup!.existeNaNuvem();
       final session = _session;
       if (session != null && session.ativa) {
         await _history!.abrirSessao(
@@ -147,6 +156,124 @@ class PairingController extends ChangeNotifier {
       iniciando = false;
       notifyListeners();
     }
+  }
+
+  // ---- Conta Google + backup (troca de celular) ------------------------------------
+
+  /// Web client id do projeto (google-services.json, oauth type 3).
+  static const _kWebClientId =
+      '305628431439-tco3ac2lgab00tu09pnesvhr9l52kbho.apps.googleusercontent.com';
+  bool _googleInit = false;
+
+  User? get _usuarioAtual {
+    try {
+      return FirebaseAuth.instance.currentUser;
+    } catch (_) {
+      return null; // Firebase não inicializado (ex.: teste de widget)
+    }
+  }
+
+  bool get logadoComGoogle =>
+      _usuarioAtual?.providerData.any((p) => p.providerId == 'google.com') ??
+      false;
+
+  String? get emailGoogle => _usuarioAtual?.providerData
+      .where((p) => p.providerId == 'google.com')
+      .map((p) => p.email)
+      .firstOrNull;
+
+  /// Entra com Google. Retorna:
+  /// - 'linked': conta Google vinculada ao professor atual (uid mantido —
+  ///   nada muda, só habilita o backup);
+  /// - 'switched': a conta Google já era usada em outro celular — o app agora
+  ///   está no uid antigo; restaurar o backup (PIN) e REINICIAR;
+  /// - 'erro:<detalhe>' em falhas (inclui cancelamento).
+  Future<String> entrarComGoogle() async {
+    try {
+      if (!_googleInit) {
+        await GoogleSignIn.instance.initialize(serverClientId: _kWebClientId);
+        _googleInit = true;
+      }
+      final conta = await GoogleSignIn.instance.authenticate();
+      final idToken = conta.authentication.idToken;
+      if (idToken == null) return 'erro:sem_token';
+      final cred = GoogleAuthProvider.credential(idToken: idToken);
+      final auth = FirebaseAuth.instance;
+      try {
+        // Vincula à conta anônima atual: o uid NÃO muda (pareamentos e
+        // histórico continuam valendo).
+        await auth.currentUser!.linkWithCredential(cred);
+        notifyListeners();
+        return 'linked';
+      } on FirebaseAuthException catch (e) {
+        if (e.code == 'credential-already-in-use' ||
+            e.code == 'email-already-in-use') {
+          // Conta já existe (outro celular): assume o uid antigo.
+          await auth.signInWithCredential(cred);
+          notifyListeners();
+          return 'switched';
+        }
+        return 'erro:${e.code}';
+      }
+    } catch (e) {
+      return 'erro:$e';
+    }
+  }
+
+  /// Ativa o backup: keypair cifrada pelo PIN + stores. Exige login Google.
+  Future<void> ativarBackup(String pin) async {
+    final b = _backup;
+    if (b == null) return;
+    await b.subirKeypair(pin);
+    await b.subirStores();
+    backupAtivo = true;
+    notifyListeners();
+  }
+
+  /// Força um backup dos stores agora (a keypair já está lá).
+  Future<void> backupAgora() async => _backup?.subirStores();
+
+  /// Existe backup na conta atualmente logada? (uso pós-'switched')
+  Future<bool> temBackupNaNuvem() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+    // Pós-switch o _backup aponta pro uid velho — consulta direta:
+    try {
+      final v = await FirebaseDatabase.instance
+          .ref('backup/$uid/keypair')
+          .get();
+      return v.value is String;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Restaura keypair (PIN) + stores da conta logada para o disco local.
+  /// Retorna null em sucesso (REINICIAR o app) ou mensagem de erro.
+  Future<String?> restaurarBackup(String pin) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return 'Entre com o Google primeiro.';
+    try {
+      await BackupStore.restaurar(uid: uid, pin: pin);
+      return null;
+    } on PinIncorretoException {
+      return 'PIN incorreto.';
+    } catch (e) {
+      return 'Falha ao restaurar: $e';
+    }
+  }
+
+  // Sync automático dos stores: qualquer mudança de estado agenda um backup
+  // (debounce 2 min) quando o backup está ativo.
+  @override
+  void notifyListeners() {
+    if (backupAtivo && _backup != null && _backupTimer == null) {
+      _backupTimer = Timer(const Duration(minutes: 2), () {
+        _backupTimer = null;
+        _backup?.subirStores();
+      });
+    }
+    super.notifyListeners();
   }
 
   /// Retry manual após erro de inicialização.
