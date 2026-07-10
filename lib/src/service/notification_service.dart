@@ -44,7 +44,9 @@ class NotificationService {
     return android?.areNotificationsEnabled();
   }
 
-  Future<void> notificarAlerta({required String pc, required String dominio}) {
+  /// Retorna true se passou pelo throttle e disparou (o controller usa o
+  /// retorno para também avisar o PC do professor).
+  Future<bool> notificarAlerta({required String pc, required String dominio}) {
     return _notificar(
       tipo: 'alerta',
       pc: pc,
@@ -54,7 +56,7 @@ class NotificationService {
     );
   }
 
-  Future<void> notificarBloqueado({required String pc, required String dominio}) {
+  Future<bool> notificarBloqueado({required String pc, required String dominio}) {
     return _notificar(
       tipo: 'bloqueado',
       pc: pc,
@@ -81,7 +83,7 @@ class NotificationService {
     return true;
   }
 
-  Future<void> _notificar({
+  Future<bool> _notificar({
     required String tipo,
     required String pc,
     required String dominio,
@@ -89,8 +91,8 @@ class NotificationService {
     required String corpo,
   }) async {
     final chave = '$tipo|$pc|$dominio';
-    if (!deveDisparar(chave)) return;
-    if (!_pronto) return;
+    if (!deveDisparar(chave)) return false;
+    if (!_pronto) return true; // decisão vale (telão notifica mesmo sem plugin)
 
     const detalhes = NotificationDetails(
       android: AndroidNotificationDetails(
@@ -110,6 +112,7 @@ class NotificationService {
       body: corpo,
       notificationDetails: detalhes,
     );
+    return true;
   }
 
   // Id estável por (tipo, pc, domínio): repetição SUBSTITUI o card em vez de

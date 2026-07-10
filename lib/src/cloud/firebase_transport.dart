@@ -33,6 +33,12 @@ class FirebaseTransport {
 
   final SessionRegistry registry = SessionRegistry();
 
+  /// deviceId do "PC do professor": fora de TODOS os broadcasts (abrir na
+  /// turma, fechar site/tudo, encerrar aula, regras, wallpaper). Comandos
+  /// individuais (sendCommand) continuam valendo — é assim que o telão recebe
+  /// open_url/show_message. Setado pelo controller.
+  String? pcProfessorId;
+
   /// Chamado ao (re)parear um PC — devolve os comandos de estado vigentes
   /// PARA AQUELE PC (set_rules sempre — pode variar por liberações da aula;
   /// set_wallpaper se houver). Injetado pelo controller.
@@ -263,8 +269,10 @@ class FirebaseTransport {
   }
 
   /// Turma toda (envelopes diferem: cada sessão tem sua chave).
+  /// O PC do professor fica de fora — comandos pra ele são individuais.
   Future<void> sendToAll(Map<String, dynamic> cmd) async {
     for (final s in registry.all) {
+      if (s.deviceId == pcProfessorId) continue;
       await sendCommand(s.deviceId, cmd);
     }
   }
@@ -280,6 +288,7 @@ class FirebaseTransport {
 
   Future<void> setStateAll(Map<String, dynamic> cmd) async {
     for (final s in registry.all) {
+      if (s.deviceId == pcProfessorId) continue;
       await setStateOne(s.deviceId, cmd);
     }
   }

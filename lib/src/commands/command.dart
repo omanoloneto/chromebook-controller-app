@@ -16,10 +16,10 @@ class MessageType {
   static const String closeAllTabs = 'close_all_tabs';
   static const String setRules = 'set_rules';
   static const String setWallpaper = 'set_wallpaper';
+  static const String showMessage = 'show_message';
   // Reservados (futuro):
   static const String lockScreen = 'lock_screen';
   static const String unlockScreen = 'unlock_screen';
-  static const String showMessage = 'show_message';
   static const String focusMode = 'focus_mode';
 }
 
@@ -52,6 +52,17 @@ Map<String, dynamic> buildCloseAllTabs({bool closeWindows = false}) {
     'type': MessageType.closeAllTabs,
     'id': _nextId(),
     'payload': {'closeWindows': closeWindows},
+  };
+}
+
+/// Monta o comando `show_message` — notificação do sistema no Chromebook
+/// (usado no PC do professor; requer extensão >= 0.4.2).
+Map<String, dynamic> buildShowMessage(String title, String body) {
+  return {
+    'v': kProtocolVersion,
+    'type': MessageType.showMessage,
+    'id': _nextId(),
+    'payload': {'title': title, 'body': body},
   };
 }
 

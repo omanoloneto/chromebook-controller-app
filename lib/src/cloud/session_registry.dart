@@ -56,6 +56,10 @@ class PcSession {
 class SessionRegistry {
   final Map<String, PcSession> _byId = {};
 
+  /// deviceId do "PC do professor": sem histórico, sem alerta, sem
+  /// notificações (privacidade do professor + telão). Setado pelo controller.
+  String? pcProfessorId;
+
   /// Chamado quando a lista/estado muda (para a UI).
   void Function()? onChange;
 
@@ -120,6 +124,14 @@ class SessionRegistry {
     s.reportJaAplicado = true;
     s.tabs = r.tabs;
     s.lastReportAt = reportAt ?? DateTime.now();
+    // PC do professor: sem histórico/alerta/notificações (abas ficam — servem
+    // p/ confirmar visualmente um open_url no telão).
+    if (deviceId == pcProfessorId) {
+      s.alerta = null;
+      s.history.clear();
+      onChange?.call();
+      return;
+    }
     // Recalcula a cada relatório: o alerta some sozinho quando a aba fecha.
     s.alerta = avaliarAlerta?.call(deviceId, s.tabs);
     final novos = <NavEvent>[];

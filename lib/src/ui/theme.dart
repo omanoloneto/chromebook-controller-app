@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 const Color kSeed = Color(0xFF2962FF);
 
 /// Versão exibida em Ajustes — manter em sincronia com o pubspec.yaml.
-const String kVersaoApp = '0.7.0';
+const String kVersaoApp = '0.8.0';
 
 /// Cores semânticas que o ColorScheme não cobre. `online` é fixo por
 /// brightness (o tertiary do seed azul sai lilás — verde/teal é o código
@@ -87,10 +87,17 @@ CoresAula cores(BuildContext context) =>
     Theme.of(context).extension<CoresAula>()!;
 
 ThemeData buildTheme(Brightness brightness) {
-  final scheme = ColorScheme.fromSeed(seedColor: kSeed, brightness: brightness);
+  var scheme = ColorScheme.fromSeed(seedColor: kSeed, brightness: brightness);
+  // Dark AMOLED: fundo 100% preto; cards/navbar ficam nos surfaceContainer*
+  // (cinza escuro), destacando sobre o preto puro.
+  if (brightness == Brightness.dark) {
+    scheme = scheme.copyWith(surface: Colors.black);
+  }
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
+    scaffoldBackgroundColor:
+        brightness == Brightness.dark ? Colors.black : null,
     extensions: [CoresAula.from(scheme)],
     appBarTheme: const AppBarTheme(centerTitle: false),
     snackBarTheme: SnackBarThemeData(

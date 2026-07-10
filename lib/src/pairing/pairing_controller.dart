@@ -50,6 +50,43 @@ class PairingController extends ChangeNotifier {
   /// Injetado pelo root (main.dart) antes do start().
   NotificationService? notificacoes;
 
+  String? _pcProfessorId;
+
+  /// deviceId do "PC do professor" (telão): fora dos broadcasts, sem regras
+  /// de bloqueio, sem histórico/alerta/notificações.
+  String? get pcProfessorId => _pcProfessorId;
+
+  bool ehPcProfessor(String deviceId) => deviceId == _pcProfessorId;
+
+  /// PC do professor marcado e online?
+  bool get pcProfessorOnline {
+    final id = _pcProfessorId;
+    if (id == null) return false;
+    final s = _transport?.registry.byId(id);
+    return s != null && isOnline(s);
+  }
+
+  /// Marca/desmarca (null) o PC do professor. Redistribui as regras dos
+  /// afetados: o marcado recebe snapshot vazio (sem bloqueios — links de
+  /// alunos precisam abrir no telão); o desmarcado volta ao bloqueio integral.
+  void marcarPcProfessor(String? deviceId) {
+    final anterior = _pcProfessorId;
+    if (anterior == deviceId) return;
+    _pcProfessorId = deviceId;
+    _transport?.pcProfessorId = deviceId;
+    _transport?.registry.pcProfessorId = deviceId;
+    if (anterior != null) _distribuirRegrasPara(anterior);
+    if (deviceId != null) _distribuirRegrasPara(deviceId);
+    notifyListeners();
+  }
+
+  /// Abre uma URL só no PC do professor (ex.: link do histórico de um aluno).
+  void abrirNoPcProfessor(String url) {
+    final id = _pcProfessorId;
+    if (id == null) return;
+    _transport?.sendCommand(id, buildOpenUrl(url));
+  }
+
   Future<void> start() async {
     if (_transport != null) return; // idempotente (retry não duplica listeners)
     try {
@@ -78,6 +115,8 @@ class PairingController extends ChangeNotifier {
       transport.registry.onChange = _scheduleNotify;
       transport.registry.avaliarAlerta = _avaliarAlerta;
       transport.registry.onNovosEventos = _onNovosEventos;
+      transport.pcProfessorId = _pcProfessorId;
+      transport.registry.pcProfessorId = _pcProfessorId;
       await transport.start();
       _transport = transport;
       await iniciarServicoAula();
@@ -124,7 +163,9 @@ class PairingController extends ChangeNotifier {
   }
 
   /// Regras válidas para um PC = regras da casa − liberações desta aula.
+  /// PC do professor: sem regra nenhuma (o telão precisa abrir qualquer link).
   List<DomainRule> _regrasParaDevice(String deviceId) {
+    if (deviceId == _pcProfessorId) return const [];
     final regras = _rules?.regras ?? const <DomainRule>[];
     final liberados = _session?.excecoesDe(deviceId) ?? const <String>{};
     if (liberados.isEmpty) return regras;
@@ -181,11 +222,23 @@ class PairingController extends ChangeNotifier {
       } catch (_) {
         dominio = r.pattern;
       }
-      if (r.action == RuleAction.block) {
-        notifs.notificarBloqueado(pc: nomePc, dominio: dominio);
-      } else {
-        notifs.notificarAlerta(pc: nomePc, dominio: dominio);
-      }
+      final bloqueado = r.action == RuleAction.block;
+      final futuro = bloqueado
+          ? notifs.notificarBloqueado(pc: nomePc, dominio: dominio)
+          : notifs.notificarAlerta(pc: nomePc, dominio: dominio);
+      // Mesma decisão de throttle vale pro telão: se disparou no celular,
+      // apita também no PC do professor (se marcado e online).
+      futuro.then((disparou) {
+        if (disparou && pcProfessorOnline) {
+          _transport?.sendCommand(
+            _pcProfessorId!,
+            buildShowMessage(
+              bloqueado ? '🚫 $nomePc' : '⚠ $nomePc',
+              bloqueado ? 'Tentou acessar $dominio' : 'Acessou $dominio',
+            ),
+          );
+        }
+      });
     }
   }
 
@@ -249,6 +302,7 @@ class PairingController extends ChangeNotifier {
 
   /// Desfaz o vínculo de um PC (a extensão volta a exibir o QR).
   Future<void> esquecerPc(String deviceId) async {
+    if (deviceId == _pcProfessorId) marcarPcProfessor(null);
     await _transport?.forgetDevice(deviceId);
     notifyListeners();
   }

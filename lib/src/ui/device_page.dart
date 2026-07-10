@@ -84,6 +84,41 @@ Future<void> mostrarSheetLiberarSites(
   );
 }
 
+/// Confirmação de "Esquecer este PC" (usada aqui e no menu ⋮ da aba Aula).
+/// Retorna true se desvinculou.
+Future<bool> confirmarEsquecerPc(
+  BuildContext context,
+  PairingController pairing,
+  String deviceId,
+  String nome,
+) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Esquecer este PC'),
+      content: Text(
+        'Desfazer o vínculo com "$nome"?\n\n'
+        'O Chromebook volta a exibir o QR de pareamento e some da sua lista.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Esquecer'),
+        ),
+      ],
+    ),
+  );
+  if (ok == true) {
+    await pairing.esquecerPc(deviceId);
+    return true;
+  }
+  return false;
+}
+
 /// Diálogo de renomear (usado aqui e na home via long-press).
 Future<void> mostrarDialogoRenomear(
   BuildContext context,
@@ -219,30 +254,13 @@ class _DevicePageState extends State<DevicePage> {
   }
 
   Future<void> _confirmarEsquecer(String nome) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Esquecer este PC'),
-        content: Text(
-          'Desfazer o vínculo com "$nome"?\n\n'
-          'O Chromebook volta a exibir o QR de pareamento e some da sua lista.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Esquecer'),
-          ),
-        ],
-      ),
+    final saiu = await confirmarEsquecerPc(
+      context,
+      widget.pairing,
+      widget.deviceId,
+      nome,
     );
-    if (ok == true && mounted) {
-      await widget.pairing.esquecerPc(widget.deviceId);
-      if (mounted) Navigator.of(context).pop();
-    }
+    if (saiu && mounted) Navigator.of(context).pop();
   }
 
   @override
@@ -452,28 +470,73 @@ class _DevicePageState extends State<DevicePage> {
                 ],
               ),
             ),
-          const SizedBox(height: 16),
-          Text(
-            'Histórico de navegação',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 4),
-          if (historico.isEmpty)
-            const ListTile(dense: true, title: Text('Nenhuma visita ainda.')),
-          for (final e in historico)
-            ListTile(
-              dense: true,
-              leading: Text(
-                _hora(e.ts),
-                style: const TextStyle(fontFamily: 'monospace'),
-              ),
-              title: Text(
-                e.title.isEmpty ? e.url : e.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(dominioDe(e.url)),
+          if (!widget.pairing.ehPcProfessor(widget.deviceId)) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Histórico de navegação',
+              style: Theme.of(context).textTheme.titleMedium,
             ),
+            const SizedBox(height: 4),
+            if (historico.isEmpty)
+              const ListTile(dense: true, title: Text('Nenhuma visita ainda.')),
+            for (final e in historico)
+              ListTile(
+                dense: true,
+                leading: Text(
+                  _hora(e.ts),
+                  style: const TextStyle(fontFamily: 'monospace'),
+                ),
+                title: Text(
+                  e.title.isEmpty ? e.url : e.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(dominioDe(e.url)),
+                trailing: PopupMenuButton<String>(
+                  tooltip: 'Opções do link',
+                  onSelected: (v) {
+                    if (v == 'telao') {
+                      widget.pairing.abrirNoPcProfessor(e.url);
+                      ScaffoldMessenger.of(context)
+                        ..hideCurrentSnackBar()
+                        ..showSnackBar(
+                          const SnackBar(
+                            content: Text('Abrindo no PC do professor…'),
+                          ),
+                        );
+                    }
+                  },
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      value: 'telao',
+                      enabled: widget.pairing.pcProfessorOnline,
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.co_present),
+                        title: const Text('Abrir no PC do professor'),
+                        subtitle: widget.pairing.pcProfessorOnline
+                            ? null
+                            : Text(
+                                widget.pairing.pcProfessorId == null
+                                    ? 'nenhum PC marcado como do professor'
+                                    : 'PC do professor está offline',
+                              ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ] else ...[
+            const SizedBox(height: 16),
+            const ListTile(
+              dense: true,
+              leading: Icon(Icons.co_present),
+              title: Text('PC do professor'),
+              subtitle: Text(
+                'Sem monitoramento de histórico, alertas ou bloqueios.',
+              ),
+            ),
+          ],
         ],
       ),
     );

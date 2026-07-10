@@ -86,6 +86,8 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Encerrar aula**: fecha o navegador de todos os PCs e limpa os vínculos
 - [x] **Desbloquear site para 1 PC** durante a aula (menu do PC / tela de detalhe)
 - [x] **Notificações com som**: site de alerta acessado ou bloqueado tentado
+- [x] **PC do professor**: fora dos broadcasts/bloqueios; recebe links do
+      histórico dos alunos e os avisos (notificação no Chromebook)
 - [ ] Teste de campo (professor + turma real)
 - [ ] Comandos futuros: bloquear tela, mensagem
 

@@ -46,8 +46,12 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
     super.initState();
     _pairing.notificacoes = _notificacoes;
     _pairing.notificarSites = _settings.notificarSites;
+    _pairing.marcarPcProfessor(widget.prefs.teacherPcId);
     // Preferências → controller (toggle de notificações muda em Ajustes).
     _settings.addListener(_sincronizarPrefs);
+    // Controller → preferências (marcar PC do professor acontece na UI da
+    // Aula, que só conhece o pairing; o root persiste).
+    _pairing.addListener(_persistirPcProfessor);
     if (widget.autoStart) {
       _notificacoes.init();
       _pairing.start();
@@ -58,9 +62,16 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
     _pairing.notificarSites = _settings.notificarSites;
   }
 
+  void _persistirPcProfessor() {
+    if (_pairing.pcProfessorId != _settings.teacherPcId) {
+      _settings.setTeacherPcId(_pairing.pcProfessorId);
+    }
+  }
+
   @override
   void dispose() {
     _settings.removeListener(_sincronizarPrefs);
+    _pairing.removeListener(_persistirPcProfessor);
     _pairing.stop();
     _pairing.dispose();
     super.dispose();

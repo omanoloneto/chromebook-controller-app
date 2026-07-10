@@ -17,6 +17,7 @@ class PrefsStore {
   ThemeMode _themeMode = ThemeMode.system;
   String _teacherName = 'Professor';
   bool _notificarSites = true;
+  String? _teacherPcId; // deviceId do "PC do professor" (null = nenhum)
 
   /// `dir` é injetável para testes; por padrão usa o diretório do app.
   static Future<PrefsStore> load({Directory? dir}) async {
@@ -38,6 +39,10 @@ class PrefsStore {
           if (decoded['notificarSites'] is bool) {
             store._notificarSites = decoded['notificarSites'] as bool;
           }
+          final pcProf = decoded['teacherPcId'];
+          if (pcProf is String && pcProf.isNotEmpty) {
+            store._teacherPcId = pcProf;
+          }
         }
       } catch (_) {
         // arquivo corrompido -> defaults
@@ -49,9 +54,15 @@ class PrefsStore {
   ThemeMode get themeMode => _themeMode;
   String get teacherName => _teacherName;
   bool get notificarSites => _notificarSites;
+  String? get teacherPcId => _teacherPcId;
 
   Future<void> setNotificarSites(bool valor) async {
     _notificarSites = valor;
+    await _save();
+  }
+
+  Future<void> setTeacherPcId(String? deviceId) async {
+    _teacherPcId = (deviceId != null && deviceId.isEmpty) ? null : deviceId;
     await _save();
   }
 
@@ -76,6 +87,7 @@ class PrefsStore {
         },
         'teacherName': _teacherName,
         'notificarSites': _notificarSites,
+        if (_teacherPcId != null) 'teacherPcId': _teacherPcId,
       }),
     );
   }

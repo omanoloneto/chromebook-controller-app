@@ -56,6 +56,27 @@ void main() {
       expect(recebidos, isEmpty);
     });
 
+    test('PC do professor: sem histórico, sem alerta, sem eventos', () {
+      final reg = SessionRegistry();
+      final recebidos = <NavEvent>[];
+      var alertaChamado = false;
+      reg.onNovosEventos = (_, novos) => recebidos.addAll(novos);
+      reg.avaliarAlerta = (_, __) {
+        alertaChamado = true;
+        return 'dominio.com';
+      };
+      reg.pcProfessorId = 'prof';
+      reg.bind(deviceId: 'prof', label: 'Telão', sessionKey: chave);
+
+      reg.applyReport('prof', rep([ev(1, 'https://a.com/')]));
+      reg.applyReport('prof', rep([ev(2, 'https://b.com/')])); // 2º report
+      final s = reg.byId('prof')!;
+      expect(s.history, isEmpty); // histórico nunca acumula
+      expect(s.alerta, isNull);
+      expect(alertaChamado, false); // avaliador nem é consultado
+      expect(recebidos, isEmpty); // sem notificações
+    });
+
     test('re-bind preserva histórico e volta a silenciar o 1º report', () {
       final reg = SessionRegistry();
       final recebidos = <NavEvent>[];
