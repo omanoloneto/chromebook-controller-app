@@ -160,8 +160,8 @@ class _AulaPageState extends State<AulaPage> {
     final escolhida = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: ListView(
+          shrinkWrap: true,
           children: [
             const ListTile(title: Text('Iniciar aula com qual turma?')),
             const Divider(height: 1),
@@ -203,8 +203,8 @@ class _AulaPageState extends State<AulaPage> {
     final escolhido = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: ListView(
+          shrinkWrap: true,
           children: [
             ListTile(
               title: Text(
@@ -249,8 +249,8 @@ class _AulaPageState extends State<AulaPage> {
     showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: ListView(
+          shrinkWrap: true,
           children: [
             ListTile(
               title: Text(_pairing.alunoDe(s.deviceId) ?? nome),
@@ -348,8 +348,8 @@ class _AulaPageState extends State<AulaPage> {
     showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: ListView(
+          shrinkWrap: true,
           children: [
             ListTile(
               title: Text(f.label),
