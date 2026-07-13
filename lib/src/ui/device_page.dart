@@ -425,7 +425,11 @@ class _DevicePageState extends State<DevicePage> {
           const SizedBox(height: 16),
           Text('Aba ativa', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          Card(
+          Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: ativa == null

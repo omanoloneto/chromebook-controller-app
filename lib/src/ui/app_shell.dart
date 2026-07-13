@@ -9,6 +9,7 @@ import 'settings_controller.dart';
 import 'settings_page.dart';
 import 'sites_page.dart';
 import 'students_page.dart';
+import 'theme.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key, required this.pairing, required this.settings});
@@ -45,10 +46,20 @@ class _AppShellState extends State<AppShell> {
           final alertas = widget.pairing.pcs
               .where((s) => widget.pairing.isOnline(s) && s.alerta != null)
               .length;
-          return NavigationBar(
-            selectedIndex: _index,
-            onDestinationSelected: (i) => setState(() => _index = i),
-            destinations: [
+          return DecoratedBox(
+            // Hairline no topo da barra (estilo IG).
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(
+                  color: hairline(Theme.of(context).brightness),
+                  width: 0.5,
+                ),
+              ),
+            ),
+            child: NavigationBar(
+              selectedIndex: _index,
+              onDestinationSelected: (i) => setState(() => _index = i),
+              destinations: [
               NavigationDestination(
                 icon: Badge.count(
                   count: alertas,
@@ -72,12 +83,13 @@ class _AppShellState extends State<AppShell> {
                 selectedIcon: Icon(Icons.language),
                 label: 'Sites',
               ),
-              const NavigationDestination(
-                icon: Icon(Icons.settings_outlined),
-                selectedIcon: Icon(Icons.settings),
-                label: 'Ajustes',
-              ),
-            ],
+                const NavigationDestination(
+                  icon: Icon(Icons.settings_outlined),
+                  selectedIcon: Icon(Icons.settings),
+                  label: 'Ajustes',
+                ),
+              ],
+            ),
           );
         },
       ),

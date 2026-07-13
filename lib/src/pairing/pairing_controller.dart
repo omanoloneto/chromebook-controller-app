@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../cloud/backup_store.dart';
+import '../cloud/broadcast_target.dart';
 import '../cloud/firebase_transport.dart';
 import '../cloud/history_store.dart';
 import '../cloud/qr_payload.dart';
@@ -460,9 +461,31 @@ class PairingController extends ChangeNotifier {
 
   // ---- Comandos ---------------------------------------------------------------
 
-  /// Abre uma URL em TODOS os PCs (turma toda).
+  /// PCs alvo dos comandos de turma: durante aula ativa, só os vinculados a
+  /// aluno; fora de aula, todos. O PC do professor nunca entra.
+  List<String> _devicesAlvo() {
+    return alvoDeBroadcast(
+      aulaAtiva: aulaAtiva,
+      vinculados: _session?.vinculos.keys ?? const [],
+      todos: (_transport?.registry.all ?? const []).map((s) => s.deviceId),
+      pcProfessorId: _pcProfessorId,
+    );
+  }
+
+  /// Quantos PCs um comando de turma vai atingir agora.
+  int get pcsAlvoCount => _devicesAlvo().length;
+
+  Future<void> _enviarParaAlvo(Map<String, dynamic> cmd) async {
+    final transport = _transport;
+    if (transport == null) return;
+    for (final deviceId in _devicesAlvo()) {
+      await transport.sendCommand(deviceId, cmd);
+    }
+  }
+
+  /// Abre uma URL nos PCs alvo (turma, ou só vinculados durante a aula).
   void abrirEmTodos(String url) {
-    _transport?.sendToAll(buildOpenUrl(url));
+    _enviarParaAlvo(buildOpenUrl(url));
   }
 
   /// Abre uma URL em um PC específico.
@@ -475,9 +498,9 @@ class PairingController extends ChangeNotifier {
     _transport?.sendCommand(deviceId, buildCloseTabs(url: url));
   }
 
-  /// Fecha todas as abas de um domínio na turma toda.
+  /// Fecha todas as abas de um domínio nos PCs alvo.
   void fecharSiteEmTodos(String domain) {
-    _transport?.sendToAll(buildCloseTabs(domain: domain));
+    _enviarParaAlvo(buildCloseTabs(domain: domain));
   }
 
   /// Fecha todas as abas de um domínio em um PC.
@@ -485,9 +508,9 @@ class PairingController extends ChangeNotifier {
     _transport?.sendCommand(deviceId, buildCloseTabs(domain: domain));
   }
 
-  /// Fecha TODAS as abas da turma toda (deixa 1 aba vazia em cada PC).
+  /// Fecha TODAS as abas dos PCs alvo (deixa 1 aba vazia em cada).
   void fecharTodasAsAbasEmTodos() {
-    _transport?.sendToAll(buildCloseAllTabs());
+    _enviarParaAlvo(buildCloseAllTabs());
   }
 
   /// Fecha TODAS as abas de um PC (deixa 1 aba vazia).
@@ -597,6 +620,25 @@ class PairingController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Cadastra um aluno na turma da aula (se ainda não existir) e o vincula ao
+  /// PC. Retorna null em sucesso ou mensagem de erro (PT-BR).
+  Future<String?> cadastrarEVincularAluno(String deviceId, String nome) async {
+    final n = nome.trim();
+    if (n.isEmpty) return 'Digite o nome do aluno.';
+    if (!aulaAtiva) return 'Inicie uma aula primeiro.';
+    final students = _students;
+    final turmaNome = turmaDaAula;
+    final indice =
+        students?.turmas.indexWhere((t) => t.nome == turmaNome) ?? -1;
+    if (students == null || indice < 0) {
+      return 'Turma da aula não encontrada.';
+    }
+    // adicionarAluno ignora duplicata; se já existe, segue direto p/ o vínculo.
+    await students.adicionarAluno(indice, n);
+    await vincularAluno(deviceId, n);
+    return null;
+  }
+
   Future<void> desvincularAluno(String deviceId) async {
     await _session?.desvincular(deviceId);
     notifyListeners();
@@ -606,7 +648,8 @@ class PairingController extends ChangeNotifier {
   /// limpa os vínculos aluno↔PC e derruba as liberações (o bloqueio integral
   /// volta a valer nos PCs que tinham exceção).
   Future<void> encerrarAula() async {
-    await _transport?.sendToAll(buildCloseAllTabs(closeWindows: true));
+    // Alvo calculado ANTES de encerrar (encerrar limpa os vínculos).
+    await _enviarParaAlvo(buildCloseAllTabs(closeWindows: true));
     await _history?.fecharSessao();
     final comExcecao = _session?.devicesComExcecao ?? const <String>[];
     await _session?.encerrar();

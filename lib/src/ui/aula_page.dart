@@ -62,14 +62,26 @@ class _AulaPageState extends State<AulaPage> {
 
   // ---- Comandos de turma ---------------------------------------------------------
 
+  // Alvo dos comandos de turma (só vinculados durante a aula). Retorna -1 e
+  // avisa quando não há ninguém pra receber.
+  int? _alvoOuAviso() {
+    final n = _pairing.pcsAlvoCount;
+    if (n == 0) {
+      _snack(
+        _pairing.aulaAtiva
+            ? 'Nenhum PC vinculado a aluno nesta aula.'
+            : 'Nenhum PC conectado ainda.',
+      );
+      return null;
+    }
+    return n;
+  }
+
   void _abrirEmTodos() {
     final url = _urlCtrl.text.trim();
     if (url.isEmpty) return;
-    final n = _pairing.pcs.length;
-    if (n == 0) {
-      _snack('Nenhum PC conectado ainda.');
-      return;
-    }
+    final n = _alvoOuAviso();
+    if (n == null) return;
     _pairing.abrirEmTodos(url);
     _snack('Enviado para $n PC(s).');
   }
@@ -90,11 +102,8 @@ class _AulaPageState extends State<AulaPage> {
       _snack('Digite/escolha um site primeiro.');
       return;
     }
-    final n = _pairing.pcs.length;
-    if (n == 0) {
-      _snack('Nenhum PC conectado ainda.');
-      return;
-    }
+    final n = _alvoOuAviso();
+    if (n == null) return;
     final ok = await _confirmar(
       titulo: 'Fechar site na turma',
       mensagem: 'Fechar todas as abas de $dominio em $n PC(s)?',
@@ -107,11 +116,8 @@ class _AulaPageState extends State<AulaPage> {
   }
 
   Future<void> _fecharTodasAsAbas() async {
-    final n = _pairing.pcs.length;
-    if (n == 0) {
-      _snack('Nenhum PC conectado ainda.');
-      return;
-    }
+    final n = _alvoOuAviso();
+    if (n == null) return;
     final ok = await _confirmar(
       titulo: 'Fechar todas as abas',
       mensagem:
@@ -184,11 +190,11 @@ class _AulaPageState extends State<AulaPage> {
   }
 
   Future<void> _encerrarAula() async {
-    final n = _pairing.pcs.length;
+    final n = _pairing.pcsAlvoCount; // só os vinculados
     final ok = await _confirmar(
       titulo: 'Encerrar aula',
-      mensagem: 'Fecha o NAVEGADOR (todas as janelas) em $n PC(s) e limpa os '
-          'vínculos de alunos desta aula.',
+      mensagem: 'Fecha o NAVEGADOR (todas as janelas) em $n PC(s) vinculado(s) '
+          'e limpa os vínculos de alunos desta aula.',
       acao: 'Encerrar',
     );
     if (ok) {
@@ -214,6 +220,11 @@ class _AulaPageState extends State<AulaPage> {
               ),
             ),
             const Divider(height: 1),
+            ListTile(
+              leading: const Icon(Icons.person_add),
+              title: const Text('Cadastrar e vincular novo aluno'),
+              onTap: () => Navigator.pop(ctx, ' novo'),
+            ),
             if (atual != null)
               ListTile(
                 leading: const Icon(Icons.person_remove),
@@ -222,7 +233,8 @@ class _AulaPageState extends State<AulaPage> {
               ),
             if (disponiveis.isEmpty && atual == null)
               const ListTile(
-                title: Text('Todos os alunos da turma já estão vinculados.'),
+                dense: true,
+                title: Text('Nenhum aluno livre — cadastre um novo acima.'),
               ),
             for (final a in disponiveis)
               ListTile(
@@ -235,11 +247,46 @@ class _AulaPageState extends State<AulaPage> {
       ),
     );
     if (escolhido == null) return;
-    if (escolhido == ' remover') {
+    if (escolhido == ' novo') {
+      await _cadastrarEVincular(deviceId);
+    } else if (escolhido == ' remover') {
       await _pairing.desvincularAluno(deviceId);
     } else {
       await _pairing.vincularAluno(deviceId, escolhido);
     }
+  }
+
+  Future<void> _cadastrarEVincular(String deviceId) async {
+    final ctrl = TextEditingController();
+    final nome = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Novo aluno'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          textCapitalization: TextCapitalization.words,
+          decoration: const InputDecoration(
+            labelText: 'Nome do aluno',
+            hintText: 'ex.: William',
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text),
+            child: const Text('Cadastrar e vincular'),
+          ),
+        ],
+      ),
+    );
+    if (nome == null || nome.trim().isEmpty) return;
+    final erro = await _pairing.cadastrarEVincularAluno(deviceId, nome);
+    if (mounted) _snack(erro ?? '${nome.trim()} vinculado a este PC.');
   }
 
   // Menu do PC (⋮ e long-press): tudo que era gesto escondido, agora visível.
@@ -620,21 +667,28 @@ class _AulaPageState extends State<AulaPage> {
     final exibidos = colapsar ? visiveis : ordenados;
 
     return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.zero,
       children: [
-        for (final s in exibidos) _pcCard(s),
+        // Listas flat com hairline entre os itens (estilo IG).
+        for (final s in exibidos) ...[
+          _pcCard(s),
+          const Divider(height: 0.5),
+        ],
         if (visiveis.isNotEmpty && ocultos > 0)
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: TextButton.icon(
-              onPressed: () => setState(() => _mostrarTodos = !_mostrarTodos),
-              icon: Icon(
-                _mostrarTodos ? Icons.expand_less : Icons.expand_more,
-              ),
-              label: Text(
-                _mostrarTodos
-                    ? 'Ocultar offline'
-                    : 'Ver todos (+$ocultos offline)',
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => setState(() => _mostrarTodos = !_mostrarTodos),
+                icon: Icon(
+                  _mostrarTodos ? Icons.expand_less : Icons.expand_more,
+                ),
+                label: Text(
+                  _mostrarTodos
+                      ? 'Ocultar offline'
+                      : 'Ver todos (+$ocultos offline)',
+                ),
               ),
             ),
           ),
@@ -778,18 +832,15 @@ class _AulaPageState extends State<AulaPage> {
       ],
     );
 
-    return Card(
-      color: alerta != null ? scheme.errorContainer : null,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => DevicePage(pairing: _pairing, deviceId: s.deviceId),
-          ),
+    // Flat (sem card): fundo = scaffold; o alerta aparece pelo avatar/subtítulo.
+    return InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => DevicePage(pairing: _pairing, deviceId: s.deviceId),
         ),
-        onLongPress: () => _menuPc(s, nome),
-        child: on ? conteudo : Opacity(opacity: 0.6, child: conteudo),
       ),
+      onLongPress: () => _menuPc(s, nome),
+      child: on ? conteudo : Opacity(opacity: 0.55, child: conteudo),
     );
   }
 }

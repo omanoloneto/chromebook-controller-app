@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 const Color kSeed = Color(0xFF2962FF);
 
 /// Versão exibida em Ajustes — manter em sincronia com o pubspec.yaml.
-const String kVersaoApp = '0.10.0';
+const String kVersaoApp = '0.11.0';
 
 /// Cores semânticas que o ColorScheme não cobre. `online` é fixo por
 /// brightness (o tertiary do seed azul sai lilás — verde/teal é o código
@@ -86,46 +86,104 @@ class CoresAula extends ThemeExtension<CoresAula> {
 CoresAula cores(BuildContext context) =>
     Theme.of(context).extension<CoresAula>()!;
 
+/// Cor das linhas finas (hairline) — estilo Instagram, por brightness.
+Color hairline(Brightness b) =>
+    b == Brightness.dark ? const Color(0xFF262626) : const Color(0xFFDBDBDB);
+
 ThemeData buildTheme(Brightness brightness) {
+  final escuro = brightness == Brightness.dark;
   var scheme = ColorScheme.fromSeed(seedColor: kSeed, brightness: brightness);
-  // Dark AMOLED: fundo 100% preto; cards/navbar ficam nos surfaceContainer*
-  // (cinza escuro), destacando sobre o preto puro.
-  if (brightness == Brightness.dark) {
-    scheme = scheme.copyWith(surface: Colors.black);
+  // Dark AMOLED: fundo 100% preto; realces pontuais (campos, chips) usam
+  // cinzas quase-pretos — o grosso da UI é preto + hairlines.
+  if (escuro) {
+    scheme = scheme.copyWith(
+      surface: Colors.black,
+      surfaceContainerLowest: Colors.black,
+      surfaceContainerLow: const Color(0xFF121212),
+      surfaceContainer: const Color(0xFF161616),
+      surfaceContainerHigh: const Color(0xFF1A1A1A),
+      surfaceContainerHighest: const Color(0xFF1F1F1F),
+    );
   }
+  final fundo = escuro ? Colors.black : Colors.white;
+  final linha = hairline(brightness);
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
-    scaffoldBackgroundColor:
-        brightness == Brightness.dark ? Colors.black : null,
+    scaffoldBackgroundColor: fundo,
     extensions: [CoresAula.from(scheme)],
-    appBarTheme: const AppBarTheme(centerTitle: false),
+    // AppBar chapada (estilo IG): sem elevação, sem tinta, título forte.
+    appBarTheme: AppBarTheme(
+      centerTitle: false,
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      backgroundColor: fundo,
+      surfaceTintColor: Colors.transparent,
+      titleTextStyle: TextStyle(
+        color: scheme.onSurface,
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+      ),
+      iconTheme: IconThemeData(color: scheme.onSurface),
+    ),
+    dividerTheme: DividerThemeData(thickness: 0.5, space: 0.5, color: linha),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
-    navigationBarTheme: const NavigationBarThemeData(
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+    // Barra inferior chapada, ícone-only (IG): sem pílula de indicador.
+    navigationBarTheme: NavigationBarThemeData(
+      backgroundColor: fundo,
+      elevation: 0,
+      surfaceTintColor: Colors.transparent,
+      indicatorColor: Colors.transparent,
+      height: 60,
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      showDragHandle: true,
+      backgroundColor: fundo,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
     ),
     inputDecorationTheme: InputDecorationTheme(
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      filled: true,
+      fillColor: escuro ? const Color(0xFF121212) : const Color(0xFFF2F2F2),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: BorderSide.none,
+      ),
     ),
-    // Alvos de toque generosos: professor em pé, uma mão.
+    // Primário = botão cheio arredondado (estilo "Seguir" do IG).
     filledButtonTheme: FilledButtonThemeData(
-      style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(0, 48),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
-      style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(0, 48),
+        side: BorderSide(color: linha),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
     ),
     textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(minimumSize: const Size(0, 48)),
+      style: TextButton.styleFrom(minimumSize: const Size(0, 44)),
     ),
+    // Sem cards no visual IG — se algo ainda usar Card, fica chapado.
     cardTheme: CardThemeData(
       elevation: 0,
-      color: scheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      color: fundo,
+      surfaceTintColor: Colors.transparent,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      margin: EdgeInsets.zero,
     ),
-    listTileTheme: const ListTileThemeData(minVerticalPadding: 10),
+    listTileTheme: const ListTileThemeData(minVerticalPadding: 8),
   );
 }
