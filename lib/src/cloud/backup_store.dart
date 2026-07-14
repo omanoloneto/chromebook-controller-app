@@ -21,6 +21,7 @@ import '../secure/pin_crypto.dart';
 /// não precisa entender o formato de cada um).
 const List<String> kArquivosDeBackup = [
   'device_names.json',
+  'unit_numbers.json',
   'domain_rules.json',
   'favorites.json',
   'turmas.json',

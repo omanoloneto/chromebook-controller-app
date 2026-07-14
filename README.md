@@ -97,6 +97,9 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Visão da turma no telão**: página na extensão do PC do professor com a
       lista de PCs e a aba ativa de cada um (snapshot agregado pelo app,
       re-cifrado só para o telão; ext ≥ 0.4.3)
+- [x] **Número da unidade automático**: cada PC ganha 1, 2, 3… na ordem de
+      pareamento do professor (vai no bind; a extensão exibe grande no popup;
+      re-parear mantém o número)
 - [x] **Login Google + backup por PIN**: trocar de celular levando tudo
       (chave cifrada pelo PIN; stores sincronizados)
 - [ ] Teste de campo (professor + turma real)

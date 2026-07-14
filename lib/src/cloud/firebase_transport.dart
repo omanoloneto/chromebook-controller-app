@@ -94,7 +94,7 @@ class FirebaseTransport {
   /// Passo do professor no fluxo do QR: grava o bind (as rules validam token +
   /// TOFU), o roster e o estado vigente. Lança [FirebaseException]
   /// (permission-denied) se o QR expirou ou o PC pertence a outro professor.
-  Future<void> pairDevice(QrPairPayload qr) async {
+  Future<void> pairDevice(QrPairPayload qr, {int? numero}) async {
     final sessionKey = await teacher.deriveSessionKey(pubFromB64url(qr.pub));
     await _dev(qr.deviceId).child('bind').set({
       'teacherUid': teacherUid,
@@ -102,10 +102,14 @@ class FirebaseTransport {
       'teacherName': teacherName,
       'token': qr.token,
       'ts': ServerValue.timestamp,
+      // Número da unidade deste professor (1, 2, 3… na ordem de pareamento);
+      // a extensão exibe "Unidade N" grande no popup.
+      if (numero != null) 'numero': numero,
     });
     await _db.ref('teachers/$teacherUid/devices/${qr.deviceId}').set(true);
 
-    registry.bind(deviceId: qr.deviceId, label: qr.label, sessionKey: sessionKey);
+    final label = numero != null ? 'Unidade $numero' : qr.label;
+    registry.bind(deviceId: qr.deviceId, label: label, sessionKey: sessionKey);
     if (!_deviceSubs.containsKey(qr.deviceId)) _attach(qr.deviceId);
 
     // Estado vigente (regras/wallpaper) — o PC atrasado lê state/* ao conectar.

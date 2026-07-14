@@ -30,6 +30,7 @@ import 'favorites_store.dart';
 import 'name_store.dart';
 import 'rules_store.dart';
 import 'students_store.dart';
+import 'unit_store.dart';
 
 class PairingController extends ChangeNotifier {
   PairingController({this.deviceName = 'Professor'});
@@ -45,6 +46,7 @@ class PairingController extends ChangeNotifier {
   /// Keypair do professor já está na nuvem (backup ativado)?
   bool backupAtivo = false;
   NameStore? _names;
+  UnitStore? _units;
   RulesStore? _rules;
   FavoritesStore? _favorites;
   StudentsStore? _students;
@@ -169,6 +171,7 @@ class PairingController extends ChangeNotifier {
     try {
       final teacher = await KeyStore.loadOrCreate();
       _names = await NameStore.load();
+      _units = await UnitStore.load();
       _rules = await RulesStore.load();
       _favorites = await FavoritesStore.load();
       _students = await StudentsStore.load();
@@ -517,7 +520,11 @@ class PairingController extends ChangeNotifier {
     final transport = _transport;
     if (transport == null) return 'Ainda conectando ao Firebase — tente de novo.';
     try {
-      await transport.pairDevice(qr);
+      // Número da unidade: reusa o do device (re-pareamento) ou o próximo da
+      // sequência; só persiste depois que o bind foi aceito pelas rules.
+      final numero = _units?.candidatoPara(qr.deviceId);
+      await transport.pairDevice(qr, numero: numero);
+      if (numero != null) await _units?.definir(qr.deviceId, numero);
       // Visão da turma: re-pareamento reescreve (telão) ou limpa (demais) o
       // state/classview — mata envelope órfão de professor/chave anterior
       // (a extensão não tem permissão de deletar state/*).
