@@ -94,6 +94,9 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Em aula = só vinculados**: comandos de turma (abrir/fechar/encerrar) só
       atingem PCs vinculados a aluno; fora de aula, todos
 - [x] **Layout estilo Instagram** (flat, hairlines, navbar icon-only) + dark AMOLED
+- [x] **Visão da turma no telão**: página na extensão do PC do professor com a
+      lista de PCs e a aba ativa de cada um (snapshot agregado pelo app,
+      re-cifrado só para o telão; ext ≥ 0.4.3)
 - [x] **Login Google + backup por PIN**: trocar de celular levando tudo
       (chave cifrada pelo PIN; stores sincronizados)
 - [ ] Teste de campo (professor + turma real)

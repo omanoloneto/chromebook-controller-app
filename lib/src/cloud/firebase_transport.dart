@@ -277,13 +277,23 @@ class FirebaseTransport {
     }
   }
 
-  /// Comando de estado: sobrescreve state/rules ou state/wallpaper.
+  /// Comando de estado: sobrescreve state/rules|wallpaper|classview.
   Future<void> setStateOne(String deviceId, Map<String, dynamic> cmd) async {
     final s = registry.byId(deviceId);
     if (s == null) return;
-    final kind = cmd['type'] == MessageType.setWallpaper ? 'wallpaper' : 'rules';
+    final kind = switch (cmd['type']) {
+      MessageType.setWallpaper => 'wallpaper',
+      MessageType.setClassView => 'classview',
+      _ => 'rules',
+    };
     final env = await _sealFor(s, cmd);
     await _dev(deviceId).child('state/$kind').set(env);
+  }
+
+  /// "Escreve null" num nó de estado (ex.: PC deixou de ser o telão).
+  /// Não exige sessão no registry: o alvo pode já ter sido esquecido.
+  Future<void> clearState(String deviceId, String kind) async {
+    await _dev(deviceId).child('state/$kind').remove();
   }
 
   Future<void> setStateAll(Map<String, dynamic> cmd) async {

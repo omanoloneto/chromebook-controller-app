@@ -18,6 +18,7 @@ import '../cloud/firebase_transport.dart';
 import '../cloud/history_store.dart';
 import '../cloud/qr_payload.dart';
 import '../cloud/session_registry.dart';
+import '../commands/class_view.dart';
 import '../commands/command.dart';
 import '../commands/domain_rules.dart';
 import '../secure/history_crypto.dart';
@@ -51,6 +52,11 @@ class PairingController extends ChangeNotifier {
   Timer? _notifyTimer;
   int _ultimoOnline = -1;
   String? _wallpaperHash;
+
+  // Visão da turma no telão: debounce de push + heartbeat + dedupe.
+  Timer? _classViewTimer;
+  Timer? _classViewHeartbeat;
+  String? _classViewFingerprint;
 
   /// Estado de inicialização (a UI observa; start() não lança).
   bool iniciando = true;
@@ -90,6 +96,13 @@ class PairingController extends ChangeNotifier {
     _transport?.registry.pcProfessorId = deviceId;
     if (anterior != null) _distribuirRegrasPara(anterior);
     if (deviceId != null) _distribuirRegrasPara(deviceId);
+    // Visão da turma: o antigo telão perde o snapshot (deixa de se considerar
+    // telão); o novo recebe um imediatamente.
+    if (anterior != null) {
+      _classViewFingerprint = null;
+      _transport?.clearState(anterior, 'classview').catchError((_) {});
+    }
+    if (deviceId != null) _pushClassView(force: true);
     notifyListeners();
   }
 
@@ -98,6 +111,57 @@ class PairingController extends ChangeNotifier {
     final id = _pcProfessorId;
     if (id == null) return;
     _transport?.sendCommand(id, buildOpenUrl(url));
+  }
+
+  // ---- Visão da turma (telão) ------------------------------------------------------
+  // O telão não decifra os reports dos outros PCs (E2E por par); o app agrega
+  // e re-cifra um snapshot em state/classview — ver docs/protocolo.md.
+
+  /// Mesma lista da aba Aula: fora de aula todos os pareados; em aula só os
+  /// vinculados. O telão nunca aparece na própria lista (_devicesAlvo).
+  List<ClassViewPc> _montarClassView() {
+    final registry = _transport?.registry;
+    if (registry == null) return const [];
+    final pcs = <ClassViewPc>[];
+    for (final id in _devicesAlvo()) {
+      final s = registry.byId(id);
+      if (s == null) continue;
+      final aba = s.abaAtiva;
+      pcs.add(
+        ClassViewPc(
+          nome: nomeDe(s),
+          online: isOnline(s),
+          aluno: alunoDe(id),
+          abaTitulo: aba?.title,
+          abaDominio: dominioDaUrl(aba?.url),
+          alerta: s.alerta,
+        ),
+      );
+    }
+    return pcs;
+  }
+
+  /// Empurra (ou pula, se nada mudou) o snapshot para o telão. Best-effort:
+  /// permission-denied (rules antigas) não pode derrubar o app.
+  Future<void> _pushClassView({bool force = false}) async {
+    final transport = _transport;
+    final id = _pcProfessorId;
+    if (transport == null || id == null) return;
+    if (transport.registry.byId(id) == null) return; // telão fora do registry
+    final cmd = buildSetClassView(
+      rev: _proximoRev(),
+      aulaAtiva: aulaAtiva,
+      turma: turmaDaAula,
+      pcs: _montarClassView(),
+    );
+    final fp = classViewFingerprint(cmd);
+    if (!force && fp == _classViewFingerprint) return;
+    try {
+      await transport.setStateOne(id, cmd);
+      _classViewFingerprint = fp;
+    } catch (e) {
+      debugPrint('classview: push falhou (rules antigas?): $e');
+    }
   }
 
   Future<void> start() async {
@@ -132,6 +196,13 @@ class PairingController extends ChangeNotifier {
       transport.registry.pcProfessorId = _pcProfessorId;
       await transport.start();
       _transport = transport;
+
+      // Heartbeat da visão da turma: mantém o "atualizado há Xs" do telão
+      // vivo e propaga online→offline (derivado de lastSeen, não gera evento).
+      _classViewHeartbeat ??= Timer.periodic(
+        const Duration(seconds: 60),
+        (_) => _pushClassView(force: true),
+      );
 
       // Histórico de aulas: cifrado com chave derivada da keypair do
       // professor; re-anexa à sessão aberta se o app fechou no meio da aula.
@@ -265,13 +336,21 @@ class PairingController extends ChangeNotifier {
   }
 
   // Sync automático dos stores: qualquer mudança de estado agenda um backup
-  // (debounce 2 min) quando o backup está ativo.
+  // (debounce 2 min) quando o backup está ativo. O mesmo funil agenda o push
+  // da visão da turma (debounce 1,5 s): reports, vínculos, iniciar/encerrar
+  // aula, renomes — tudo passa por notifyListeners.
   @override
   void notifyListeners() {
     if (backupAtivo && _backup != null && _backupTimer == null) {
       _backupTimer = Timer(const Duration(minutes: 2), () {
         _backupTimer = null;
         _backup?.subirStores();
+      });
+    }
+    if (_pcProfessorId != null && _classViewTimer == null) {
+      _classViewTimer = Timer(const Duration(milliseconds: 1500), () {
+        _classViewTimer = null;
+        _pushClassView();
       });
     }
     super.notifyListeners();
@@ -439,6 +518,14 @@ class PairingController extends ChangeNotifier {
     if (transport == null) return 'Ainda conectando ao Firebase — tente de novo.';
     try {
       await transport.pairDevice(qr);
+      // Visão da turma: re-pareamento reescreve (telão) ou limpa (demais) o
+      // state/classview — mata envelope órfão de professor/chave anterior
+      // (a extensão não tem permissão de deletar state/*).
+      if (qr.deviceId == _pcProfessorId) {
+        _pushClassView(force: true);
+      } else {
+        transport.clearState(qr.deviceId, 'classview').catchError((_) {});
+      }
       _scheduleNotify();
       return null;
     } on FirebaseException catch (e) {
@@ -773,6 +860,8 @@ class PairingController extends ChangeNotifier {
   @override
   void dispose() {
     _notifyTimer?.cancel();
+    _classViewTimer?.cancel();
+    _classViewHeartbeat?.cancel();
     super.dispose();
   }
 }

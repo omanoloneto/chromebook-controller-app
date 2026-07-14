@@ -17,6 +17,7 @@ class MessageType {
   static const String setRules = 'set_rules';
   static const String setWallpaper = 'set_wallpaper';
   static const String showMessage = 'show_message';
+  static const String setClassView = 'set_class_view';
   // Reservados (futuro):
   static const String lockScreen = 'lock_screen';
   static const String unlockScreen = 'unlock_screen';
@@ -28,6 +29,9 @@ String _nextId() {
   _seq = (_seq + 1) % 1000000000;
   return 'a$_seq';
 }
+
+/// Id de comando para builders que vivem fora deste arquivo (class_view.dart).
+String nextCommandId() => _nextId();
 
 /// Monta o objeto do comando `open_url` (será cifrado pelo servidor).
 Map<String, dynamic> buildOpenUrl(String url, {bool newTab = true, bool focus = true}) {

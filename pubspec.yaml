@@ -1,7 +1,7 @@
 name: controle_de_aula
 description: "Controle de aula (app do celular): abre URLs nos Chromebooks e mostra abas/URLs visitadas, cifrado ponta-a-ponta via Firebase RTDB (funciona entre redes diferentes)."
 publish_to: "none"
-version: 0.11.0+11
+version: 0.12.0+12
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
