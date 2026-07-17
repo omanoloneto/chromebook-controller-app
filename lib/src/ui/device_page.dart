@@ -154,6 +154,52 @@ Future<void> mostrarDialogoRenomear(
   if (novo != null) await pairing.renomear(deviceId, novo);
 }
 
+/// Diálogo de alterar o número da unidade (aqui e no menu da aba Aula).
+Future<void> mostrarDialogoNumeroUnidade(
+  BuildContext context,
+  PairingController pairing,
+  String deviceId,
+) async {
+  final atual = pairing.numeroDe(deviceId);
+  final ctrl = TextEditingController(text: atual?.toString() ?? '');
+  final texto = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Número da unidade'),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        keyboardType: TextInputType.number,
+        decoration: const InputDecoration(
+          hintText: 'Ex.: 7',
+          helperText: 'Se o número já for de outro PC, os dois trocam.',
+          helperMaxLines: 2,
+        ),
+        onSubmitted: (v) => Navigator.pop(ctx, v),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, ctrl.text),
+          child: const Text('Salvar'),
+        ),
+      ],
+    ),
+  );
+  if (texto == null || !context.mounted) return;
+  final numero = int.tryParse(texto.trim());
+  final erro = numero == null
+      ? 'Digite um número de 1 a 9999.'
+      : await pairing.alterarNumeroUnidade(deviceId, numero);
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(erro ?? 'Agora é a Unidade $numero.')),
+  );
+}
+
 class DevicePage extends StatefulWidget {
   const DevicePage({super.key, required this.pairing, required this.deviceId});
 
@@ -325,9 +371,24 @@ class _DevicePageState extends State<DevicePage> {
           PopupMenuButton<String>(
             tooltip: 'Mais opções',
             onSelected: (v) {
+              if (v == 'numero') {
+                mostrarDialogoNumeroUnidade(
+                  context,
+                  widget.pairing,
+                  widget.deviceId,
+                );
+              }
               if (v == 'esquecer') _confirmarEsquecer(nome);
             },
             itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'numero',
+                child: ListTile(
+                  leading: Icon(Icons.pin),
+                  title: Text('Alterar número da unidade'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
               PopupMenuItem(
                 value: 'esquecer',
                 child: ListTile(

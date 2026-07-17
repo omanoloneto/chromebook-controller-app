@@ -380,13 +380,56 @@ class PairingController extends ChangeNotifier {
   // Comandos de estado vigentes (gravados em state/* a cada pareamento):
   // set_rules SEMPRE (mesmo vazio, para limpar regras antigas no cliente),
   // já descontando as liberações da aula para AQUELE PC;
-  // set_wallpaper se houver imagem publicada.
+  // set_wallpaper se houver imagem publicada;
+  // set_unit se o device já tem número (re-pareamento reescreve state/unit
+  // com a chave nova; 1º pareamento sai sem — o bind.numero cobre).
   List<Map<String, dynamic>> _comandosDeEstado(String deviceId) {
+    final numero = _units?.numeroDe(deviceId);
     return [
       if (_rules != null)
         buildSetRules(_regrasParaDevice(deviceId), rev: _proximoRev()),
       if (_wallpaperHash != null) buildSetWallpaper(_wallpaperHash!),
+      if (numero != null) buildSetUnit(rev: _proximoRev(), numero: numero),
     ];
+  }
+
+  // ---- Número da unidade (edição pós-pareamento) -----------------------------------
+
+  /// Número da unidade de um PC (null = pareado antes do app 0.13).
+  int? numeroDe(String deviceId) => _units?.numeroDe(deviceId);
+
+  /// Muda o número da unidade. Número já ocupado por outro PC = os dois
+  /// TROCAM (nunca duplica). Retorna null (ok) ou mensagem de erro.
+  Future<String?> alterarNumeroUnidade(String deviceId, int numero) async {
+    final units = _units;
+    if (units == null) return 'Ainda carregando — tente de novo.';
+    if (numero < 1 || numero > 9999) return 'Use um número de 1 a 9999.';
+    final numeroAntigo = units.numeroDe(deviceId);
+    if (numeroAntigo == numero) return null; // nada a fazer
+    // Calcular ANTES de gravar (definir muda o resultado de proximo()).
+    final donoAtual = units.deviceIdDoNumero(numero);
+    // Se o PC editado ainda não tinha número, o dono deslocado vai pro fim
+    // da fila — nunca fica duplicado.
+    final numeroParaDono = numeroAntigo ?? units.proximo();
+
+    await units.definir(deviceId, numero);
+    _enviarUnit(deviceId, numero);
+    if (donoAtual != null && donoAtual != deviceId) {
+      await units.definir(donoAtual, numeroParaDono);
+      _enviarUnit(donoAtual, numeroParaDono);
+    }
+    notifyListeners();
+    return null;
+  }
+
+  /// Label otimista no app + set_unit em state/unit (best-effort: extensão
+  /// < 0.4.6 ignora; o meta/label que ela devolve re-sincroniza o nome).
+  void _enviarUnit(String deviceId, int numero) {
+    final s = pcPorId(deviceId);
+    if (s != null) s.label = 'Unidade $numero';
+    _transport
+        ?.setStateOne(deviceId, buildSetUnit(rev: _proximoRev(), numero: numero))
+        .catchError((e) => debugPrint('set_unit falhou: $e'));
   }
 
   /// Regras válidas para um PC = regras da casa − liberações desta aula.

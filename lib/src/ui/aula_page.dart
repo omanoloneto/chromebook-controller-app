@@ -367,6 +367,14 @@ class _AulaPageState extends State<AulaPage> {
               },
             ),
             ListTile(
+              leading: const Icon(Icons.pin),
+              title: const Text('Alterar número da unidade'),
+              onTap: () {
+                Navigator.pop(ctx);
+                mostrarDialogoNumeroUnidade(context, _pairing, s.deviceId);
+              },
+            ),
+            ListTile(
               leading: const Icon(Icons.tab_unselected),
               title: const Text('Fechar todas as abas deste PC'),
               enabled: on,

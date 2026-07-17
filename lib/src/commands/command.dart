@@ -18,6 +18,7 @@ class MessageType {
   static const String setWallpaper = 'set_wallpaper';
   static const String showMessage = 'show_message';
   static const String setClassView = 'set_class_view';
+  static const String setUnit = 'set_unit';
   // Reservados (futuro):
   static const String lockScreen = 'lock_screen';
   static const String unlockScreen = 'unlock_screen';
@@ -97,6 +98,17 @@ Map<String, dynamic> buildSetRules(List<DomainRule> regras, {required int rev}) 
     'type': MessageType.setRules,
     'id': _nextId(),
     'payload': {'rev': rev, 'rules': block},
+  };
+}
+
+/// Monta o comando `set_unit` — número da unidade editado pós-pareamento
+/// (estado, não fila: sobrevive a PC offline; requer extensão >= 0.4.6).
+Map<String, dynamic> buildSetUnit({required int rev, required int numero}) {
+  return {
+    'v': kProtocolVersion,
+    'type': MessageType.setUnit,
+    'id': _nextId(),
+    'payload': {'rev': rev, 'numero': numero},
   };
 }
 

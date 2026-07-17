@@ -288,6 +288,7 @@ class FirebaseTransport {
     final kind = switch (cmd['type']) {
       MessageType.setWallpaper => 'wallpaper',
       MessageType.setClassView => 'classview',
+      MessageType.setUnit => 'unit',
       _ => 'rules',
     };
     final env = await _sealFor(s, cmd);

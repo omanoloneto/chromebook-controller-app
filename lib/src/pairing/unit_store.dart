@@ -36,6 +36,14 @@ class UnitStore {
 
   int? numeroDe(String deviceId) => _numeros[deviceId];
 
+  /// Quem é o dono de um número (lookup reverso, p/ o swap na edição).
+  String? deviceIdDoNumero(int numero) {
+    for (final e in _numeros.entries) {
+      if (e.value == numero) return e.key;
+    }
+    return null;
+  }
+
   /// Próximo número livre = maior já atribuído + 1 (começa em 1).
   int proximo() =>
       _numeros.values.fold<int>(0, (max, n) => n > max ? n : max) + 1;

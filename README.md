@@ -100,6 +100,8 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Número da unidade automático**: cada PC ganha 1, 2, 3… na ordem de
       pareamento do professor (vai no bind; a extensão exibe grande no popup;
       re-parear mantém o número)
+- [x] **Editar número da unidade** (menu do PC): número ocupado = os dois PCs
+      trocam; viaja por `state/unit` (funciona mesmo com o PC offline na hora)
 - [x] **Login Google + backup por PIN**: trocar de celular levando tudo
       (chave cifrada pelo PIN; stores sincronizados)
 - [ ] Teste de campo (professor + turma real)
