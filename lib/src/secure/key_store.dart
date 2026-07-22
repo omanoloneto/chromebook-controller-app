@@ -30,4 +30,23 @@ class KeyStore {
     );
     return kp;
   }
+
+  static Future<File> _file() async {
+    final dir = await getApplicationSupportDirectory();
+    return File('${dir.path}/$_fileName');
+  }
+
+  /// Conteúdo bruto ("priv:pub" b64url) — usado p/ publicar a chave da escola.
+  static Future<String?> lerBruto() async {
+    final file = await _file();
+    if (!await file.exists()) return null;
+    final s = (await file.readAsString()).trim();
+    return s.split(':').length == 2 ? s : null;
+  }
+
+  /// Sobrescreve a keypair local (professor ADOTANDO a chave da escola).
+  /// ⚠ Perde o acesso ao que era cifrado com a chave antiga.
+  static Future<void> salvarBruto(String conteudo) async {
+    await (await _file()).writeAsString(conteudo.trim());
+  }
 }

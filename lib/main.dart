@@ -46,6 +46,7 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
     super.initState();
     _pairing.notificacoes = _notificacoes;
     _pairing.notificarSites = _settings.notificarSites;
+    _pairing.schoolUid = widget.prefs.schoolUid;
     _pairing.marcarPcProfessor(widget.prefs.teacherPcId);
     // Preferências → controller (toggle de notificações muda em Ajustes).
     _settings.addListener(_sincronizarPrefs);
@@ -65,6 +66,10 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
   void _persistirPcProfessor() {
     if (_pairing.pcProfessorId != _settings.teacherPcId) {
       _settings.setTeacherPcId(_pairing.pcProfessorId);
+    }
+    // Workspace criado/adotado em Ajustes: o root persiste (padrão acima).
+    if (_pairing.schoolUid != _settings.schoolUid) {
+      _settings.setSchoolUid(_pairing.schoolUid);
     }
   }
 

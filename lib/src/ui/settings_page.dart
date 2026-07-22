@@ -147,6 +147,52 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
+  Future<void> _criarWorkspace() async {
+    if (!widget.pairing.logadoComGoogle) {
+      _snack('Entre com o Google primeiro (seção Conta, abaixo).');
+      return;
+    }
+    _snack('Criando o workspace da escola…');
+    final erro = await widget.pairing.criarWorkspace();
+    if (!mounted) return;
+    _snack(erro ?? 'Workspace criado — seus PCs e dados agora são da escola.');
+    setState(() {});
+  }
+
+  Future<void> _entrarWorkspace() async {
+    // A chave local é sobrescrita pela da escola: PCs pareados com a chave
+    // própria deixam de responder (precisam re-parear).
+    if (widget.pairing.pcs.isNotEmpty) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Entrar no workspace da escola'),
+          content: Text(
+            'Este celular tem ${widget.pairing.pcs.length} PC(s) pareado(s) '
+            'com a sua chave pessoal. Ao entrar, eles vão precisar re-parear '
+            '(desvincular no popup e escanear o QR de novo). Continuar?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Entrar'),
+            ),
+          ],
+        ),
+      );
+      if (ok != true || !mounted) return;
+    }
+    _snack('Entrando no workspace…');
+    final erro = await widget.pairing.entrarNoWorkspace();
+    if (!mounted) return;
+    _snack(erro ?? 'Você entrou no workspace da escola.');
+    setState(() {});
+  }
+
   Future<void> _entrarComGoogle() async {
     _snack('Entrando com o Google…');
     final r = await widget.pairing.entrarComGoogle();
@@ -250,6 +296,35 @@ class _SettingsPageState extends State<SettingsPage> {
                   widget.settings.setThemeMode(sel.first),
             ),
           ),
+          _secao('Workspace da escola'),
+          if (widget.pairing.workspaceAtivo)
+            const ListTile(
+              leading: Icon(Icons.school_outlined),
+              title: Text('Workspace ativo'),
+              subtitle: Text(
+                'PCs, turmas, regras e histórico compartilhados entre os '
+                'professores da escola.',
+              ),
+            )
+          else ...[
+            ListTile(
+              leading: const Icon(Icons.group_add_outlined),
+              title: const Text('Entrar no workspace da escola'),
+              subtitle: const Text(
+                'Login Google — você passa a ver os PCs e turmas da escola.',
+              ),
+              onTap: _entrarWorkspace,
+            ),
+            ListTile(
+              leading: const Icon(Icons.school_outlined),
+              title: const Text('Criar o workspace (fundador)'),
+              subtitle: const Text(
+                'Uma vez só, pelo primeiro professor: seus PCs e dados viram '
+                'os da escola.',
+              ),
+              onTap: _criarWorkspace,
+            ),
+          ],
           _secao('Conta (backup e troca de celular)'),
           if (!widget.pairing.logadoComGoogle)
             ListTile(
@@ -269,34 +344,41 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
               title: Text('Conectado: ${widget.pairing.emailGoogle ?? 'Google'}'),
               subtitle: Text(
-                widget.pairing.backupAtivo
-                    ? 'Backup ativo — dados sincronizados na nuvem.'
-                    : 'Backup ainda não ativado neste celular.',
+                widget.pairing.workspaceAtivo
+                    ? 'Favoritos e preferências sincronizados na nuvem.'
+                    : widget.pairing.backupAtivo
+                        ? 'Backup ativo — dados sincronizados na nuvem.'
+                        : 'Backup ainda não ativado neste celular.',
               ),
             ),
-            if (!widget.pairing.backupAtivo)
+            // No workspace a chave vem da escola — PIN de backup só faz
+            // sentido no modo isolado.
+            if (!widget.pairing.workspaceAtivo) ...[
+              if (!widget.pairing.backupAtivo)
+                ListTile(
+                  leading: const Icon(Icons.backup_outlined),
+                  title: const Text('Ativar backup (criar PIN)'),
+                  onTap: () async {
+                    final pin = await _pedirPin(
+                      titulo: 'Criar PIN de backup',
+                      acao: 'Ativar backup',
+                    );
+                    if (pin == null || !mounted) return;
+                    await widget.pairing.ativarBackup(pin);
+                    if (mounted) {
+                      _snack('Backup ativado.');
+                      setState(() {});
+                    }
+                  },
+                ),
               ListTile(
-                leading: const Icon(Icons.backup_outlined),
-                title: const Text('Ativar backup (criar PIN)'),
-                onTap: () async {
-                  final pin = await _pedirPin(
-                    titulo: 'Criar PIN de backup',
-                    acao: 'Ativar backup',
-                  );
-                  if (pin == null || !mounted) return;
-                  await widget.pairing.ativarBackup(pin);
-                  if (mounted) {
-                    _snack('Backup ativado.');
-                    setState(() {});
-                  }
-                },
+                leading: const Icon(Icons.restore),
+                title: const Text('Restaurar backup neste celular'),
+                subtitle:
+                    const Text('Traz os dados de outro aparelho (pede o PIN).'),
+                onTap: _restaurar,
               ),
-            ListTile(
-              leading: const Icon(Icons.restore),
-              title: const Text('Restaurar backup neste celular'),
-              subtitle: const Text('Traz os dados de outro aparelho (pede o PIN).'),
-              onTap: _restaurar,
-            ),
+            ],
           ],
           _secao('Professor'),
           ListTile(

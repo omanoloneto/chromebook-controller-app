@@ -17,6 +17,7 @@ import '../cloud/broadcast_target.dart';
 import '../cloud/firebase_transport.dart';
 import '../cloud/history_store.dart';
 import '../cloud/qr_payload.dart';
+import '../cloud/school_keys.dart';
 import '../cloud/session_registry.dart';
 import '../commands/class_view.dart';
 import '../commands/command.dart';
@@ -70,6 +71,14 @@ class PairingController extends ChangeNotifier {
 
   /// Injetado pelo root (main.dart) antes do start().
   NotificationService? notificacoes;
+
+  /// Workspace da escola (uid do fundador). Setado pelo root a partir das
+  /// prefs ANTES do start(); mudanças (criar/entrar) são persistidas pelo
+  /// root via listener (padrão do pcProfessorId).
+  String? schoolUid;
+
+  /// Workspace ativo?
+  bool get workspaceAtivo => schoolUid != null;
 
   String? _pcProfessorId;
 
@@ -189,6 +198,7 @@ class PairingController extends ChangeNotifier {
       final transport = FirebaseTransport(
         teacher: teacher,
         teacherUid: user.uid,
+        schoolUid: schoolUid,
         teacherName: deviceName,
       );
       transport.comandosDeEstado = _comandosDeEstado;
@@ -210,7 +220,9 @@ class PairingController extends ChangeNotifier {
       // Histórico de aulas: cifrado com chave derivada da keypair do
       // professor; re-anexa à sessão aberta se o app fechou no meio da aula.
       final hCrypto = await historyCryptoFrom(teacher);
-      _history = HistoryStore(teacherUid: user.uid, crypto: hCrypto);
+      // Workspace: histórico compartilhado vive no nó do FUNDADOR (schoolUid
+      // == uid dele; a keypair da escola é a dele) — migração zero.
+      _history = HistoryStore(teacherUid: schoolUid ?? user.uid, crypto: hCrypto);
       _backup = BackupStore(uid: user.uid, historyCrypto: hCrypto);
       backupAtivo = await _backup!.existeNaNuvem();
       final session = _session;
@@ -357,6 +369,69 @@ class PairingController extends ChangeNotifier {
       });
     }
     super.notifyListeners();
+  }
+
+  // ---- Workspace da escola ---------------------------------------------------------
+
+  Future<void> _reiniciarTransporte() async {
+    await _transport?.stop();
+    _transport = null;
+    iniciando = true;
+    notifyListeners();
+    await start();
+  }
+
+  /// Fundador (1 tap): publica a keypair local como a chave da escola e migra
+  /// o roster. PCs pareados continuam valendo — a chave não muda.
+  Future<String?> criarWorkspace() async {
+    final user = _usuarioAtual;
+    if (user == null || !logadoComGoogle) {
+      return 'Entre com Google primeiro (em Conta).';
+    }
+    try {
+      await user.getIdToken(true); // claim email fresco p/ as rules
+      final erro = await SchoolKeys().publicar(user.uid);
+      if (erro != null) return erro;
+      // Seed do roster da escola = meus PCs atuais.
+      final db = FirebaseDatabase.instance;
+      final roster = (await db.ref('teachers/${user.uid}/devices').get()).value;
+      if (roster is Map && roster.isNotEmpty) {
+        await db
+            .ref('school/devices')
+            .update({for (final k in roster.keys) '$k': true});
+      }
+      schoolUid = user.uid;
+      await _reiniciarTransporte();
+      return null;
+    } catch (e) {
+      return 'Falha ao criar o workspace: $e';
+    }
+  }
+
+  /// Professor novo: login Google, adota a chave da escola e entra.
+  /// A UI deve avisar antes que PCs pareados com a chave própria vão exigir
+  /// re-pareamento (a keypair local é sobrescrita).
+  Future<String?> entrarNoWorkspace() async {
+    try {
+      if (!logadoComGoogle) {
+        final r = await entrarComGoogle();
+        if (r.startsWith('erro:')) return 'Login falhou: ${r.substring(5)}';
+      }
+      final user = _usuarioAtual;
+      if (user == null) return 'Login falhou.';
+      await user.getIdToken(true);
+      final escola = await SchoolKeys().baixar();
+      if (escola == null) {
+        return 'A escola ainda não foi criada — peça ao professor fundador.';
+      }
+      final minhas = await KeyStore.lerBruto();
+      if (minhas != escola.keys) await SchoolKeys().adotar(escola);
+      schoolUid = escola.schoolUid;
+      await _reiniciarTransporte();
+      return null;
+    } catch (e) {
+      return 'Falha ao entrar no workspace: $e';
+    }
   }
 
   /// Retry manual após erro de inicialização.

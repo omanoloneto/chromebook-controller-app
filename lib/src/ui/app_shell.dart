@@ -25,6 +25,61 @@ class _AppShellState extends State<AppShell> {
   int _index = 0;
 
   @override
+  void initState() {
+    super.initState();
+    // Boas-vindas (1x): professor novo entra no workspace com um toque.
+    if (!widget.settings.onboardingVisto && !widget.pairing.workspaceAtivo) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _boasVindas());
+    }
+  }
+
+  Future<void> _boasVindas() async {
+    if (!mounted) return;
+    widget.settings.setOnboardingVisto();
+    final entrar = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Bem-vindo ao Controle de Aula',
+                style: Theme.of(ctx).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Se a sua escola já usa o app, entre com o Google para ver '
+                'os PCs, turmas e regras compartilhados pelos professores.',
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Entrar no workspace da escola'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Usar sem conta (sozinho)'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (entrar != true || !mounted) return;
+    final erro = await widget.pairing.entrarNoWorkspace();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(erro ?? 'Você entrou no workspace da escola.'),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(

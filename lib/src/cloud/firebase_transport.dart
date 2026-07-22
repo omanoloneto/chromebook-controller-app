@@ -18,12 +18,23 @@ class FirebaseTransport {
   FirebaseTransport({
     required this.teacher,
     required this.teacherUid,
+    this.schoolUid,
     this.teacherName = 'Professor',
     FirebaseDatabase? database,
   }) : _db = database ?? FirebaseDatabase.instance;
 
   final DeviceKeyPair teacher;
   final String teacherUid;
+
+  /// Workspace da escola ativo (null = modo isolado, comportamento clássico).
+  /// No workspace: roster único em /school/devices, bind.teacherUid = uid da
+  /// escola (o wallpaper continua num caminho só — a extensão não muda) e o
+  /// roster pessoal segue gravado em paralelo (rollback p/ versões antigas).
+  final String? schoolUid;
+
+  String get _donoUid => schoolUid ?? teacherUid;
+  String get _rosterPath =>
+      schoolUid != null ? 'school/devices' : 'teachers/$teacherUid/devices';
 
   /// Nome exibido no popup da extensão. Mutável: renomear em Ajustes vale
   /// para os PRÓXIMOS pareamentos (o bind existente não é reescrito).
@@ -72,8 +83,8 @@ class FirebaseTransport {
     _offsetSub = _db.ref('.info/serverTimeOffset').onValue.listen((e) {
       _serverOffsetMs = (e.snapshot.value as num?)?.toInt() ?? 0;
     });
-    // Roster: sincroniza o conjunto de PCs pareados.
-    _rosterSub = _db.ref('teachers/$teacherUid/devices').onValue.listen((e) {
+    // Roster: sincroniza o conjunto de PCs pareados (da escola, no workspace).
+    _rosterSub = _db.ref(_rosterPath).onValue.listen((e) {
       final ids = <String>{};
       final v = e.snapshot.value;
       if (v is Map) {
@@ -106,16 +117,19 @@ class FirebaseTransport {
   Future<void> pairDevice(QrPairPayload qr, {int? numero}) async {
     final sessionKey = await teacher.deriveSessionKey(pubFromB64url(qr.pub));
     await _dev(qr.deviceId).child('bind').set({
-      'teacherUid': teacherUid,
+      'teacherUid': _donoUid,
       'teacherPub': pubToB64url(teacher.publicBytes),
       'teacherName': teacherName,
       'token': qr.token,
       'ts': ServerValue.timestamp,
-      // Número da unidade deste professor (1, 2, 3… na ordem de pareamento);
-      // a extensão exibe "Unidade N" grande no popup.
+      // Número da unidade (menor livre); a extensão exibe "Unidade N".
       if (numero != null) 'numero': numero,
     });
-    await _db.ref('teachers/$teacherUid/devices/${qr.deviceId}').set(true);
+    await _db.ref('$_rosterPath/${qr.deviceId}').set(true);
+    if (schoolUid != null) {
+      // Roster pessoal em paralelo: rollback p/ app antigo continua vendo.
+      await _db.ref('teachers/$teacherUid/devices/${qr.deviceId}').set(true);
+    }
 
     final label = numero != null ? 'Unidade $numero' : qr.label;
     registry.bind(deviceId: qr.deviceId, label: label, sessionKey: sessionKey);
@@ -131,7 +145,17 @@ class FirebaseTransport {
   Future<void> forgetDevice(String deviceId) async {
     _detach(deviceId, removerSessao: true);
     await _dev(deviceId).child('bind').remove();
-    await _db.ref('teachers/$teacherUid/devices/$deviceId').remove();
+    await _removerDosRosters(deviceId);
+  }
+
+  Future<void> _removerDosRosters(String deviceId) async {
+    await _db.ref('$_rosterPath/$deviceId').remove();
+    if (schoolUid != null) {
+      await _db
+          .ref('teachers/$teacherUid/devices/$deviceId')
+          .remove()
+          .catchError((_) {});
+    }
   }
 
   // ---- Listeners por PC --------------------------------------------------------------
@@ -179,7 +203,7 @@ class FirebaseTransport {
         // Bind sumiu = aluno desvinculou pelo popup: limpa roster e sessão.
         if (e.snapshot.value == null) {
           _detach(deviceId, removerSessao: true);
-          _db.ref('teachers/$teacherUid/devices/$deviceId').remove();
+          _removerDosRosters(deviceId);
         }
       }),
       _dev(deviceId).child('meta/label').onValue.listen((e) {
@@ -318,7 +342,7 @@ class FirebaseTransport {
   /// Publica o blob do papel de parede (1x, compartilhado pela turma).
   /// O comando set_wallpaper (só o hash) vai por setStateAll.
   Future<void> publishWallpaper(Uint8List bytes, String hash) async {
-    await _db.ref('wallpapers/$teacherUid').set({
+    await _db.ref('wallpapers/$_donoUid').set({
       'hash': hash,
       'jpeg': base64Encode(bytes),
       'ts': ServerValue.timestamp,

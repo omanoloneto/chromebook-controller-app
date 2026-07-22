@@ -18,6 +18,8 @@ class PrefsStore {
   String _teacherName = 'Professor';
   bool _notificarSites = true;
   String? _teacherPcId; // deviceId do "PC do professor" (null = nenhum)
+  String? _schoolUid; // workspace da escola ativo (null = modo isolado)
+  bool _onboardingVisto = false; // sheet de boas-vindas já exibida?
 
   /// `dir` é injetável para testes; por padrão usa o diretório do app.
   static Future<PrefsStore> load({Directory? dir}) async {
@@ -43,6 +45,13 @@ class PrefsStore {
           if (pcProf is String && pcProf.isNotEmpty) {
             store._teacherPcId = pcProf;
           }
+          final escola = decoded['schoolUid'];
+          if (escola is String && escola.isNotEmpty) {
+            store._schoolUid = escola;
+          }
+          if (decoded['onboardingVisto'] is bool) {
+            store._onboardingVisto = decoded['onboardingVisto'] as bool;
+          }
         }
       } catch (_) {
         // arquivo corrompido -> defaults
@@ -55,6 +64,18 @@ class PrefsStore {
   String get teacherName => _teacherName;
   bool get notificarSites => _notificarSites;
   String? get teacherPcId => _teacherPcId;
+  String? get schoolUid => _schoolUid;
+  bool get onboardingVisto => _onboardingVisto;
+
+  Future<void> setOnboardingVisto() async {
+    _onboardingVisto = true;
+    await _save();
+  }
+
+  Future<void> setSchoolUid(String? uid) async {
+    _schoolUid = (uid != null && uid.isEmpty) ? null : uid;
+    await _save();
+  }
 
   Future<void> setNotificarSites(bool valor) async {
     _notificarSites = valor;
@@ -88,6 +109,8 @@ class PrefsStore {
         'teacherName': _teacherName,
         'notificarSites': _notificarSites,
         if (_teacherPcId != null) 'teacherPcId': _teacherPcId,
+        if (_schoolUid != null) 'schoolUid': _schoolUid,
+        'onboardingVisto': _onboardingVisto,
       }),
     );
   }
