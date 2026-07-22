@@ -87,7 +87,7 @@ class _StudentsPageState extends State<StudentsPage> {
                 padding: EdgeInsets.all(24),
                 child: Text(
                   'Nenhuma turma ainda.\n\n'
-                  'Cadastre suas turmas e alunos para vincular quem está em '
+                  'Cadastre suas turmas e alunos para marcar quem está em '
                   'cada Chromebook durante a aula.',
                   textAlign: TextAlign.center,
                 ),

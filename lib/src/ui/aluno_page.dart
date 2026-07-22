@@ -135,7 +135,7 @@ class _AlunoPageState extends State<AlunoPage> {
                 padding: EdgeInsets.all(24),
                 child: Text(
                   'Nenhuma aula registrada para este aluno.\n\n'
-                  'Os registros aparecem quando o aluno é vinculado a um PC '
+                  'Os registros aparecem quando o aluno é escolhido num PC '
                   'durante uma aula.',
                   textAlign: TextAlign.center,
                 ),
@@ -268,7 +268,7 @@ class AulaHistoricoPage extends StatelessWidget {
                         ..hideCurrentSnackBar()
                         ..showSnackBar(
                           const SnackBar(
-                            content: Text('Abrindo no PC do professor…'),
+                            content: Text('Abrindo no telão da sala…'),
                           ),
                         );
                     }
@@ -280,13 +280,13 @@ class AulaHistoricoPage extends StatelessWidget {
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.co_present),
-                        title: const Text('Abrir no PC do professor'),
+                        title: const Text('Abrir no telão da sala'),
                         subtitle: pairing.pcProfessorOnline
                             ? null
                             : Text(
                                 pairing.pcProfessorId == null
                                     ? 'nenhum PC marcado como do professor'
-                                    : 'PC do professor está offline',
+                                    : 'O telão da sala está offline',
                               ),
                       ),
                     ),

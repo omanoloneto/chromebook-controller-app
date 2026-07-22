@@ -60,14 +60,26 @@ Map<String, dynamic> buildCloseAllTabs({bool closeWindows = false}) {
   };
 }
 
-/// Monta o comando `show_message` — notificação do sistema no Chromebook
-/// (usado no PC do professor; requer extensão >= 0.4.2).
-Map<String, dynamic> buildShowMessage(String title, String body) {
+/// Monta o comando `show_message`. Sem [popup]: notificação do sistema
+/// (avisos no telão, ext >= 0.4.2). Com [popup] true (ext >= 0.4.8): abre a
+/// página "Mensagem do professor" em aba nova; [de] = nome do professor.
+/// Extensão antiga ignora os campos extras e degrada p/ notificação.
+Map<String, dynamic> buildShowMessage(
+  String title,
+  String body, {
+  bool popup = false,
+  String? de,
+}) {
   return {
     'v': kProtocolVersion,
     'type': MessageType.showMessage,
     'id': _nextId(),
-    'payload': {'title': title, 'body': body},
+    'payload': {
+      'title': title,
+      'body': body,
+      if (popup) 'popup': true,
+      if (popup && de != null) 'de': de,
+    },
   };
 }
 

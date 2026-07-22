@@ -152,10 +152,10 @@ class _SettingsPageState extends State<SettingsPage> {
       _snack('Entre com o Google primeiro (seção Conta, abaixo).');
       return;
     }
-    _snack('Criando o workspace da escola…');
+    _snack('Criando a escola…');
     final erro = await widget.pairing.criarWorkspace();
     if (!mounted) return;
-    _snack(erro ?? 'Workspace criado — seus PCs e dados agora são da escola.');
+    _snack(erro ?? 'Escola criada — seus PCs e dados agora são compartilhados.');
     setState(() {});
   }
 
@@ -166,11 +166,11 @@ class _SettingsPageState extends State<SettingsPage> {
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('Entrar no workspace da escola'),
+          title: const Text('Entrar na escola'),
           content: Text(
             'Este celular tem ${widget.pairing.pcs.length} PC(s) pareado(s) '
-            'com a sua chave pessoal. Ao entrar, eles vão precisar re-parear '
-            '(desvincular no popup e escanear o QR de novo). Continuar?',
+            'com a sua conta pessoal. Ao entrar, eles vão precisar reconectar '
+            '(tocar em "Desvincular" no PC e ler o código de novo). Continuar?',
           ),
           actions: [
             TextButton(
@@ -186,10 +186,10 @@ class _SettingsPageState extends State<SettingsPage> {
       );
       if (ok != true || !mounted) return;
     }
-    _snack('Entrando no workspace…');
+    _snack('Entrando na escola…');
     final erro = await widget.pairing.entrarNoWorkspace();
     if (!mounted) return;
-    _snack(erro ?? 'Você entrou no workspace da escola.');
+    _snack(erro ?? 'Pronto! Você entrou na escola.');
     setState(() {});
   }
 
@@ -296,11 +296,11 @@ class _SettingsPageState extends State<SettingsPage> {
                   widget.settings.setThemeMode(sel.first),
             ),
           ),
-          _secao('Workspace da escola'),
+          _secao('Escola'),
           if (widget.pairing.workspaceAtivo)
             const ListTile(
               leading: Icon(Icons.school_outlined),
-              title: Text('Workspace ativo'),
+              title: Text('Escola conectada'),
               subtitle: Text(
                 'PCs, turmas, regras e histórico compartilhados entre os '
                 'professores da escola.',
@@ -309,7 +309,7 @@ class _SettingsPageState extends State<SettingsPage> {
           else ...[
             ListTile(
               leading: const Icon(Icons.group_add_outlined),
-              title: const Text('Entrar no workspace da escola'),
+              title: const Text('Entrar na escola'),
               subtitle: const Text(
                 'Login Google — você passa a ver os PCs e turmas da escola.',
               ),
@@ -317,7 +317,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             ListTile(
               leading: const Icon(Icons.school_outlined),
-              title: const Text('Criar o workspace (fundador)'),
+              title: const Text('Criar a escola (primeiro professor)'),
               subtitle: const Text(
                 'Uma vez só, pelo primeiro professor: seus PCs e dados viram '
                 'os da escola.',

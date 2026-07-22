@@ -58,7 +58,7 @@ class _AppShellState extends State<AppShell> {
               const SizedBox(height: 16),
               FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Entrar no workspace da escola'),
+                child: const Text('Entrar na escola'),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
@@ -74,7 +74,7 @@ class _AppShellState extends State<AppShell> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(erro ?? 'Você entrou no workspace da escola.'),
+        content: Text(erro ?? 'Pronto! Você entrou na escola.'),
       ),
     );
   }

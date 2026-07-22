@@ -16,13 +16,29 @@ class FavoritesView extends StatelessWidget {
   Widget build(BuildContext context) {
     final itens = pairing.favoritos;
     if (itens.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Text(
-            'Nenhum favorito ainda.\n\n'
-            'Cadastre os sites da aula para abrir na turma com 1 toque.',
-            textAlign: TextAlign.center,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.star_outline,
+                size: 56,
+                color: Theme.of(context).colorScheme.outline,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Salve aqui os sites que você mais usa na aula.\n'
+                'Eles viram botões na tela Aula — a turma toda abre com 1 toque.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Toque em "Novo favorito" aqui embaixo para começar.',
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
         ),
       );

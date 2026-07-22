@@ -95,10 +95,10 @@ Future<bool> confirmarEsquecerPc(
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: const Text('Esquecer este PC'),
+      title: const Text('Desconectar este PC'),
       content: Text(
         'Desfazer o vínculo com "$nome"?\n\n'
-        'O Chromebook volta a exibir o QR de pareamento e some da sua lista.',
+        'O Chromebook volta a mostrar o código de conexão e some da sua lista.',
       ),
       actions: [
         TextButton(
@@ -107,7 +107,7 @@ Future<bool> confirmarEsquecerPc(
         ),
         FilledButton(
           onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Esquecer'),
+          child: const Text('Desconectar'),
         ),
       ],
     ),
@@ -152,6 +152,51 @@ Future<void> mostrarDialogoRenomear(
     ),
   );
   if (novo != null) await pairing.renomear(deviceId, novo);
+}
+
+/// Diálogo "Enviar mensagem" (popup no Chrome do aluno) — aqui e na aba Aula.
+Future<void> mostrarDialogoMensagem(
+  BuildContext context,
+  PairingController pairing,
+  String deviceId,
+  String nome,
+) async {
+  final ctrl = TextEditingController();
+  final texto = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Mensagem para $nome'),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        maxLength: 500,
+        maxLines: 4,
+        minLines: 2,
+        textCapitalization: TextCapitalization.sentences,
+        decoration: const InputDecoration(
+          hintText: 'Ex.: Volte para a atividade, por favor.',
+          helperText: 'Abre na tela do PC na hora, só para este aluno.',
+          helperMaxLines: 2,
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, ctrl.text),
+          child: const Text('Enviar'),
+        ),
+      ],
+    ),
+  );
+  if (texto == null || !context.mounted) return;
+  final erro = await pairing.enviarMensagem(deviceId, texto);
+  if (!context.mounted) return;
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(content: Text(erro ?? 'Mensagem enviada a $nome.')),
+  );
 }
 
 /// Diálogo de alterar o número da unidade (aqui e no menu da aba Aula).
@@ -276,7 +321,7 @@ class _DevicePageState extends State<DevicePage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(content: Text('Abrindo no PC do professor…')),
+        const SnackBar(content: Text('Abrindo no telão da sala…')),
       );
   }
 
@@ -289,13 +334,13 @@ class _DevicePageState extends State<DevicePage> {
       child: ListTile(
         contentPadding: EdgeInsets.zero,
         leading: const Icon(Icons.co_present),
-        title: const Text('Abrir no PC do professor'),
+        title: const Text('Abrir no telão da sala'),
         subtitle: widget.pairing.pcProfessorOnline
             ? null
             : Text(
                 widget.pairing.pcProfessorId == null
                     ? 'nenhum PC marcado como do professor'
-                    : 'PC do professor está offline',
+                    : 'O telão da sala está offline',
               ),
       ),
     );
@@ -345,7 +390,7 @@ class _DevicePageState extends State<DevicePage> {
     if (s == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('PC desconectado')),
-        body: const Center(child: Text('Este PC não está mais vinculado.')),
+        body: const Center(child: Text('Este PC não está mais conectado.')),
       );
     }
     final nome = widget.pairing.nomeDe(s);
@@ -371,6 +416,14 @@ class _DevicePageState extends State<DevicePage> {
           PopupMenuButton<String>(
             tooltip: 'Mais opções',
             onSelected: (v) {
+              if (v == 'mensagem') {
+                mostrarDialogoMensagem(
+                  context,
+                  widget.pairing,
+                  widget.deviceId,
+                  nome,
+                );
+              }
               if (v == 'numero') {
                 mostrarDialogoNumeroUnidade(
                   context,
@@ -381,6 +434,14 @@ class _DevicePageState extends State<DevicePage> {
               if (v == 'esquecer') _confirmarEsquecer(nome);
             },
             itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: 'mensagem',
+                child: ListTile(
+                  leading: Icon(Icons.chat_bubble_outline),
+                  title: Text('Enviar mensagem'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
               PopupMenuItem(
                 value: 'numero',
                 child: ListTile(
@@ -393,7 +454,7 @@ class _DevicePageState extends State<DevicePage> {
                 value: 'esquecer',
                 child: ListTile(
                   leading: Icon(Icons.link_off),
-                  title: Text('Esquecer este PC'),
+                  title: Text('Desconectar este PC'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -452,7 +513,7 @@ class _DevicePageState extends State<DevicePage> {
                 Expanded(
                   child: Text(
                     widget.pairing.alunoDe(widget.deviceId) ??
-                        'Nenhum aluno vinculado nesta aula',
+                        'Nenhum aluno escolhido nesta aula',
                   ),
                 ),
               ],
@@ -621,7 +682,7 @@ class _DevicePageState extends State<DevicePage> {
             const ListTile(
               dense: true,
               leading: Icon(Icons.co_present),
-              title: Text('PC do professor'),
+              title: Text('Telão da sala'),
               subtitle: Text(
                 'Sem monitoramento de histórico, alertas ou bloqueios.',
               ),

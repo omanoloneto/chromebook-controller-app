@@ -21,14 +21,27 @@ class RulesView extends StatelessWidget {
       children: [
         Expanded(
           child: regras.isEmpty
-              ? const Center(
+              ? Center(
                   child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Text(
-                      'Nenhuma regra ainda.\n\n'
-                      'Bloquear: o site não abre nos Chromebooks.\n'
-                      'Alertar: o cartão do aluno fica vermelho aqui no app.',
-                      textAlign: TextAlign.center,
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.shield_outlined, size: 56, color: scheme.outline),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Bloqueie os sites que atrapalham a aula — vale em '
+                          'todos os PCs, até offline.\n\n'
+                          'Bloquear: o site não abre no Chromebook.\n'
+                          'Alertar: você é avisado quando o aluno entra.',
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Toque em "Nova regra" aqui embaixo para começar.',
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
                   ),
                 )

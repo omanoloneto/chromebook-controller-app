@@ -80,7 +80,7 @@ class _ScanPageState extends State<ScanPage> {
       appBar: AppBar(
         title: Text(
           _pareados == 0
-              ? 'Escanear QR do Chromebook'
+              ? 'Conectar um Chromebook'
               : 'Pareados nesta sessão: $_pareados',
         ),
         actions: [

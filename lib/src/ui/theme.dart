@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 const Color kSeed = Color(0xFF2962FF);
 
 /// Versão exibida em Ajustes — manter em sincronia com o pubspec.yaml.
-const String kVersaoApp = '0.15.1';
+const String kVersaoApp = '0.15.2';
 
 /// Cores semânticas que o ColorScheme não cobre. `online` é fixo por
 /// brightness (o tertiary do seed azul sai lilás — verde/teal é o código
@@ -131,14 +131,15 @@ ThemeData buildTheme(Brightness brightness) {
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
-    // Barra inferior chapada, ícone-only (IG): sem pílula de indicador.
+    // Barra inferior chapada com ícone + NOME (estilo WhatsApp — professor
+    // leigo nunca se perde); sem pílula de indicador.
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: fundo,
       elevation: 0,
       surfaceTintColor: Colors.transparent,
       indicatorColor: Colors.transparent,
-      height: 60,
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+      height: 64,
+      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
     ),
     bottomSheetTheme: BottomSheetThemeData(
       showDragHandle: true,

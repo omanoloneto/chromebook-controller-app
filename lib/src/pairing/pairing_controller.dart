@@ -124,6 +124,21 @@ class PairingController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Mensagem individual: abre um popup com o texto no Chrome do aluno
+  /// (ext >= 0.4.8; antiga degrada p/ notificação). Null = ok.
+  Future<String?> enviarMensagem(String deviceId, String texto) async {
+    final t = texto.trim();
+    if (t.isEmpty) return 'Escreva a mensagem.';
+    if (t.length > 500) return 'Mensagem muito longa (máx. 500 letras).';
+    final transport = _transport;
+    if (transport == null) return 'Ainda conectando — tente de novo.';
+    await transport.sendCommand(
+      deviceId,
+      buildShowMessage('Mensagem do professor', t, popup: true, de: deviceName),
+    );
+    return null;
+  }
+
   /// Abre uma URL só no PC do professor (ex.: link do histórico de um aluno).
   void abrirNoPcProfessor(String url) {
     final id = _pcProfessorId;

@@ -70,7 +70,7 @@ class _AulaPageState extends State<AulaPage> {
     if (n == 0) {
       _snack(
         _pairing.aulaAtiva
-            ? 'Nenhum PC vinculado a aluno nesta aula.'
+            ? 'Nenhum PC com aluno nesta aula ainda.'
             : 'Nenhum PC conectado ainda.',
       );
       return null;
@@ -194,7 +194,7 @@ class _AulaPageState extends State<AulaPage> {
     final n = _pairing.pcsAlvoCount; // só os vinculados
     final ok = await _confirmar(
       titulo: 'Encerrar aula',
-      mensagem: 'Fecha o NAVEGADOR (todas as janelas) em $n PC(s) vinculado(s) '
+      mensagem: 'Fecha o NAVEGADOR (todas as janelas) em $n PC(s) com aluno '
           'e limpa os vínculos de alunos desta aula.',
       acao: 'Encerrar',
     );
@@ -223,7 +223,7 @@ class _AulaPageState extends State<AulaPage> {
             const Divider(height: 1),
             ListTile(
               leading: const Icon(Icons.person_add),
-              title: const Text('Cadastrar e vincular novo aluno'),
+              title: const Text('Cadastrar aluno novo'),
               onTap: () => Navigator.pop(ctx, ' novo'),
             ),
             if (atual != null)
@@ -282,14 +282,14 @@ class _AulaPageState extends State<AulaPage> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text),
-            child: const Text('Cadastrar e vincular'),
+            child: const Text('Cadastrar'),
           ),
         ],
       ),
     );
     if (nome == null || nome.trim().isEmpty) return;
     final erro = await _pairing.cadastrarEVincularAluno(deviceId, nome);
-    if (mounted) _snack(erro ?? '${nome.trim()} vinculado a este PC.');
+    if (mounted) _snack(erro ?? '${nome.trim()} está usando este PC.');
   }
 
   // Menu do PC (⋮ e long-press): tudo que era gesto escondido, agora visível.
@@ -304,7 +304,7 @@ class _AulaPageState extends State<AulaPage> {
           children: [
             ListTile(
               title: Text(_pairing.alunoDe(s.deviceId) ?? nome),
-              subtitle: ehProfessor ? const Text('PC do professor') : null,
+              subtitle: ehProfessor ? const Text('Telão da sala') : null,
             ),
             const Divider(height: 1),
             ListTile(
@@ -321,7 +321,7 @@ class _AulaPageState extends State<AulaPage> {
                 leading: const Icon(Icons.person_pin_circle_outlined),
                 title: Text(
                   _pairing.alunoDe(s.deviceId) == null
-                      ? 'Vincular aluno'
+                      ? 'Escolher aluno'
                       : 'Trocar/remover aluno',
                 ),
                 onTap: () {
@@ -345,8 +345,8 @@ class _AulaPageState extends State<AulaPage> {
               leading: Icon(ehProfessor ? Icons.co_present : Icons.co_present_outlined),
               title: Text(
                 ehProfessor
-                    ? 'Desmarcar PC do professor'
-                    : 'Marcar como PC do professor',
+                    ? 'Deixar de ser o telão da sala'
+                    : 'Usar como telão da sala',
               ),
               subtitle: ehProfessor
                   ? null
@@ -357,7 +357,7 @@ class _AulaPageState extends State<AulaPage> {
                 _snack(
                   ehProfessor
                       ? '$nome voltou a ser PC de aluno.'
-                      : '$nome agora é o PC do professor.',
+                      : '$nome agora é o telão da sala.',
                 );
               },
             ),
@@ -367,6 +367,15 @@ class _AulaPageState extends State<AulaPage> {
               onTap: () {
                 Navigator.pop(ctx);
                 mostrarDialogoRenomear(context, _pairing, s.deviceId, nome);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.chat_bubble_outline),
+              title: const Text('Enviar mensagem'),
+              enabled: on,
+              onTap: () {
+                Navigator.pop(ctx);
+                mostrarDialogoMensagem(context, _pairing, s.deviceId, nome);
               },
             ),
             ListTile(
@@ -389,7 +398,7 @@ class _AulaPageState extends State<AulaPage> {
             ),
             ListTile(
               leading: const Icon(Icons.link_off),
-              title: const Text('Esquecer este PC'),
+              title: const Text('Desconectar este PC'),
               onTap: () {
                 Navigator.pop(ctx);
                 confirmarEsquecerPc(context, _pairing, s.deviceId, nome);
@@ -452,7 +461,7 @@ class _AulaPageState extends State<AulaPage> {
           _chipOnline(online),
           IconButton(
             icon: const Icon(Icons.qr_code_scanner),
-            tooltip: 'Parear PC (escanear QR)',
+            tooltip: 'Conectar um Chromebook',
             onPressed: _abrirScanner,
           ),
         ],
@@ -530,7 +539,7 @@ class _AulaPageState extends State<AulaPage> {
               child: Text(
                 'Aula: ${_pairing.turmaDaAula} · '
                 '${_pairing.totalVinculados}/${_pairing.totalAlunosDaTurma} '
-                'alunos vinculados',
+                'alunos com PC',
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
                   color: scheme.onPrimaryContainer,
@@ -748,11 +757,11 @@ class _AulaPageState extends State<AulaPage> {
             FilledButton.icon(
               onPressed: _abrirScanner,
               icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Escanear QR do Chromebook'),
+              label: const Text('Conectar um Chromebook'),
             ),
             const SizedBox(height: 12),
             Text(
-              'O pareamento é feito uma única vez por PC; depois disso ele '
+              'Você conecta cada PC uma única vez; depois disso ele '
               'conecta sozinho, mesmo em outra rede Wi-Fi.',
               textAlign: TextAlign.center,
               style: Theme.of(context)
@@ -780,7 +789,7 @@ class _AulaPageState extends State<AulaPage> {
 
     final String subtitulo;
     if (ehProfessor) {
-      subtitulo = 'PC do professor · ${on ? 'online' : 'offline'}';
+      subtitulo = 'Telão da sala · ${on ? 'online' : 'offline'}';
     } else {
       final prefixo = aluno != null ? '$nome · ' : '';
       if (!on) {
@@ -846,7 +855,7 @@ class _AulaPageState extends State<AulaPage> {
           if (mostrarVincular)
             IconButton(
               icon: Icon(Icons.person_add_alt, color: scheme.primary),
-              tooltip: 'Vincular aluno',
+              tooltip: 'Escolher aluno',
               onPressed: () => _vincularAluno(s.deviceId),
             ),
           IconButton(

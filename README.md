@@ -107,6 +107,10 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Workspace da escola**: professores logam com Google e compartilham
       PCs, turmas, regras e histórico; aulas simultâneas com trava "1 PC em
       1 aula por vez"; telão por professor (desmarca ao encerrar)
+- [x] **Mensagem individual**: menu do PC → "Enviar mensagem" → popup na tela
+      do aluno (ext ≥ 0.4.8; antiga vira notificação)
+- [x] **UX leigo**: navbar com nomes, linguagem simples (Conectar/Escolher
+      aluno/Telão da sala/Escola), vazios com instrução
 - [ ] Teste de campo (professor + turma real)
 - [ ] Comandos futuros: bloquear tela, mensagem
 
