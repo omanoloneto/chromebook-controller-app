@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 const Color kSeed = Color(0xFF2962FF);
 
 /// Versão exibida em Ajustes — manter em sincronia com o pubspec.yaml.
-const String kVersaoApp = '0.14.0';
+const String kVersaoApp = '0.14.1';
 
 /// Cores semânticas que o ColorScheme não cobre. `online` é fixo por
 /// brightness (o tertiary do seed azul sai lilás — verde/teal é o código

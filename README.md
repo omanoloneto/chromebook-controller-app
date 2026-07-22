@@ -97,9 +97,9 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Visão da turma no telão**: página na extensão do PC do professor com a
       lista de PCs e a aba ativa de cada um (snapshot agregado pelo app,
       re-cifrado só para o telão; ext ≥ 0.4.3)
-- [x] **Número da unidade automático**: cada PC ganha 1, 2, 3… na ordem de
-      pareamento do professor (vai no bind; a extensão exibe grande no popup;
-      re-parear mantém o número)
+- [x] **Número da unidade automático**: cada PC pareado ganha o **menor número
+      livre** (1..22 e 98 ocupados → próximo é 23); vai no bind; a extensão
+      exibe grande no popup; re-parear mantém o número
 - [x] **Editar número da unidade** (menu do PC): número ocupado = os dois PCs
       trocam; viaja por `state/unit` (funciona mesmo com o PC offline na hora)
 - [x] **Login Google + backup por PIN**: trocar de celular levando tudo

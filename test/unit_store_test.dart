@@ -57,7 +57,29 @@ void main() {
     await store.definir('a', 5);
     expect(store.numeroDe('b'), 2);
     expect(store.numeroDe('a'), 5);
-    expect(store.proximo(), 6); // maior atribuído + 1, sem duplicar
+    expect(store.proximo(), 1); // menor livre (1 nunca foi usado)
+  });
+
+  test('proximo = menor livre: 1..22 e 98 ocupados -> 23 (não 99)', () async {
+    final store = await UnitStore.load(dir: tmp);
+    for (var i = 1; i <= 22; i++) {
+      await store.definir('pc$i', i);
+    }
+    await store.definir('projetor', 98);
+    expect(store.proximo(), 23);
+    expect(store.candidatoPara('novo'), 23);
+  });
+
+  test('buraco no meio é preenchido em ordem', () async {
+    final store = await UnitStore.load(dir: tmp);
+    await store.definir('a', 1);
+    await store.definir('b', 2);
+    await store.definir('c', 5);
+    expect(store.proximo(), 3);
+    await store.definir('d', 3);
+    expect(store.proximo(), 4);
+    await store.definir('e', 4);
+    expect(store.proximo(), 6);
   });
 
   test('persiste e recarrega do disco', () async {

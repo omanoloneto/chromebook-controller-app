@@ -1,7 +1,8 @@
-// Número da unidade por PC (deviceId -> 1, 2, 3…), na ordem de pareamento
-// DESTE professor. Vai no bind (claro) para a extensão exibir "Unidade N".
-// Re-parear o mesmo PC mantém o número; PC esquecido não libera o número
-// (a sequência é histórica, não um pool).
+// Número da unidade por PC (deviceId -> 1, 2, 3…) DESTE professor. Vai no
+// bind (claro) para a extensão exibir "Unidade N". Pareamento novo recebe o
+// MENOR número livre — buracos (criados por edição manual, ex.: mudar um PC
+// p/ 98 libera o antigo) são reaproveitados. Re-parear o mesmo PC mantém o
+// número; PC esquecido continua dono do dele (volta com o mesmo se re-parear).
 
 import 'dart:convert';
 import 'dart:io';
@@ -44,9 +45,15 @@ class UnitStore {
     return null;
   }
 
-  /// Próximo número livre = maior já atribuído + 1 (começa em 1).
-  int proximo() =>
-      _numeros.values.fold<int>(0, (max, n) => n > max ? n : max) + 1;
+  /// Menor número livre (1..): com 1..22 e 98 ocupados, o próximo é 23.
+  int proximo() {
+    final usados = _numeros.values.toSet();
+    var n = 1;
+    while (usados.contains(n)) {
+      n++;
+    }
+    return n;
+  }
 
   /// Candidato para um pareamento: reusa o número do device se ele já teve um
   /// (re-pareamento não renumera); senão o próximo da sequência. NÃO persiste
