@@ -767,6 +767,25 @@ class PairingController extends ChangeNotifier {
   /// Quantos PCs um comando de turma vai atingir agora.
   int get pcsAlvoCount => _devicesAlvo().length;
 
+  /// Aula em que o PC está agora, para a home agrupar por seções:
+  /// - minha aula ativa com aluno vinculado → (minha: true, eu, minha turma);
+  /// - trava viva de OUTRO professor → (false, nome dele, turma dele);
+  /// - sem aula (inclui trava MINHA órfã de aula já encerrada) → null.
+  ({bool minha, String professor, String? turma})? aulaDoPc(String deviceId) {
+    if (aulaAtiva && alunoDe(deviceId) != null) {
+      return (minha: true, professor: deviceName, turma: turmaDaAula);
+    }
+    final t = _aulaLocks?.travaVivaDe(deviceId);
+    if (t == null) return null;
+    final meuUid = _usuarioAtual?.uid;
+    if (t.uid == meuUid) return null; // minha trava sem aula ativa = órfã
+    return (
+      minha: false,
+      professor: t.professor ?? 'outro professor',
+      turma: t.turma,
+    );
+  }
+
   Future<void> _enviarParaAlvo(Map<String, dynamic> cmd) async {
     final transport = _transport;
     if (transport == null) return;

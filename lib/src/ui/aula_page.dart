@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../cloud/session_registry.dart';
 import '../pairing/pairing_controller.dart';
 import 'device_page.dart';
+import 'home_sections.dart';
 import 'scan_page.dart';
 import 'theme.dart';
 
@@ -654,55 +655,76 @@ class _AulaPageState extends State<AulaPage> {
     );
   }
 
-  // Ordena professor → online → offline; com online presente, o resto fica
-  // colapsado atrás de "Ver todos".
+  // Seções: telão → minha aula → aulas de colegas → disponíveis → offline
+  // (offline colapsado atrás de "Ver todos" quando há mais seções).
   Widget _listaPcs(List<PcSession> pcs) {
-    int peso(PcSession s) {
-      if (_pairing.ehPcProfessor(s.deviceId)) return 0;
-      return _pairing.isOnline(s) ? 1 : 2;
+    final porId = {for (final s in pcs) s.deviceId: s};
+    final secoes = secoesDaHome([
+      for (final s in pcs)
+        (
+          id: s.deviceId,
+          nome: _pairing.nomeDe(s),
+          online: _pairing.isOnline(s),
+          telao: _pairing.ehPcProfessor(s.deviceId),
+          aula: _pairing.aulaDoPc(s.deviceId),
+        ),
+    ]);
+
+    final temMaisSecoes = secoes.length > 1;
+    final children = <Widget>[];
+    var ocultos = 0;
+    for (final secao in secoes) {
+      final esconder = secao.colapsavel && temMaisSecoes && !_mostrarTodos;
+      if (esconder) {
+        ocultos += secao.ids.length;
+        continue;
+      }
+      if (secao.titulo != null) children.add(_headerSecao(secao.titulo!));
+      for (final id in secao.ids) {
+        final s = porId[id];
+        if (s == null) continue;
+        children
+          ..add(_pcCard(s))
+          ..add(const Divider(height: 0.5));
+      }
     }
-
-    final ordenados = [...pcs]..sort((a, b) {
-        final pa = peso(a);
-        final pb = peso(b);
-        if (pa != pb) return pa.compareTo(pb);
-        return _pairing.nomeDe(a).toLowerCase().compareTo(
-              _pairing.nomeDe(b).toLowerCase(),
-            );
-      });
-
-    final visiveis = ordenados.where((s) => peso(s) < 2).toList();
-    final ocultos = ordenados.length - visiveis.length;
-    final colapsar = !_mostrarTodos && visiveis.isNotEmpty && ocultos > 0;
-    final exibidos = colapsar ? visiveis : ordenados;
-
-    return ListView(
-      padding: EdgeInsets.zero,
-      children: [
-        // Listas flat com hairline entre os itens (estilo IG).
-        for (final s in exibidos) ...[
-          _pcCard(s),
-          const Divider(height: 0.5),
-        ],
-        if (visiveis.isNotEmpty && ocultos > 0)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => setState(() => _mostrarTodos = !_mostrarTodos),
-                icon: Icon(
-                  _mostrarTodos ? Icons.expand_less : Icons.expand_more,
-                ),
-                label: Text(
-                  _mostrarTodos
-                      ? 'Ocultar offline'
-                      : 'Ver todos (+$ocultos offline)',
-                ),
+    final temColapsavel =
+        temMaisSecoes && secoes.any((s) => s.colapsavel && s.ids.isNotEmpty);
+    if (temColapsavel) {
+      children.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => setState(() => _mostrarTodos = !_mostrarTodos),
+              icon: Icon(
+                _mostrarTodos ? Icons.expand_less : Icons.expand_more,
+              ),
+              label: Text(
+                _mostrarTodos ? 'Ocultar offline' : 'Ver todos (+$ocultos offline)',
               ),
             ),
           ),
-      ],
+        ),
+      );
+    }
+
+    return ListView(padding: EdgeInsets.zero, children: children);
+  }
+
+  /// Header de seção flat (estilo IG): label pequeno em destaque.
+  Widget _headerSecao(String titulo) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 6),
+      child: Text(
+        titulo,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.4,
+            ),
+      ),
     );
   }
 
@@ -801,45 +823,39 @@ class _AulaPageState extends State<AulaPage> {
     final mostrarVincular =
         !ehProfessor && _pairing.aulaAtiva && aluno == null && on;
 
-    final conteudo = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ListTile(
-          leading: avatar,
-          title: Text(
-            aluno ?? nome,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w600),
-          ),
-          subtitle: Text(
-            subtitulo,
-            maxLines: alerta != null ? 3 : 2,
-            overflow: TextOverflow.ellipsis,
-            style: alerta != null ? TextStyle(color: c.alertaFg) : null,
-          ),
-          isThreeLine: on && ativa != null,
-          trailing: IconButton(
+    final conteudo = ListTile(
+      leading: avatar,
+      title: Text(
+        aluno ?? nome,
+        style: Theme.of(context)
+            .textTheme
+            .titleMedium
+            ?.copyWith(fontWeight: FontWeight.w600),
+      ),
+      subtitle: Text(
+        subtitulo,
+        maxLines: alerta != null ? 3 : 2,
+        overflow: TextOverflow.ellipsis,
+        style: alerta != null ? TextStyle(color: c.alertaFg) : null,
+      ),
+      isThreeLine: on && ativa != null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Vincular como ícone (junto do ⋮): PC online sem aluno em aula.
+          if (mostrarVincular)
+            IconButton(
+              icon: Icon(Icons.person_add_alt, color: scheme.primary),
+              tooltip: 'Vincular aluno',
+              onPressed: () => _vincularAluno(s.deviceId),
+            ),
+          IconButton(
             icon: const Icon(Icons.more_vert),
             tooltip: 'Opções do PC',
             onPressed: () => _menuPc(s, nome),
           ),
-        ),
-        if (mostrarVincular)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: FilledButton.tonalIcon(
-                style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
-                onPressed: () => _vincularAluno(s.deviceId),
-                icon: const Icon(Icons.person_add_alt, size: 18),
-                label: const Text('Vincular aluno'),
-              ),
-            ),
-          ),
-      ],
+        ],
+      ),
     );
 
     // Flat (sem card): fundo = scaffold; o alerta aparece pelo avatar/subtítulo.

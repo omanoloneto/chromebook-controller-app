@@ -91,6 +91,13 @@ class AulaLocks {
 
   TravaDeAula? travaDe(String deviceId) => _travas[deviceId];
 
+  /// Trava ainda válida (heartbeat vivo), de qualquer professor.
+  TravaDeAula? travaVivaDe(String deviceId) {
+    final t = _travas[deviceId];
+    if (t == null) return null;
+    return travaExpirada(ts: t.ts, agoraMs: nowServerMs()) ? null : t;
+  }
+
   /// PC preso na aula de OUTRO professor (trava viva)?
   bool travadoPorOutro(String deviceId) {
     final t = _travas[deviceId];
