@@ -252,7 +252,9 @@ class _AulaPageState extends State<AulaPage> {
     } else if (escolhido == ' remover') {
       await _pairing.desvincularAluno(deviceId);
     } else {
-      await _pairing.vincularAluno(deviceId, escolhido);
+      // Workspace: o PC pode estar preso na aula de outro professor.
+      final erro = await _pairing.vincularAluno(deviceId, escolhido);
+      if (erro != null) _snack(erro);
     }
   }
 

@@ -13,6 +13,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../cloud/backup_store.dart';
+import '../cloud/aula_locks.dart';
 import '../cloud/broadcast_target.dart';
 import '../cloud/firebase_transport.dart';
 import '../cloud/history_store.dart';
@@ -83,6 +84,8 @@ class PairingController extends ChangeNotifier {
   bool get workspaceAtivo => schoolUid != null;
 
   SchoolSync? _schoolSync;
+  AulaLocks? _aulaLocks;
+  Timer? _lockHeartbeat;
 
   String? _pcProfessorId;
 
@@ -224,6 +227,20 @@ class PairingController extends ChangeNotifier {
         );
         _schoolSync!.onRemoto = _aplicarStoreRemoto;
         _schoolSync!.start();
+        // Travas de aula: 1 PC em 1 aula por vez, entre professores.
+        _aulaLocks = AulaLocks(
+          meuUid: user.uid,
+          crypto: _schoolSync!.crypto,
+          nowServerMs: () => transport.nowServer().millisecondsSinceEpoch,
+        );
+        _aulaLocks!.onChange = _scheduleNotify;
+        _aulaLocks!.start();
+        _lockHeartbeat ??= Timer.periodic(
+          const Duration(minutes: 5),
+          (_) {
+            if (aulaAtiva) _aulaLocks?.heartbeat();
+          },
+        );
       }
 
       // Heartbeat da visão da turma: mantém o "atualizado há Xs" do telão
@@ -390,6 +407,8 @@ class PairingController extends ChangeNotifier {
   // ---- Workspace da escola ---------------------------------------------------------
 
   Future<void> _reiniciarTransporte() async {
+    await _aulaLocks?.stop();
+    _aulaLocks = null;
     await _schoolSync?.stop();
     _schoolSync = null;
     await _transport?.stop();
@@ -719,11 +738,19 @@ class PairingController extends ChangeNotifier {
   /// PCs alvo dos comandos de turma: durante aula ativa, só os vinculados a
   /// aluno; fora de aula, todos. O PC do professor nunca entra.
   List<String> _devicesAlvo() {
+    final registry = _transport?.registry;
+    final locks = _aulaLocks;
     return alvoDeBroadcast(
       aulaAtiva: aulaAtiva,
       vinculados: _session?.vinculos.keys ?? const [],
-      todos: (_transport?.registry.all ?? const []).map((s) => s.deviceId),
+      todos: (registry?.all ?? const []).map((s) => s.deviceId),
       pcProfessorId: _pcProfessorId,
+      travadosPorOutros: locks == null
+          ? const {}
+          : (registry?.all ?? const [])
+              .map((s) => s.deviceId)
+              .where(locks.travadoPorOutro)
+              .toSet(),
     );
   }
 
@@ -876,9 +903,21 @@ class PairingController extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> vincularAluno(String deviceId, String aluno) async {
+  /// Vincula aluno↔PC na aula. No workspace, reserva o PC primeiro (1 PC em
+  /// 1 aula por vez). Retorna null (ok) ou o motivo da recusa.
+  Future<String?> vincularAluno(String deviceId, String aluno) async {
+    final locks = _aulaLocks;
+    if (locks != null) {
+      final erro = await locks.travar(
+        deviceId,
+        professor: deviceName,
+        turma: turmaDaAula,
+      );
+      if (erro != null) return erro;
+    }
     await _session?.vincular(deviceId, aluno);
     notifyListeners();
+    return null;
   }
 
   /// Cadastra um aluno na turma da aula (se ainda não existir) e o vincula ao
@@ -897,11 +936,11 @@ class PairingController extends ChangeNotifier {
     // adicionarAluno ignora duplicata; se já existe, segue direto p/ o vínculo.
     await students.adicionarAluno(indice, n);
     _schoolSync?.push('turmas');
-    await vincularAluno(deviceId, n);
-    return null;
+    return vincularAluno(deviceId, n);
   }
 
   Future<void> desvincularAluno(String deviceId) async {
+    await _aulaLocks?.destravar(deviceId);
     await _session?.desvincular(deviceId);
     notifyListeners();
   }
@@ -918,6 +957,10 @@ class PairingController extends ChangeNotifier {
     for (final deviceId in comExcecao) {
       _distribuirRegrasPara(deviceId); // snapshot volta ao completo
     }
+    await _aulaLocks?.destravarTodas();
+    // Telão é "da aula": encerrar devolve o PC ao papel normal (decisão do
+    // usuário — o telão é por conta e morre com a aula).
+    marcarPcProfessor(null);
     notifyListeners();
   }
 
@@ -946,8 +989,11 @@ class PairingController extends ChangeNotifier {
   void _distribuirRegras() {
     final transport = _transport;
     if (_rules == null || transport == null) return;
-    // Snapshot por PC: liberações da aula variam por device.
+    // Snapshot por PC: liberações da aula variam por device. PCs presos na
+    // aula de OUTRO professor ficam de fora — o dono da trava redistribui os
+    // dele (com as liberações locais dele) quando o sync entregar a mudança.
     for (final s in transport.registry.all) {
+      if (_aulaLocks?.travadoPorOutro(s.deviceId) ?? false) continue;
       _distribuirRegrasPara(s.deviceId);
     }
     notifyListeners();
@@ -1040,6 +1086,7 @@ class PairingController extends ChangeNotifier {
     _notifyTimer?.cancel();
     _classViewTimer?.cancel();
     _classViewHeartbeat?.cancel();
+    _lockHeartbeat?.cancel();
     super.dispose();
   }
 }

@@ -46,4 +46,28 @@ void main() {
     );
     expect(alvo, todos);
   });
+
+  test('fora de aula: PCs presos na aula de OUTRO professor ficam de fora', () {
+    final alvo = alvoDeBroadcast(
+      aulaAtiva: false,
+      vinculados: const [],
+      todos: todos,
+      pcProfessorId: 'telao',
+      travadosPorOutros: {'pc2'},
+    );
+    expect(alvo, ['pc1', 'pc3']);
+  });
+
+  test('em aula: vinculado MEU não é excluído por trava (a trava é minha)', () {
+    // Os meus vinculados têm trava MINHA — travadosPorOutros só carrega as
+    // dos colegas; o filtro não pode comer meus próprios alvos.
+    final alvo = alvoDeBroadcast(
+      aulaAtiva: true,
+      vinculados: ['pc1', 'pc3'],
+      todos: todos,
+      pcProfessorId: 'telao',
+      travadosPorOutros: {'pc2'},
+    );
+    expect(alvo, ['pc1', 'pc3']);
+  });
 }
