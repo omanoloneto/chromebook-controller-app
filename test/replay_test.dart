@@ -30,6 +30,18 @@ const vetoresCmd = [
   [1000, 2, t0, t0, true], // seq continua de onde parou
 ];
 
+// Multi-remetente (workspace, app >= 0.15): cada celular manda sid NOVO por
+// mensagem, amostrado do relógio do SERVIDOR (comum a todos) — o guard aceita
+// a alternância porque o sid sempre cresce; replay segue rejeitado.
+const vetoresMultiRemetente = [
+  [t0 + 1, 1, t0 + 1, t0 + 2, true], // celular A
+  [t0 + 5, 1, t0 + 5, t0 + 6, true], // celular B
+  [t0 + 9, 1, t0 + 9, t0 + 10, true], // celular A de novo — não foi envenenado
+  [t0 + 5, 1, t0 + 5, t0 + 11, false], // replay do envio do B
+  [t0 + 3, 1, t0 + 3, t0 + 12, false], // mensagem atrasada de sid antigo morre
+  [t0 + 20, 1, t0 + 20, t0 + 21, true], // fluxo segue
+];
+
 void main() {
   test('vetores do canal report/ack (janela padrão ±120s)', () {
     final g = ReplayGuard();
@@ -47,6 +59,18 @@ void main() {
     final g = ReplayGuard(maxAgeMs: 12 * hora);
     for (var i = 0; i < vetoresCmd.length; i++) {
       final v = vetoresCmd[i];
+      expect(
+        g.accept(sid: v[0] as int, seq: v[1] as int, ts: v[2] as int, nowMs: v[3] as int),
+        v[4],
+        reason: 'vetor #${i + 1}',
+      );
+    }
+  });
+
+  test('vetores multi-remetente (2 celulares, sid por mensagem)', () {
+    final g = ReplayGuard(maxAgeMs: 12 * hora);
+    for (var i = 0; i < vetoresMultiRemetente.length; i++) {
+      final v = vetoresMultiRemetente[i];
       expect(
         g.accept(sid: v[0] as int, seq: v[1] as int, ts: v[2] as int, nowMs: v[3] as int),
         v[4],

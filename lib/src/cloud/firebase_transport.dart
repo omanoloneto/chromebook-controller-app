@@ -45,8 +45,17 @@ class FirebaseTransport {
   List<Map<String, dynamic>> Function(String deviceId)? comandosDeEstado;
 
   // Época de sessão (anti-replay): amostrada 1x por vida do processo.
-  final int _sid = DateTime.now().millisecondsSinceEpoch;
-  final Map<String, int> _outSeq = {}; // por deviceId
+  // Multi-remetente (workspace): sid NOVO por mensagem, no relógio do
+  // SERVIDOR — o guard do PC aceita sid crescente, e o relógio do servidor é
+  // comum a todos os celulares (2 professores alternando comandos no mesmo
+  // PC não se envenenam; sid fixo por processo derrubava o de sid menor).
+  // Replay continua rejeitado: sid <= último, ou igual com seq não-maior.
+  int _ultimoSidEnviado = 0;
+  int _proximoSid() {
+    final t = nowServer().millisecondsSinceEpoch;
+    _ultimoSidEnviado = t > _ultimoSidEnviado ? t : _ultimoSidEnviado + 1;
+    return _ultimoSidEnviado;
+  }
 
   int _serverOffsetMs = 0;
   StreamSubscription<DatabaseEvent>? _offsetSub;
@@ -254,12 +263,10 @@ class FirebaseTransport {
   // ---- Saída (comandos) -----------------------------------------------------------
 
   Future<String> _sealFor(PcSession s, Map<String, dynamic> cmd) {
-    final seq = (_outSeq[s.deviceId] ?? 0) + 1;
-    _outSeq[s.deviceId] = seq;
     return s.crypto.seal({
-      'sid': _sid,
-      'seq': seq,
-      'ts': DateTime.now().millisecondsSinceEpoch,
+      'sid': _proximoSid(),
+      'seq': 1,
+      'ts': nowServer().millisecondsSinceEpoch,
       ...cmd,
     });
   }

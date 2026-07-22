@@ -447,7 +447,9 @@ class PairingController extends ChangeNotifier {
   // distribuição usa um rev novo e monotônico.
   int _ultimoRev = 0;
   int _proximoRev() {
-    final agora = DateTime.now().millisecondsSinceEpoch;
+    // Relógio do SERVIDOR: revs de rules/classview/unit ficam ordenados
+    // também entre celulares de professores diferentes (workspace).
+    final agora = (_transport?.nowServer() ?? DateTime.now()).millisecondsSinceEpoch;
     _ultimoRev = agora > _ultimoRev ? agora : _ultimoRev + 1;
     return _ultimoRev;
   }
