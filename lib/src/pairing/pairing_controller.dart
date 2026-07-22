@@ -256,8 +256,18 @@ class PairingController extends ChangeNotifier {
       // Workspace: histórico compartilhado vive no nó do FUNDADOR (schoolUid
       // == uid dele; a keypair da escola é a dele) — migração zero.
       _history = HistoryStore(teacherUid: schoolUid ?? user.uid, crypto: hCrypto);
-      _backup = BackupStore(uid: user.uid, historyCrypto: hCrypto);
-      backupAtivo = await _backup!.existeNaNuvem();
+      _backup = BackupStore(
+        uid: user.uid,
+        historyCrypto: hCrypto,
+        // Workspace: turmas/regras/números/nomes vivem em /school/stores;
+        // o backup pessoal carrega só o que é por professor.
+        arquivos: workspaceAtivo
+            ? const ['favorites.json', 'app_prefs.json']
+            : kArquivosDeBackup,
+      );
+      // Workspace: backup de stores pessoais sempre ativo (sem PIN — a chave
+      // vem da escola); modo isolado: ativo se a keypair já subiu (PIN).
+      backupAtivo = workspaceAtivo || await _backup!.existeNaNuvem();
       final session = _session;
       if (session != null && session.ativa) {
         await _history!.abrirSessao(

@@ -35,6 +35,7 @@ class BackupStore {
   BackupStore({
     required this.uid,
     required this.historyCrypto,
+    this.arquivos = kArquivosDeBackup,
     FirebaseDatabase? database,
   }) : _db = database ?? FirebaseDatabase.instance;
 
@@ -42,6 +43,10 @@ class BackupStore {
 
   /// Mesmo cifrador do histórico (derivado da keypair do professor).
   final SessionCrypto historyCrypto;
+
+  /// O que entra no backup. No workspace, só o que é POR professor
+  /// (favoritos/prefs) — o resto vive em /school/stores, sincronizado.
+  final List<String> arquivos;
 
   final FirebaseDatabase _db;
 
@@ -70,7 +75,7 @@ class BackupStore {
     try {
       final dir = await getApplicationSupportDirectory();
       final mapa = <String, String>{};
-      for (final nome in kArquivosDeBackup) {
+      for (final nome in arquivos) {
         final f = File('${dir.path}/$nome');
         if (await f.exists()) mapa[nome] = await f.readAsString();
       }

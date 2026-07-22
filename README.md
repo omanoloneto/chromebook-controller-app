@@ -104,6 +104,9 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
       trocam; viaja por `state/unit` (funciona mesmo com o PC offline na hora)
 - [x] **Login Google + backup por PIN**: trocar de celular levando tudo
       (chave cifrada pelo PIN; stores sincronizados)
+- [x] **Workspace da escola**: professores logam com Google e compartilham
+      PCs, turmas, regras e histórico; aulas simultâneas com trava "1 PC em
+      1 aula por vez"; telão por professor (desmarca ao encerrar)
 - [ ] Teste de campo (professor + turma real)
 - [ ] Comandos futuros: bloquear tela, mensagem
 
