@@ -18,12 +18,14 @@ import '../cloud/firebase_transport.dart';
 import '../cloud/history_store.dart';
 import '../cloud/qr_payload.dart';
 import '../cloud/school_keys.dart';
+import '../cloud/school_sync.dart';
 import '../cloud/session_registry.dart';
 import '../commands/class_view.dart';
 import '../commands/command.dart';
 import '../commands/domain_rules.dart';
 import '../secure/history_crypto.dart';
 import '../secure/key_store.dart';
+import '../secure/school_crypto.dart';
 import '../service/foreground_service.dart';
 import '../service/notification_service.dart';
 import 'class_session_store.dart';
@@ -79,6 +81,8 @@ class PairingController extends ChangeNotifier {
 
   /// Workspace ativo?
   bool get workspaceAtivo => schoolUid != null;
+
+  SchoolSync? _schoolSync;
 
   String? _pcProfessorId;
 
@@ -209,6 +213,18 @@ class PairingController extends ChangeNotifier {
       transport.registry.pcProfessorId = _pcProfessorId;
       await transport.start();
       _transport = transport;
+
+      // Sync dos stores compartilhados (workspace): listeners nos 4 stores da
+      // escola; mudanças remotas recarregam o store local correspondente.
+      if (schoolUid != null) {
+        _schoolSync = SchoolSync(
+          crypto: await schoolCryptoFrom(teacher),
+          nowServerMs: () => transport.nowServer().millisecondsSinceEpoch,
+          database: FirebaseDatabase.instance,
+        );
+        _schoolSync!.onRemoto = _aplicarStoreRemoto;
+        _schoolSync!.start();
+      }
 
       // Heartbeat da visão da turma: mantém o "atualizado há Xs" do telão
       // vivo e propaga online→offline (derivado de lastSeen, não gera evento).
@@ -374,11 +390,29 @@ class PairingController extends ChangeNotifier {
   // ---- Workspace da escola ---------------------------------------------------------
 
   Future<void> _reiniciarTransporte() async {
+    await _schoolSync?.stop();
+    _schoolSync = null;
     await _transport?.stop();
     _transport = null;
     iniciando = true;
     notifyListeners();
     await start();
+  }
+
+  /// Um store da escola mudou (outro professor editou): recarrega o local.
+  Future<void> _aplicarStoreRemoto(String k) async {
+    switch (k) {
+      case 'turmas':
+        _students = await StudentsStore.load();
+      case 'rules':
+        _rules = await RulesStore.load();
+        _distribuirRegras(); // meus PCs recebem o snapshot novo
+      case 'units':
+        _units = await UnitStore.load();
+      case 'names':
+        _names = await NameStore.load();
+    }
+    notifyListeners();
   }
 
   /// Fundador (1 tap): publica a keypair local como a chave da escola e migra
@@ -402,6 +436,8 @@ class PairingController extends ChangeNotifier {
       }
       schoolUid = user.uid;
       await _reiniciarTransporte();
+      // Seed: sobe os stores locais como os da escola.
+      await _schoolSync?.pushTodos();
       return null;
     } catch (e) {
       return 'Falha ao criar o workspace: $e';
@@ -493,6 +529,7 @@ class PairingController extends ChangeNotifier {
       await units.definir(donoAtual, numeroParaDono);
       _enviarUnit(donoAtual, numeroParaDono);
     }
+    _schoolSync?.push('units');
     notifyListeners();
     return null;
   }
@@ -627,6 +664,7 @@ class PairingController extends ChangeNotifier {
   /// Salva o nome do aluno para este PC (vazio remove).
   Future<void> renomear(String deviceId, String nome) async {
     await _names?.setName(deviceId, nome);
+    _schoolSync?.push('names');
     notifyListeners();
   }
 
@@ -644,7 +682,10 @@ class PairingController extends ChangeNotifier {
       // sequência; só persiste depois que o bind foi aceito pelas rules.
       final numero = _units?.candidatoPara(qr.deviceId);
       await transport.pairDevice(qr, numero: numero);
-      if (numero != null) await _units?.definir(qr.deviceId, numero);
+      if (numero != null) {
+        await _units?.definir(qr.deviceId, numero);
+        _schoolSync?.push('units');
+      }
       // Visão da turma: re-pareamento reescreve (telão) ou limpa (demais) o
       // state/classview — mata envelope órfão de professor/chave anterior
       // (a extensão não tem permissão de deletar state/*).
@@ -764,31 +805,37 @@ class PairingController extends ChangeNotifier {
 
   Future<void> adicionarTurma(String nome) async {
     await _students?.adicionarTurma(nome);
+    _schoolSync?.push('turmas');
     notifyListeners();
   }
 
   Future<void> renomearTurma(int indice, String nome) async {
     await _students?.renomearTurma(indice, nome);
+    _schoolSync?.push('turmas');
     notifyListeners();
   }
 
   Future<void> removerTurma(int indice) async {
     await _students?.removerTurma(indice);
+    _schoolSync?.push('turmas');
     notifyListeners();
   }
 
   Future<void> adicionarAluno(int turmaIndice, String aluno) async {
     await _students?.adicionarAluno(turmaIndice, aluno);
+    _schoolSync?.push('turmas');
     notifyListeners();
   }
 
   Future<void> renomearAluno(int turmaIndice, int alunoIndice, String nome) async {
     await _students?.renomearAluno(turmaIndice, alunoIndice, nome);
+    _schoolSync?.push('turmas');
     notifyListeners();
   }
 
   Future<void> removerAluno(int turmaIndice, int alunoIndice) async {
     await _students?.removerAluno(turmaIndice, alunoIndice);
+    _schoolSync?.push('turmas');
     notifyListeners();
   }
 
@@ -849,6 +896,7 @@ class PairingController extends ChangeNotifier {
     }
     // adicionarAluno ignora duplicata; se já existe, segue direto p/ o vínculo.
     await students.adicionarAluno(indice, n);
+    _schoolSync?.push('turmas');
     await vincularAluno(deviceId, n);
     return null;
   }
@@ -879,16 +927,19 @@ class PairingController extends ChangeNotifier {
 
   Future<void> adicionarRegra(String pattern, String action) async {
     await _rules?.adicionar(pattern, action);
+    _schoolSync?.push('rules');
     _distribuirRegras();
   }
 
   Future<void> atualizarRegra(int indice, String pattern, String action) async {
     await _rules?.atualizarEm(indice, pattern, action);
+    _schoolSync?.push('rules');
     _distribuirRegras();
   }
 
   Future<void> removerRegra(int indice) async {
     await _rules?.removerEm(indice);
+    _schoolSync?.push('rules');
     _distribuirRegras();
   }
 
