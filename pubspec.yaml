@@ -32,6 +32,16 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.14.1
+
+# Ícone do launcher (arte = icon.svg da extensão, renderizada em assets/icon).
+# Regenerar: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icon/icon-1024.png"
+  adaptive_icon_background: "#2962FF"
+  adaptive_icon_foreground: "assets/icon/icon-foreground.png"
 
 # Versões dos pacotes são um ponto de partida; ajuste com `flutter pub upgrade`.
 

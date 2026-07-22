@@ -1,7 +1,8 @@
 # Instalação — App (desenvolvimento)
 
-> O app ainda **não está na Play Store**. Por enquanto, roda via Flutter em
-> modo de desenvolvimento.
+> **Professor?** Este doc é para desenvolvedores. Para instalar e usar o app,
+> veja o [guia do professor](guia-professor.md) (APK pronto nos
+> [Releases](https://github.com/omanoloneto/chromebook-controller-app/releases)).
 
 ## Pré-requisitos
 
@@ -28,10 +29,21 @@ O projeto é o `controle-de-aula-f53bd`. No [console](https://console.firebase.g
    alterar `firebase/database.rules.json`:
    `cd firebase && firebase deploy --only database --project controle-de-aula-f53bd`.
 
-A config do app está em `lib/firebase_options.dart`, gerada pelo
-`flutterfire configure` com o **app Android registrado** no console
-(`1:305628431439:android:…`). Sem `google-services.json`/plugin gradle —
-inicialização via Dart.
+A config do app está em `lib/firebase_options.dart` (gerada pelo
+`flutterfire configure`, app Android `1:305628431439:android:…`). Desde o
+login Google o repo também tem `android/app/google-services.json` + plugin
+`com.google.gms.google-services` no gradle. ⚠️ O login Google exige o
+**SHA-1/SHA-256 do keystore** (debug E release) cadastrados no console
+(Configurações do projeto → app Android).
+
+## Release assinado (distribuição)
+
+- Keystore: `~/keystores/controle-de-aula.jks` (fora do repo) +
+  `android/key.properties` (gitignored) — guardar os DOIS com a senha; perder
+  a chave = professores precisam desinstalar/reinstalar em updates futuros.
+- `flutter build apk --release` → APK assinado; publicar como GitHub Release
+  (`gh release create app-vX.Y.Z build/app/outputs/flutter-apk/app-release.apk`).
+- Ícone: `dart run flutter_launcher_icons` (config no pubspec).
 
 ## Plataforma Android
 
