@@ -55,6 +55,9 @@ class FirebaseTransport {
   /// set_wallpaper se houver). Injetado pelo controller.
   List<Map<String, dynamic>> Function(String deviceId)? comandosDeEstado;
 
+  /// Chamado quando chega uma foto da câmera (capture_camera) já decifrada.
+  void Function(String deviceId, Uint8List jpeg)? onSnapshot;
+
   // Época de sessão (anti-replay): amostrada 1x por vida do processo.
   // Multi-remetente (workspace): sid NOVO por mensagem, no relógio do
   // SERVIDOR — o guard do PC aceita sid crescente, e o relógio do servidor é
@@ -195,6 +198,10 @@ class FirebaseTransport {
         final v = e.snapshot.value;
         if (v is Map) _onReport(deviceId, v);
       }),
+      _dev(deviceId).child('snapshot').onValue.listen((e) {
+        final v = e.snapshot.value;
+        if (v is Map) _onSnapshot(deviceId, v);
+      }),
       _dev(deviceId).child('ack').onChildAdded.listen((e) {
         final env = e.snapshot.value;
         if (env is String) _onAck(deviceId, e.snapshot.key!, env);
@@ -211,6 +218,14 @@ class FirebaseTransport {
         final s = registry.byId(deviceId);
         if (label is String && label.isNotEmpty && s != null && s.label != label) {
           s.label = label;
+          registry.onChange?.call();
+        }
+      }),
+      _dev(deviceId).child('meta/ext').onValue.listen((e) {
+        final v = e.snapshot.value;
+        final s = registry.byId(deviceId);
+        if (s != null && v is String && s.versaoExt != v) {
+          s.versaoExt = v;
           registry.onChange?.call();
         }
       }),
@@ -258,6 +273,25 @@ class FirebaseTransport {
       report,
       reportAt: serverTs != null ? DateTime.fromMillisecondsSinceEpoch(serverTs) : null,
     );
+  }
+
+  Future<void> _onSnapshot(String deviceId, Map<dynamic, dynamic> node) async {
+    final s = registry.byId(deviceId);
+    final env = node['env'];
+    if (s == null || env is! String) return;
+    Map<String, dynamic> msg;
+    try {
+      msg = await s.crypto.open(env);
+    } catch (_) {
+      return; // ilegível (raça de re-pareamento) — ignora
+    }
+    final b64 = msg['jpegB64'];
+    if (b64 is! String || b64.isEmpty) return;
+    try {
+      onSnapshot?.call(deviceId, base64Decode(b64));
+    } catch (_) {
+      // base64 inválido — ignora
+    }
   }
 
   Future<void> _onAck(String deviceId, String pushId, String env) async {
@@ -337,15 +371,5 @@ class FirebaseTransport {
       if (s.deviceId == pcProfessorId) continue;
       await setStateOne(s.deviceId, cmd);
     }
-  }
-
-  /// Publica o blob do papel de parede (1x, compartilhado pela turma).
-  /// O comando set_wallpaper (só o hash) vai por setStateAll.
-  Future<void> publishWallpaper(Uint8List bytes, String hash) async {
-    await _db.ref('wallpapers/$_donoUid').set({
-      'hash': hash,
-      'jpeg': base64Encode(bytes),
-      'ts': ServerValue.timestamp,
-    });
   }
 }

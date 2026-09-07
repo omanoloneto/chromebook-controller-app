@@ -1,6 +1,8 @@
 // Seções da home (aba Aula): telão → minha aula → aulas de colegas →
 // disponíveis → offline. Puro (sem widgets/Firebase) — home_sections_test.
 
+import '../util/natural_sort.dart';
+
 /// O que a home precisa saber de cada PC para agrupar.
 typedef PcHome = ({
   String id,
@@ -23,9 +25,8 @@ class SecaoHome {
 
 List<SecaoHome> secoesDaHome(List<PcHome> pcs) {
   List<String> ordenar(Iterable<PcHome> xs) {
-    final l = [...xs]..sort(
-        (a, b) => a.nome.toLowerCase().compareTo(b.nome.toLowerCase()),
-      );
+    // Ordem natural: "Unidade 3" antes de "Unidade 12" (não 12 antes de 3).
+    final l = [...xs]..sort((a, b) => compararNatural(a.nome, b.nome));
     return l.map((p) => p.id).toList();
   }
 

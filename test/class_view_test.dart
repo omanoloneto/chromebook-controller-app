@@ -94,6 +94,22 @@ void main() {
     expect(nomes, ['beta', 'zeta', 'Alfa']);
   });
 
+  test('unidades numeradas: online desc, depois ordem numérica', () {
+    final cmd = buildSetClassView(
+      rev: 1,
+      aulaAtiva: false,
+      pcs: const [
+        ClassViewPc(nome: 'Unidade 12', online: true),
+        ClassViewPc(nome: 'Unidade 3', online: true),
+        ClassViewPc(nome: 'Unidade 1', online: false),
+      ],
+    );
+    final nomes = ((cmd['payload'] as Map)['pcs'] as List)
+        .map((p) => (p as Map)['nome'])
+        .toList();
+    expect(nomes, ['Unidade 3', 'Unidade 12', 'Unidade 1']);
+  });
+
   test('fingerprint ignora rev e id: estável entre pushes iguais', () {
     ClassViewPc pc() => const ClassViewPc(nome: 'PC 01', online: true);
     final a = buildSetClassView(rev: 1, aulaAtiva: false, pcs: [pc()]);

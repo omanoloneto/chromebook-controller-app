@@ -5,6 +5,7 @@
 
 import 'dart:convert';
 
+import '../util/natural_sort.dart';
 import 'command.dart';
 
 const int kMaxClassViewPcs = 60;
@@ -53,7 +54,7 @@ Map<String, dynamic> buildSetClassView({
 }) {
   final ordenados = [...pcs]..sort((a, b) {
       if (a.online != b.online) return a.online ? -1 : 1;
-      return a.nome.toLowerCase().compareTo(b.nome.toLowerCase());
+      return compararNatural(a.nome, b.nome); // "Unidade 3" antes de "Unidade 12"
     });
   return {
     'v': kProtocolVersion,

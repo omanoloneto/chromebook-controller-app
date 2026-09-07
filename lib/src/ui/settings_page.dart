@@ -1,7 +1,6 @@
-// Aba Ajustes: aparência (tema), nome do professor, papel de parede e versão.
+// Aba Ajustes: aparência (tema), nome do professor e versão.
 
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../pairing/pairing_controller.dart';
 import 'settings_controller.dart';
@@ -77,37 +76,6 @@ class _SettingsPageState extends State<SettingsPage> {
     await widget.settings.setNomeProfessor(novo);
     widget.pairing.atualizarNomeProfessor(novo);
     _snack('Nome salvo.');
-  }
-
-  Future<void> _escolherPapelDeParede() async {
-    final img = await ImagePicker().pickImage(
-      source: ImageSource.gallery,
-      maxWidth: 2048,
-      maxHeight: 2048,
-      imageQuality: 85,
-    );
-    if (img == null || !mounted) return;
-    final n = widget.pairing.pcs.length;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Papel de parede'),
-        content: Text('Aplicar esta imagem como papel de parede em $n PC(s)?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Aplicar'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    await widget.pairing.definirPapelDeParede(await img.readAsBytes());
-    _snack('Papel de parede enviado para $n PC(s). (Só funciona em ChromeOS.)');
   }
 
   Future<String?> _pedirPin({required String titulo, required String acao}) {
@@ -412,13 +380,6 @@ class _SettingsPageState extends State<SettingsPage> {
                     ),
                   )
                 : const SizedBox.shrink(),
-          ),
-          _secao('Turma'),
-          ListTile(
-            leading: const Icon(Icons.wallpaper),
-            title: const Text('Papel de parede da turma'),
-            subtitle: const Text('Aplicar uma imagem em todos os PCs (ChromeOS)'),
-            onTap: _escolherPapelDeParede,
           ),
           _secao('Sobre'),
           const ListTile(

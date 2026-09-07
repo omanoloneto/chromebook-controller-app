@@ -54,6 +54,53 @@ class _AulaPageState extends State<AulaPage> {
       ..showSnackBar(SnackBar(content: Text(texto)));
   }
 
+  /// Pede a foto da webcam do PC e mostra num dialog. O LED do aluno acende
+  /// enquanto captura. Depende da policy VideoCaptureAllowedUrls no fleet.
+  Future<void> _tirarFoto(String deviceId, String nome) async {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(width: 16),
+            Expanded(child: Text('Tirando foto pela câmera…')),
+          ],
+        ),
+      ),
+    );
+    final bytes = await _pairing.tirarFotoCamera(deviceId);
+    if (!mounted) return;
+    Navigator.pop(context); // fecha o spinner
+    if (bytes == null) {
+      _snack('Não veio foto (câmera bloqueada, sem a policy do admin, ou PC offline).');
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text('Câmera — $nome', style: Theme.of(context).textTheme.titleMedium),
+            ),
+            Image.memory(bytes),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Fechar'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _abrirScanner() async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ScanPage(pairing: _pairing)),
@@ -95,40 +142,6 @@ class _AulaPageState extends State<AulaPage> {
     }
     _pairing.abrirEm(deviceId, url);
     _snack('Enviado para $label.');
-  }
-
-  Future<void> _fecharSiteEmTodos() async {
-    final dominio = dominioDe(_urlCtrl.text.trim());
-    if (dominio.isEmpty || !dominio.contains('.')) {
-      _snack('Digite/escolha um site primeiro.');
-      return;
-    }
-    final n = _alvoOuAviso();
-    if (n == null) return;
-    final ok = await _confirmar(
-      titulo: 'Fechar site na turma',
-      mensagem: 'Fechar todas as abas de $dominio em $n PC(s)?',
-      acao: 'Fechar',
-    );
-    if (ok) {
-      _pairing.fecharSiteEmTodos(dominio);
-      _snack('Fechando $dominio em $n PC(s).');
-    }
-  }
-
-  Future<void> _fecharTodasAsAbas() async {
-    final n = _alvoOuAviso();
-    if (n == null) return;
-    final ok = await _confirmar(
-      titulo: 'Fechar todas as abas',
-      mensagem:
-          'Fechar TODAS as abas em $n PC(s)? Cada um fica com uma aba vazia.',
-      acao: 'Fechar tudo',
-    );
-    if (ok) {
-      _pairing.fecharTodasAsAbasEmTodos();
-      _snack('Fechando todas as abas em $n PC(s).');
-    }
   }
 
   Future<bool> _confirmar({
@@ -304,7 +317,7 @@ class _AulaPageState extends State<AulaPage> {
           children: [
             ListTile(
               title: Text(_pairing.alunoDe(s.deviceId) ?? nome),
-              subtitle: ehProfessor ? const Text('Telão da sala') : null,
+              subtitle: ehProfessor ? const Text('Computador do Professor') : null,
             ),
             const Divider(height: 1),
             ListTile(
@@ -345,8 +358,8 @@ class _AulaPageState extends State<AulaPage> {
               leading: Icon(ehProfessor ? Icons.co_present : Icons.co_present_outlined),
               title: Text(
                 ehProfessor
-                    ? 'Deixar de ser o telão da sala'
-                    : 'Usar como telão da sala',
+                    ? 'Deixar de ser o Computador do Professor'
+                    : 'Usar como Computador do Professor',
               ),
               subtitle: ehProfessor
                   ? null
@@ -357,7 +370,7 @@ class _AulaPageState extends State<AulaPage> {
                 _snack(
                   ehProfessor
                       ? '$nome voltou a ser PC de aluno.'
-                      : '$nome agora é o telão da sala.',
+                      : '$nome agora é o Computador do Professor.',
                 );
               },
             ),
@@ -376,6 +389,15 @@ class _AulaPageState extends State<AulaPage> {
               onTap: () {
                 Navigator.pop(ctx);
                 mostrarDialogoMensagem(context, _pairing, s.deviceId, nome);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_camera_outlined),
+              title: const Text('Tirar foto (câmera)'),
+              enabled: on,
+              onTap: () {
+                Navigator.pop(ctx);
+                _tirarFoto(s.deviceId, nome);
               },
             ),
             ListTile(
@@ -633,26 +655,6 @@ class _AulaPageState extends State<AulaPage> {
                   ),
                 ),
               ],
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.tonalIcon(
-                      onPressed: _fecharSiteEmTodos,
-                      icon: const Icon(Icons.close),
-                      label: const Text('Fechar site'),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _fecharTodasAsAbas,
-                      icon: const Icon(Icons.tab_unselected),
-                      label: const Text('Fechar tudo'),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
@@ -789,7 +791,7 @@ class _AulaPageState extends State<AulaPage> {
 
     final String subtitulo;
     if (ehProfessor) {
-      subtitulo = 'Telão da sala · ${on ? 'online' : 'offline'}';
+      subtitulo = 'Computador do Professor · ${on ? 'online' : 'offline'}';
     } else {
       final prefixo = aluno != null ? '$nome · ' : '';
       if (!on) {

@@ -1,11 +1,10 @@
 // Orquestra o transporte Firebase: carrega o par de chaves do professor,
 // autentica (Auth anônima), liga o FirebaseTransport e expõe a lista de PCs +
-// comandos + nomes + regras + favoritos + papel de parede. É um
+// comandos + nomes + regras + favoritos. É um
 // ChangeNotifier: as telas observam.
 
 import 'dart:async';
 
-import 'package:crypto/crypto.dart' as c;
 import 'package:firebase_auth/firebase_auth.dart'; // também exporta FirebaseException
 import 'package:firebase_database/firebase_database.dart' show FirebaseDatabase;
 import 'package:flutter/foundation.dart';
@@ -57,7 +56,9 @@ class PairingController extends ChangeNotifier {
   ClassSessionStore? _session;
   Timer? _notifyTimer;
   int _ultimoOnline = -1;
-  String? _wallpaperHash;
+
+  // Foto da câmera: pedidos aguardando a imagem chegar por /snapshot, por PC.
+  final Map<String, Completer<Uint8List?>> _fotoPendente = {};
 
   // Visão da turma no telão: debounce de push + heartbeat + dedupe.
   Timer? _classViewTimer;
@@ -146,6 +147,25 @@ class PairingController extends ChangeNotifier {
     _transport?.sendCommand(id, buildOpenUrl(url));
   }
 
+  /// Pede 1 foto da webcam do PC e espera a imagem (cifrada) voltar por
+  /// /snapshot (timeout ~20s). null = falhou/timeout: câmera bloqueada, sem a
+  /// policy VideoCaptureAllowedUrls, ou PC offline.
+  Future<Uint8List?> tirarFotoCamera(String deviceId) {
+    final t = _transport;
+    if (t == null) return Future.value(null);
+    _fotoPendente.remove(deviceId)?.complete(null); // cancela pedido anterior
+    final c = Completer<Uint8List?>();
+    _fotoPendente[deviceId] = c;
+    t.sendCommand(deviceId, buildCaptureCamera());
+    return c.future.timeout(
+      const Duration(seconds: 20),
+      onTimeout: () {
+        _fotoPendente.remove(deviceId);
+        return null;
+      },
+    );
+  }
+
   // ---- Visão da turma (telão) ------------------------------------------------------
   // O telão não decifra os reports dos outros PCs (E2E por par); o app agrega
   // e re-cifra um snapshot em state/classview — ver docs/protocolo.md.
@@ -224,6 +244,9 @@ class PairingController extends ChangeNotifier {
         teacherName: deviceName,
       );
       transport.comandosDeEstado = _comandosDeEstado;
+      transport.onSnapshot = (deviceId, jpeg) {
+        _fotoPendente.remove(deviceId)?.complete(jpeg);
+      };
       transport.registry.onChange = _scheduleNotify;
       transport.registry.avaliarAlerta = _avaliarAlerta;
       transport.registry.onNovosEventos = _onNovosEventos;
@@ -535,7 +558,6 @@ class PairingController extends ChangeNotifier {
   // Comandos de estado vigentes (gravados em state/* a cada pareamento):
   // set_rules SEMPRE (mesmo vazio, para limpar regras antigas no cliente),
   // já descontando as liberações da aula para AQUELE PC;
-  // set_wallpaper se houver imagem publicada;
   // set_unit se o device já tem número (re-pareamento reescreve state/unit
   // com a chave nova; 1º pareamento sai sem — o bind.numero cobre).
   List<Map<String, dynamic>> _comandosDeEstado(String deviceId) {
@@ -543,7 +565,6 @@ class PairingController extends ChangeNotifier {
     return [
       if (_rules != null)
         buildSetRules(_regrasParaDevice(deviceId), rev: _proximoRev()),
-      if (_wallpaperHash != null) buildSetWallpaper(_wallpaperHash!),
       if (numero != null) buildSetUnit(rev: _proximoRev(), numero: numero),
     ];
   }
@@ -1098,25 +1119,6 @@ class PairingController extends ChangeNotifier {
 
   Future<void> moverFavorito(int de, int para) async {
     await _favorites?.mover(de, para);
-    notifyListeners();
-  }
-
-  // ---- Papel de parede -------------------------------------------------------------
-
-  String? get wallpaperHash => _wallpaperHash;
-
-  /// Publica o blob no RTDB (compartilhado pela turma) e grava o comando de
-  /// estado (só o hash) em cada PC.
-  Future<void> definirPapelDeParede(Uint8List bytes) async {
-    final transport = _transport;
-    if (transport == null) return;
-    if (bytes.length > 4 * 1024 * 1024) {
-      throw ArgumentError('imagem_grande'); // vira base64 ~5.3MB no banco
-    }
-    final hash = c.sha256.convert(bytes).toString().substring(0, 8);
-    await transport.publishWallpaper(bytes, hash);
-    _wallpaperHash = hash;
-    await transport.setStateAll(buildSetWallpaper(hash));
     notifyListeners();
   }
 

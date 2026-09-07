@@ -19,8 +19,8 @@ dependencies:
   path_provider: ^2.1.0
   # Foreground service: servidor vivo com a tela apagada.
   flutter_foreground_task: ^9.2.0
-  # Escolher a imagem do papel de parede (Photo Picker, sem permissão runtime).
-  image_picker: ^1.2.0
+  # Abrir a URL do aluno no navegador do próprio celular do professor.
+  url_launcher: ^6.3.0
   firebase_core: ^4.11.0
   firebase_auth: ^6.5.4
   firebase_database: ^12.4.4

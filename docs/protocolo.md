@@ -28,7 +28,8 @@ state/rules|wallpaper (envelope) ► ◄─ stream ── aplica (persiste offli
 
 ```
 /devices/{deviceId}/
-  meta/ {uid, pub, label, v:4}      # claro; escrito pela EXTENSÃO (uid = Auth anônima)
+  meta/ {uid, pub, label, v:4, ext} # claro; escrito pela EXTENSÃO (uid = Auth anônima;
+                                    # ext = versão da extensão, exibida no app)
   pairing/ {token}                  # token one-time do QR; ninguém lê (só as rules);
                                     # rotacionado após cada bind e cada unbind
   bind/ {teacherUid, teacherPub, teacherName, token, ts, numero?}
@@ -52,6 +53,7 @@ state/rules|wallpaper (envelope) ► ◄─ stream ── aplica (persiste offli
   ack/{pushId}: "<envelope>"        # PC→professor; pushId = o do cmd correspondente;
                                     # professor deleta ao ler; PC poda além de 20
   report: {env: "<envelope>", ts}   # último tab_report (sobrescreve); ts = serverTimestamp
+  snapshot: {env: "<envelope>", ts} # última foto da webcam (camera_snapshot; sobrescreve)
   presence/ {lastSeen}              # heartbeat do PC a cada 25s (serverTimestamp)
 
 /device_uids/{uid}: deviceId        # índice reverso (escrito pela extensão);
@@ -253,10 +255,31 @@ para notificação. Caps no executor: `title` ≤ 100, `body` ≤ 500 (era 200),
 { "v":1, "type":"show_message", "id":"a49", "payload":{ "title":"Mensagem do professor", "body":"Volte para a atividade.", "popup":true, "de":"Prof. Manoel" } }
 ```
 
+**`capture_camera`** (v0.5.0+) — pede **1 foto da webcam** do aluno. A extensão
+captura via `getUserMedia` no offscreen document e grava a imagem **cifrada**
+(JPEG base64) em `snapshot/` (não no ack — grande demais). O ack traz só
+`ok/erro`. **Exige** a policy do admin `VideoCaptureAllowedUrls` com a origem
+`chrome-extension://<id>/` na OU dos alunos — senão `getUserMedia` rejeita com
+`NotAllowedError` (o offscreen não tem UI para o prompt). O **LED da câmera
+acende** durante a captura (hardware, não desligável).
+```json
+{ "v":1, "type":"capture_camera", "id":"a51", "payload":{} }
+```
+
+**`capture_screen`** (agente Celita ≥ 0.5.0) — pede **1 captura da tela** do
+aluno. Só o agente do Celita OS atende (a extensão sozinha responde
+`tipo_desconhecido`): a imagem vai cifrada em `snapshot/` com
+`type: "screen_snapshot"`, mesmo nó e mesmo formato da foto da câmera. Sem
+sessão gráfica de aluno aberta: `ack {ok:false, error:"sem_sessao"}`.
+```json
+{ "v":1, "type":"capture_screen", "id":"a52", "payload":{} }
+```
+
 **Ack**
 ```json
 { "type":"ack", "id":"a43", "ok":true }
 { "type":"ack", "id":"a46", "ok":false, "error":"so_chromeos" }
+{ "type":"ack", "id":"a51", "ok":false, "error":"camera_NotAllowedError" }
 ```
 
 ### Comandos de estado (`state/`)
@@ -394,10 +417,28 @@ a presença já cobre o "estou vivo" a cada 25s). Payload interno idêntico ao v
 ```
 
 - Só URLs `http`/`https`. Exatamente **uma** aba com `active: true`.
+- **Celita OS (agente ≥ 0.5.0):** dois campos a mais, que o app ignora até
+  aprender a exibi-los: `apps` = janelas abertas fora do navegador
+  (`[{name, title}]`, ≤ 30, `name` ≤ 40, `title` ≤ 120) e `user` = conta
+  logada (≤ 32). Navegador fechado ⇒ `tabs`/`events` vazios, `apps` continua.
 - **Caps** (extensão aplica, app revalida): `tabs` ≤ 30, `events` ≤ 20 (log
   rolante completo), `url` ≤ 300 chars, `title` ≤ 120 chars.
 - O app deduplica `events` por `(ts, url)` — robusto a relatórios perdidos.
 - Ao desvincular, o PC **deleta** `report`/`ack`/`presence` (limpeza).
+
+### `camera_snapshot` / `screen_snapshot` (PC → professor)
+
+Resposta ao `capture_camera` (ou `capture_screen`): 1 imagem, cifrada,
+gravada em `snapshot: {env, ts}` (sobrescreve). O app decifra e mostra a
+imagem; o `type` diz se é a webcam ou a tela.
+
+```json
+{ "type":"camera_snapshot", "v":1, "id":"a51", "jpegB64":"<jpeg base64>" }
+{ "type":"screen_snapshot", "v":1, "id":"a52", "jpegB64":"<jpeg base64>" }
+```
+
+- Privacidade: imagem de **menor** — só liga com a policy do admin e o LED
+  aceso; base legal/consentimento é responsabilidade da escola (LGPD).
 
 ## 4. Security Rules (resumo normativo)
 
@@ -444,5 +485,18 @@ Arquivo canônico: `firebase/database.rules.json` (espelhado nos dois repos).
   não apaga contas anônimas; só com upgrade p/ Identity Platform existe
   "Automatic clean-up" — manter OFF nesse caso.)
 
-## 6. Tipos reservados (futuro)
+## 6. Cliente Celita OS (agente do sistema)
+
+No Celita OS o cliente do protocolo **não é a extensão**: é o
+`controle-de-aula-agent`, um serviço do sistema (Python, systemd) que sobe no
+boot e mantém identidade, pareamento, stream, presença e relatório — tudo
+acima, sem mudança de formato. A extensão no Voges vira só o braço para abas,
+ligada ao agente por native messaging. Consequências para o app: o PC aparece
+online desde a tela de login, o `tab_report` chega com `tabs` vazias enquanto
+ninguém abriu o navegador, `meta/ext` vem como `celita-<versão>`, e os tipos
+`capture_screen`/`screen_snapshot` e os campos `apps`/`user` só existem nesse
+cliente. O pareamento por QR é o mesmo (a extensão exibe o QR que o agente
+gera).
+
+## 7. Tipos reservados (futuro)
 `lock_screen`, `unlock_screen`, `focus_mode`.

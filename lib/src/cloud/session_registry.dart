@@ -25,6 +25,10 @@ class PcSession {
   String label;
   final SessionCrypto crypto;
 
+  /// Versão da extensão instalada neste PC (meta/ext); null = ainda não lida
+  /// (PC pareado antes desta versão do app/extensão).
+  String? versaoExt;
+
   /// Última presença, em TEMPO DO SERVIDOR (o transporte converte).
   DateTime lastSeen = DateTime.fromMillisecondsSinceEpoch(0);
 

@@ -19,6 +19,8 @@ class MessageType {
   static const String showMessage = 'show_message';
   static const String setClassView = 'set_class_view';
   static const String setUnit = 'set_unit';
+  static const String captureCamera = 'capture_camera'; // app -> ext: foto da webcam
+  static const String cameraSnapshot = 'camera_snapshot'; // ext -> app: foto cifrada
   // Reservados (futuro):
   static const String lockScreen = 'lock_screen';
   static const String unlockScreen = 'unlock_screen';
@@ -132,6 +134,18 @@ Map<String, dynamic> buildSetWallpaper(String hash) {
     'type': MessageType.setWallpaper,
     'id': _nextId(),
     'payload': {'hash': hash},
+  };
+}
+
+/// Monta o comando `capture_camera` — pede 1 foto da webcam do aluno. A
+/// extensão responde gravando a imagem cifrada em `/devices/{id}/snapshot`
+/// (ext >= 0.5.0; exige a policy `VideoCaptureAllowedUrls` no fleet).
+Map<String, dynamic> buildCaptureCamera() {
+  return {
+    'v': kProtocolVersion,
+    'type': MessageType.captureCamera,
+    'id': _nextId(),
+    'payload': const <String, dynamic>{},
   };
 }
 

@@ -76,4 +76,14 @@ void main() {
     ]);
     expect(s[0].ids, ['alfa', 'zeta']);
   });
+
+  test('unidades numeradas saem em ordem numérica (1, 3, 12, 22)', () {
+    final s = secoesDaHome([
+      pc('Unidade 1'),
+      pc('Unidade 12'),
+      pc('Unidade 22'),
+      pc('Unidade 3'),
+    ]);
+    expect(s.single.ids, ['Unidade 1', 'Unidade 3', 'Unidade 12', 'Unidade 22']);
+  });
 }

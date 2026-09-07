@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../cloud/history_store.dart';
 import '../commands/command.dart';
 import '../pairing/pairing_controller.dart';
+import '../util/abrir_no_celular.dart';
 import 'device_page.dart' show dominioDe;
 
 String _data(DateTime d) {
@@ -262,31 +263,41 @@ class AulaHistoricoPage extends StatelessWidget {
                 trailing: PopupMenuButton<String>(
                   tooltip: 'Opções do link',
                   onSelected: (v) {
-                    if (v == 'telao') {
+                    if (v == 'celular') {
+                      abrirNoCelular(context, e.url);
+                    } else if (v == 'telao') {
                       pairing.abrirNoPcProfessor(e.url);
                       ScaffoldMessenger.of(context)
                         ..hideCurrentSnackBar()
                         ..showSnackBar(
                           const SnackBar(
-                            content: Text('Abrindo no telão da sala…'),
+                            content: Text('Abrindo no Computador do Professor…'),
                           ),
                         );
                     }
                   },
                   itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'celular',
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: Icon(Icons.smartphone),
+                        title: Text('Abrir no meu celular'),
+                      ),
+                    ),
                     PopupMenuItem(
                       value: 'telao',
                       enabled: pairing.pcProfessorOnline,
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
                         leading: const Icon(Icons.co_present),
-                        title: const Text('Abrir no telão da sala'),
+                        title: const Text('Abrir no Computador do Professor'),
                         subtitle: pairing.pcProfessorOnline
                             ? null
                             : Text(
                                 pairing.pcProfessorId == null
-                                    ? 'nenhum PC marcado como do professor'
-                                    : 'O telão da sala está offline',
+                                    ? 'nenhum Computador do Professor definido'
+                                    : 'O Computador do Professor está offline',
                               ),
                       ),
                     ),

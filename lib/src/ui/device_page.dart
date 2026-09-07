@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 
 import '../pairing/pairing_controller.dart';
+import '../util/abrir_no_celular.dart';
 import 'theme.dart';
 
 /// Domínio de uma URL para exibição compacta ("pt.khanacademy.org").
@@ -321,12 +322,27 @@ class _DevicePageState extends State<DevicePage> {
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
-        const SnackBar(content: Text('Abrindo no telão da sala…')),
+        const SnackBar(content: Text('Abrindo no Computador do Professor…')),
       );
   }
 
-  /// Item de menu "Abrir no PC do professor" (usado na aba ativa, nas abas
-  /// abertas e no histórico). Desabilitado explica o porquê.
+  void _abrirNoCelular(String url) => abrirNoCelular(context, url);
+
+  /// Item de menu "Abrir no meu celular" — abre a URL no navegador do próprio
+  /// celular do professor (sempre disponível; não depende de PC marcado).
+  PopupMenuItem<String> _itemMenuCelular() {
+    return const PopupMenuItem(
+      value: 'celular',
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(Icons.smartphone),
+        title: Text('Abrir no meu celular'),
+      ),
+    );
+  }
+
+  /// Item de menu "Abrir no Computador do Professor" (usado na aba ativa, nas
+  /// abas abertas e no histórico). Desabilitado explica o porquê.
   PopupMenuItem<String> _itemMenuTelao() {
     return PopupMenuItem(
       value: 'telao',
@@ -334,13 +350,13 @@ class _DevicePageState extends State<DevicePage> {
       child: ListTile(
         contentPadding: EdgeInsets.zero,
         leading: const Icon(Icons.co_present),
-        title: const Text('Abrir no telão da sala'),
+        title: const Text('Abrir no Computador do Professor'),
         subtitle: widget.pairing.pcProfessorOnline
             ? null
             : Text(
                 widget.pairing.pcProfessorId == null
-                    ? 'nenhum PC marcado como do professor'
-                    : 'O telão da sala está offline',
+                    ? 'nenhum Computador do Professor definido'
+                    : 'O Computador do Professor está offline',
               ),
       ),
     );
@@ -504,6 +520,16 @@ class _DevicePageState extends State<DevicePage> {
               ),
             ],
           ),
+          if (s.versaoExt != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Extensão v${s.versaoExt}',
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+              ),
+            ),
           if (widget.pairing.aulaAtiva) ...[
             const SizedBox(height: 8),
             Row(
@@ -585,9 +611,10 @@ class _DevicePageState extends State<DevicePage> {
                         PopupMenuButton<String>(
                           tooltip: 'Opções da aba ativa',
                           onSelected: (v) {
+                            if (v == 'celular') _abrirNoCelular(ativa.url);
                             if (v == 'telao') _abrirNoTelao(ativa.url);
                           },
-                          itemBuilder: (_) => [_itemMenuTelao()],
+                          itemBuilder: (_) => [_itemMenuCelular(), _itemMenuTelao()],
                         ),
                       ],
                     ),
@@ -632,9 +659,12 @@ class _DevicePageState extends State<DevicePage> {
                     _fecharPorDominio(t.url);
                   } else if (v == 'telao') {
                     _abrirNoTelao(t.url);
+                  } else if (v == 'celular') {
+                    _abrirNoCelular(t.url);
                   }
                 },
                 itemBuilder: (_) => [
+                  _itemMenuCelular(),
                   _itemMenuTelao(),
                   const PopupMenuItem(
                     value: 'aba',
@@ -672,9 +702,10 @@ class _DevicePageState extends State<DevicePage> {
                 trailing: PopupMenuButton<String>(
                   tooltip: 'Opções do link',
                   onSelected: (v) {
+                    if (v == 'celular') _abrirNoCelular(e.url);
                     if (v == 'telao') _abrirNoTelao(e.url);
                   },
-                  itemBuilder: (_) => [_itemMenuTelao()],
+                  itemBuilder: (_) => [_itemMenuCelular(), _itemMenuTelao()],
                 ),
               ),
           ] else ...[
@@ -682,7 +713,7 @@ class _DevicePageState extends State<DevicePage> {
             const ListTile(
               dense: true,
               leading: Icon(Icons.co_present),
-              title: Text('Telão da sala'),
+              title: Text('Computador do Professor'),
               subtitle: Text(
                 'Sem monitoramento de histórico, alertas ou bloqueios.',
               ),
