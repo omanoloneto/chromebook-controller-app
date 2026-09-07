@@ -38,6 +38,11 @@ class PcSession {
 
   // Monitoramento (último relatório de abas recebido).
   List<TabInfo> tabs = [];
+
+  /// Programas abertos fora do navegador e conta logada no PC. Só o agente do
+  /// Celita OS reporta; num Chromebook comum ficam vazios.
+  List<AppInfo> apps = [];
+  String? usuario;
   final List<NavEvent> history = [];
   DateTime? lastReportAt;
   String? alerta; // domínio que disparou alerta (null = sem alerta)
@@ -95,6 +100,8 @@ class SessionRegistry {
     );
     if (old != null) {
       s.tabs = old.tabs;
+      s.apps = old.apps;
+      s.usuario = old.usuario;
       s.history.addAll(old.history);
       s.lastReportAt = old.lastReportAt;
       s.alerta = old.alerta;
@@ -127,6 +134,8 @@ class SessionRegistry {
     final primeiro = !s.reportJaAplicado;
     s.reportJaAplicado = true;
     s.tabs = r.tabs;
+    s.apps = r.apps;
+    s.usuario = r.user;
     s.lastReportAt = reportAt ?? DateTime.now();
     // PC do professor: sem histórico/alerta/notificações (abas ficam — servem
     // p/ confirmar visualmente um open_url no telão).

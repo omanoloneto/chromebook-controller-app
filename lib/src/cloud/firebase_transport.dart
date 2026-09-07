@@ -56,7 +56,9 @@ class FirebaseTransport {
   List<Map<String, dynamic>> Function(String deviceId)? comandosDeEstado;
 
   /// Chamado quando chega uma foto da câmera (capture_camera) já decifrada.
-  void Function(String deviceId, Uint8List jpeg)? onSnapshot;
+  /// [tipo] = `camera_snapshot` ou `screen_snapshot` (§3 do protocolo): um
+  /// pedido de câmera não pode ser resolvido por uma captura de tela.
+  void Function(String deviceId, String tipo, Uint8List jpeg)? onSnapshot;
 
   // Época de sessão (anti-replay): amostrada 1x por vida do processo.
   // Multi-remetente (workspace): sid NOVO por mensagem, no relógio do
@@ -285,10 +287,14 @@ class FirebaseTransport {
     } catch (_) {
       return; // ilegível (raça de re-pareamento) — ignora
     }
+    final tipo = msg['type'];
+    if (tipo != MessageType.cameraSnapshot && tipo != MessageType.screenSnapshot) {
+      return;
+    }
     final b64 = msg['jpegB64'];
     if (b64 is! String || b64.isEmpty) return;
     try {
-      onSnapshot?.call(deviceId, base64Decode(b64));
+      onSnapshot?.call(deviceId, tipo as String, base64Decode(b64));
     } catch (_) {
       // base64 inválido — ignora
     }

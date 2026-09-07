@@ -54,53 +54,6 @@ class _AulaPageState extends State<AulaPage> {
       ..showSnackBar(SnackBar(content: Text(texto)));
   }
 
-  /// Pede a foto da webcam do PC e mostra num dialog. O LED do aluno acende
-  /// enquanto captura. Depende da policy VideoCaptureAllowedUrls no fleet.
-  Future<void> _tirarFoto(String deviceId, String nome) async {
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(),
-            SizedBox(width: 16),
-            Expanded(child: Text('Tirando foto pela câmera…')),
-          ],
-        ),
-      ),
-    );
-    final bytes = await _pairing.tirarFotoCamera(deviceId);
-    if (!mounted) return;
-    Navigator.pop(context); // fecha o spinner
-    if (bytes == null) {
-      _snack('Não veio foto (câmera bloqueada, sem a policy do admin, ou PC offline).');
-      return;
-    }
-    await showDialog<void>(
-      context: context,
-      builder: (_) => Dialog(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text('Câmera — $nome', style: Theme.of(context).textTheme.titleMedium),
-            ),
-            Image.memory(bytes),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Fechar'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _abrirScanner() async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => ScanPage(pairing: _pairing)),
@@ -220,6 +173,8 @@ class _AulaPageState extends State<AulaPage> {
   Future<void> _vincularAluno(String deviceId) async {
     final disponiveis = _pairing.alunosDisponiveis;
     final atual = _pairing.alunoDe(deviceId);
+    final pc = _pairing.pcPorId(deviceId);
+    final ligado = pc != null && _pairing.isOnline(pc);
     final escolhido = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -234,6 +189,12 @@ class _AulaPageState extends State<AulaPage> {
               ),
             ),
             const Divider(height: 1),
+            if (ligado)
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined),
+                title: const Text('Não sei quem é — tirar foto'),
+                onTap: () => Navigator.pop(ctx, ' foto'),
+              ),
             ListTile(
               leading: const Icon(Icons.person_add),
               title: const Text('Cadastrar aluno novo'),
@@ -261,6 +222,19 @@ class _AulaPageState extends State<AulaPage> {
       ),
     );
     if (escolhido == null) return;
+    if (escolhido == ' foto') {
+      if (!mounted) return;
+      // Foto pra identificar, e volta pra lista com a resposta na cabeça.
+      await mostrarImagemDoPc(
+        context,
+        _pairing,
+        deviceId,
+        _pairing.nomeDe(pc!),
+        tela: false,
+      );
+      if (mounted) await _vincularAluno(deviceId);
+      return;
+    }
     if (escolhido == ' novo') {
       await _cadastrarEVincular(deviceId);
     } else if (escolhido == ' remover') {
@@ -393,11 +367,21 @@ class _AulaPageState extends State<AulaPage> {
             ),
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Tirar foto (câmera)'),
+              title: const Text('Ver quem está no PC (foto)'),
               enabled: on,
               onTap: () {
                 Navigator.pop(ctx);
-                _tirarFoto(s.deviceId, nome);
+                mostrarImagemDoPc(context, _pairing, s.deviceId, nome, tela: false);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.screenshot_monitor_outlined),
+              title: const Text('Ver a tela deste PC'),
+              subtitle: const Text('só nos PCs com Celita OS'),
+              enabled: on,
+              onTap: () {
+                Navigator.pop(ctx);
+                mostrarImagemDoPc(context, _pairing, s.deviceId, nome, tela: true);
               },
             ),
             ListTile(

@@ -47,6 +47,35 @@ void main() {
       expect(r.events[1].url, 'https://pt.khanacademy.org/math');
     });
 
+    test('sem apps/user (relatório da extensão) fica vazio, não quebra', () {
+      final m = jsonDecode(_exemploReport) as Map<String, dynamic>;
+      final r = TabReport.fromMap(m)!;
+      expect(r.apps, isEmpty);
+      expect(r.user, isNull);
+    });
+
+    test('apps e user do agente Celita entram com os caps do protocolo', () {
+      final r = TabReport.fromMap({
+        'type': 'tab_report',
+        'tabs': const [],
+        'events': const [],
+        'user': 'a' * 100,
+        'apps': [
+          {'name': 'Voges', 'title': 'Khan Academy — Voges'},
+          {'name': 'b' * 100, 'title': 'c' * 300},
+          {'title': 'sem nome'},
+          'nem é mapa',
+          for (var i = 0; i < 100; i++) {'name': 'app$i'},
+        ],
+      })!;
+      expect(r.apps.length, kMaxReportApps);
+      expect(r.apps[0].name, 'Voges');
+      expect(r.apps[0].title, 'Khan Academy — Voges');
+      expect(r.apps[1].name.length, kMaxReportAppName);
+      expect(r.apps[1].title.length, kMaxReportAppTitle);
+      expect(r.user!.length, kMaxReportUser);
+    });
+
     test('retorna null para type errado', () {
       expect(TabReport.fromMap({'type': 'open_url'}), isNull);
     });
@@ -118,13 +147,31 @@ void main() {
       expect(reg.byId('pc1')!.abaAtiva!.url, 'https://b.com');
     });
 
+    test('applyReport guarda programas abertos e conta do PC', () {
+      final reg = novoRegistry('pc1');
+      reg.applyReport(
+        'pc1',
+        TabReport(
+          tabs: const [],
+          events: const [],
+          apps: [AppInfo(name: 'Voges', title: 'Khan Academy')],
+          user: 'aluno01',
+        ),
+      );
+      final s = reg.byId('pc1')!;
+      expect(s.apps.single.name, 'Voges');
+      expect(s.usuario, 'aluno01');
+    });
+
     test('re-bind preserva abas e histórico (reconexão não zera)', () {
       final reg = novoRegistry('pc1');
       reg.applyReport(
         'pc1',
-        _report(
-          [_ev(1)],
+        TabReport(
           tabs: [TabInfo(url: 'https://a.com', title: 'A', active: true)],
+          events: [_ev(1)],
+          apps: [AppInfo(name: 'Voges', title: 'A')],
+          user: 'aluno01',
         ),
       );
       // Reconexão: extensão refaz o /bind com chave de sessão nova.
@@ -137,6 +184,8 @@ void main() {
       expect(s.history, hasLength(1));
       expect(s.tabs, hasLength(1));
       expect(s.lastReportAt, isNotNull);
+      expect(s.apps, hasLength(1));
+      expect(s.usuario, 'aluno01');
     });
   });
 

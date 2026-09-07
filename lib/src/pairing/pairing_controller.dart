@@ -57,7 +57,8 @@ class PairingController extends ChangeNotifier {
   Timer? _notifyTimer;
   int _ultimoOnline = -1;
 
-  // Foto da câmera: pedidos aguardando a imagem chegar por /snapshot, por PC.
+  // Imagens pedidas (câmera/tela) aguardando chegar por /snapshot. A chave
+  // leva o tipo: uma captura de tela não pode resolver um pedido de foto.
   final Map<String, Completer<Uint8List?>> _fotoPendente = {};
 
   // Visão da turma no telão: debounce de push + heartbeat + dedupe.
@@ -150,17 +151,37 @@ class PairingController extends ChangeNotifier {
   /// Pede 1 foto da webcam do PC e espera a imagem (cifrada) voltar por
   /// /snapshot (timeout ~20s). null = falhou/timeout: câmera bloqueada, sem a
   /// policy VideoCaptureAllowedUrls, ou PC offline.
-  Future<Uint8List?> tirarFotoCamera(String deviceId) {
+  Future<Uint8List?> tirarFotoCamera(String deviceId) => _pedirImagem(
+        deviceId,
+        buildCaptureCamera(),
+        MessageType.cameraSnapshot,
+      );
+
+  /// Pede 1 captura da tela do PC. Só o agente do Celita OS responde; num
+  /// Chromebook comum volta null (o cliente acka `tipo_desconhecido`), e
+  /// também null quando ninguém está logado na conta de aluno.
+  Future<Uint8List?> tirarFotoTela(String deviceId) => _pedirImagem(
+        deviceId,
+        buildCaptureScreen(),
+        MessageType.screenSnapshot,
+      );
+
+  Future<Uint8List?> _pedirImagem(
+    String deviceId,
+    Map<String, dynamic> comando,
+    String tipoResposta,
+  ) {
     final t = _transport;
     if (t == null) return Future.value(null);
-    _fotoPendente.remove(deviceId)?.complete(null); // cancela pedido anterior
+    final chave = '$deviceId|$tipoResposta';
+    _fotoPendente.remove(chave)?.complete(null); // cancela pedido anterior
     final c = Completer<Uint8List?>();
-    _fotoPendente[deviceId] = c;
-    t.sendCommand(deviceId, buildCaptureCamera());
+    _fotoPendente[chave] = c;
+    t.sendCommand(deviceId, comando);
     return c.future.timeout(
       const Duration(seconds: 20),
       onTimeout: () {
-        _fotoPendente.remove(deviceId);
+        _fotoPendente.remove(chave);
         return null;
       },
     );
@@ -244,8 +265,8 @@ class PairingController extends ChangeNotifier {
         teacherName: deviceName,
       );
       transport.comandosDeEstado = _comandosDeEstado;
-      transport.onSnapshot = (deviceId, jpeg) {
-        _fotoPendente.remove(deviceId)?.complete(jpeg);
+      transport.onSnapshot = (deviceId, tipo, jpeg) {
+        _fotoPendente.remove('$deviceId|$tipo')?.complete(jpeg);
       };
       transport.registry.onChange = _scheduleNotify;
       transport.registry.avaliarAlerta = _avaliarAlerta;

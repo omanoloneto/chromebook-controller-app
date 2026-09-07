@@ -21,6 +21,8 @@ class MessageType {
   static const String setUnit = 'set_unit';
   static const String captureCamera = 'capture_camera'; // app -> ext: foto da webcam
   static const String cameraSnapshot = 'camera_snapshot'; // ext -> app: foto cifrada
+  static const String captureScreen = 'capture_screen'; // app -> agente Celita: tela
+  static const String screenSnapshot = 'screen_snapshot'; // agente -> app: tela cifrada
   // Reservados (futuro):
   static const String lockScreen = 'lock_screen';
   static const String unlockScreen = 'unlock_screen';
@@ -149,6 +151,18 @@ Map<String, dynamic> buildCaptureCamera() {
   };
 }
 
+/// Monta o comando `capture_screen` — pede 1 captura da tela do aluno. Só o
+/// agente do Celita OS (>= 0.5.0) atende; a extensão sozinha responde
+/// `tipo_desconhecido`, e sem sessão de aluno aberta vem `sem_sessao`.
+Map<String, dynamic> buildCaptureScreen() {
+  return {
+    'v': kProtocolVersion,
+    'type': MessageType.captureScreen,
+    'id': _nextId(),
+    'payload': const <String, dynamic>{},
+  };
+}
+
 /// Representa um ACK recebido do Chromebook (já decifrado).
 class Ack {
   Ack({required this.id, required this.ok, this.error});
@@ -172,6 +186,10 @@ class Ack {
 
 const int kMaxReportTabs = 30;
 const int kMaxReportEvents = 20;
+const int kMaxReportApps = 30;
+const int kMaxReportAppName = 40;
+const int kMaxReportAppTitle = 120;
+const int kMaxReportUser = 32;
 
 /// Uma aba aberta no Chromebook.
 class TabInfo {
@@ -213,12 +231,42 @@ class NavEvent {
   }
 }
 
+/// Um programa aberto fora do navegador. Só o agente do Celita OS reporta.
+class AppInfo {
+  AppInfo({required this.name, required this.title});
+
+  final String name;
+  final String title;
+
+  static AppInfo? fromMap(dynamic m) {
+    if (m is! Map) return null;
+    final name = m['name'];
+    if (name is! String || name.isEmpty) return null;
+    return AppInfo(
+      name: _corta(name, kMaxReportAppName),
+      title: _corta(m['title'] as String? ?? '', kMaxReportAppTitle),
+    );
+  }
+}
+
+String _corta(String s, int max) => s.length <= max ? s : s.substring(0, max);
+
 /// Snapshot das abas + log rolante de navegação de um Chromebook.
 class TabReport {
-  TabReport({required this.tabs, required this.events});
+  TabReport({
+    required this.tabs,
+    required this.events,
+    this.apps = const [],
+    this.user,
+  });
 
   final List<TabInfo> tabs;
   final List<NavEvent> events;
+
+  /// Programas abertos fora do navegador e conta logada: só o agente do
+  /// Celita OS manda (a extensão omite; lista vazia e null são o normal).
+  final List<AppInfo> apps;
+  final String? user;
 
   /// Tolerante: entradas malformadas são puladas; caps defensivos
   /// independentes do que o cliente enviou.
@@ -242,6 +290,19 @@ class TabReport {
         if (events.length >= kMaxReportEvents) break;
       }
     }
-    return TabReport(tabs: tabs, events: events);
+    final apps = <AppInfo>[];
+    final rawApps = m['apps'];
+    if (rawApps is List) {
+      for (final e in rawApps) {
+        final a = AppInfo.fromMap(e);
+        if (a != null) apps.add(a);
+        if (apps.length >= kMaxReportApps) break;
+      }
+    }
+    final rawUser = m['user'];
+    final user = rawUser is String && rawUser.isNotEmpty
+        ? _corta(rawUser, kMaxReportUser)
+        : null;
+    return TabReport(tabs: tabs, events: events, apps: apps, user: user);
   }
 }

@@ -1,5 +1,6 @@
-// Tela de detalhe de um PC: aba ativa, abas abertas e histórico de navegação
-// (somente URLs/títulos — sem captura de tela; dados ficam em memória).
+// Tela de detalhe de um PC: aba ativa, abas abertas, programas abertos e
+// histórico de navegação (dados ficam em memória). Foto da câmera e captura
+// da tela são pedidos avulsos do professor — nunca contínuos.
 
 import 'package:flutter/material.dart';
 
@@ -156,6 +157,76 @@ Future<void> mostrarDialogoRenomear(
 }
 
 /// Diálogo "Enviar mensagem" (popup no Chrome do aluno) — aqui e na aba Aula.
+/// Pede uma imagem ao PC e mostra num dialog: [tela] false = foto da câmera
+/// (quem está sentado ali; o LED do aluno acende), true = captura da tela,
+/// que só o agente do Celita OS atende.
+Future<void> mostrarImagemDoPc(
+  BuildContext context,
+  PairingController pairing,
+  String deviceId,
+  String nome, {
+  required bool tela,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => AlertDialog(
+      content: Row(
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(width: 16),
+          Expanded(child: Text(tela ? 'Buscando a tela…' : 'Tirando a foto…')),
+        ],
+      ),
+    ),
+  );
+  final bytes = tela
+      ? await pairing.tirarFotoTela(deviceId)
+      : await pairing.tirarFotoCamera(deviceId);
+  if (!context.mounted) return;
+  Navigator.pop(context); // fecha o spinner
+  if (bytes == null) {
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            tela
+                ? 'Não veio a tela. Esse PC precisa ter o Celita OS, com o aluno já dentro da conta dele.'
+                : 'Não veio a foto. O PC pode estar desligado, ou a câmera bloqueada pelo administrador.',
+          ),
+        ),
+      );
+    return;
+  }
+  await showDialog<void>(
+    context: context,
+    builder: (_) => Dialog(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              tela ? 'Tela — $nome' : 'Quem está no PC — $nome',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+          ),
+          Image.memory(bytes),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fechar'),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
 Future<void> mostrarDialogoMensagem(
   BuildContext context,
   PairingController pairing,
@@ -447,10 +518,28 @@ class _DevicePageState extends State<DevicePage> {
                   widget.deviceId,
                 );
               }
+              if (v == 'foto') {
+                mostrarImagemDoPc(
+                  context,
+                  widget.pairing,
+                  widget.deviceId,
+                  nome,
+                  tela: false,
+                );
+              }
+              if (v == 'tela') {
+                mostrarImagemDoPc(
+                  context,
+                  widget.pairing,
+                  widget.deviceId,
+                  nome,
+                  tela: true,
+                );
+              }
               if (v == 'esquecer') _confirmarEsquecer(nome);
             },
-            itemBuilder: (_) => const [
-              PopupMenuItem(
+            itemBuilder: (_) => [
+              const PopupMenuItem(
                 value: 'mensagem',
                 child: ListTile(
                   leading: Icon(Icons.chat_bubble_outline),
@@ -459,6 +548,25 @@ class _DevicePageState extends State<DevicePage> {
                 ),
               ),
               PopupMenuItem(
+                value: 'foto',
+                enabled: on,
+                child: const ListTile(
+                  leading: Icon(Icons.photo_camera_outlined),
+                  title: Text('Ver quem está no PC (foto)'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'tela',
+                enabled: on,
+                child: const ListTile(
+                  leading: Icon(Icons.screenshot_monitor_outlined),
+                  title: Text('Ver a tela deste PC'),
+                  subtitle: Text('só nos PCs com Celita OS'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              const PopupMenuItem(
                 value: 'numero',
                 child: ListTile(
                   leading: Icon(Icons.pin),
@@ -466,7 +574,7 @@ class _DevicePageState extends State<DevicePage> {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
-              PopupMenuItem(
+              const PopupMenuItem(
                 value: 'esquecer',
                 child: ListTile(
                   leading: Icon(Icons.link_off),
@@ -570,6 +678,15 @@ class _DevicePageState extends State<DevicePage> {
               ),
             ],
           ),
+          if (s.usuario != null) ...[
+            const SizedBox(height: 12),
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.account_circle_outlined),
+              title: Text('Conta aberta no PC: ${s.usuario}'),
+            ),
+          ],
           const SizedBox(height: 16),
           Text('Aba ativa', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
@@ -677,6 +794,25 @@ class _DevicePageState extends State<DevicePage> {
                 ],
               ),
             ),
+          if (s.apps.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Programas abertos (${s.apps.length})',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 4),
+            for (final a in s.apps)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.desktop_windows_outlined),
+                title: Text(
+                  a.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: a.title.isEmpty ? null : Text(a.title),
+              ),
+          ],
           if (!widget.pairing.ehPcProfessor(widget.deviceId)) ...[
             const SizedBox(height: 16),
             Text(

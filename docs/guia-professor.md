@@ -52,6 +52,17 @@ nos avisos e nas travas de aula ("Em aula com Fulano").
 5. **Encerrar aula**: fecha o navegador dos PCs vinculados, desfaz os
    vínculos e libera os PCs para o próximo professor.
 
+### Saber quem está no PC e o que ele está fazendo
+
+- **Ver quem está no PC (foto)** — tira uma foto pela câmera do PC, para
+  identificar quem sentou ali. Aparece também na hora de escolher o aluno
+  ("Não sei quem é — tirar foto"). A luzinha da câmera acende no PC do aluno.
+- **Ver a tela deste PC** — mostra a tela inteira, não só as abas. Funciona
+  **só nos PCs com Celita OS** e com o aluno já dentro da conta dele.
+- **Programas abertos** — na tela do PC, abaixo das abas, aparecem os
+  programas fora do navegador (também só no Celita OS), e a conta que está
+  aberta na máquina.
+
 - Um PC só participa de **uma aula por vez**: se um colega já vinculou um
   aluno naquele PC, o app avisa "Em aula com {professor}".
 - A **ficha do aluno** (aba Turmas → aluno) guarda as aulas e os sites
