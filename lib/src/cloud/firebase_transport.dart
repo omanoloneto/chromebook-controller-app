@@ -372,6 +372,16 @@ class FirebaseTransport {
     await _dev(deviceId).child('state/$kind').remove();
   }
 
+  /// Página inicial dos alunos: única escrita em claro do app. Não é comando de
+  /// PC — é a configuração da escola, que a página escolacelita.com/home lê sem
+  /// login. As regras só aceitam esta escrita da conta Google da escola.
+  Future<void> publicarPaginaInicial(Map<String, dynamic> config) async {
+    await _db.ref('home/escola').set({
+      'rev': DateTime.now().millisecondsSinceEpoch,
+      'cfg': jsonEncode(config),
+    });
+  }
+
   Future<void> setStateAll(Map<String, dynamic> cmd) async {
     for (final s in registry.all) {
       if (s.deviceId == pcProfessorId) continue;

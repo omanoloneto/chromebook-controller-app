@@ -30,6 +30,7 @@ import '../service/foreground_service.dart';
 import '../service/notification_service.dart';
 import 'class_session_store.dart';
 import 'favorites_store.dart';
+import 'home_store.dart';
 import 'name_store.dart';
 import 'rules_store.dart';
 import 'students_store.dart';
@@ -52,6 +53,8 @@ class PairingController extends ChangeNotifier {
   UnitStore? _units;
   RulesStore? _rules;
   FavoritesStore? _favorites;
+  HomeStore? _home;
+  String? _erroPaginaInicial;
   StudentsStore? _students;
   ClassSessionStore? _session;
   Timer? _notifyTimer;
@@ -246,6 +249,7 @@ class PairingController extends ChangeNotifier {
       _units = await UnitStore.load();
       _rules = await RulesStore.load();
       _favorites = await FavoritesStore.load();
+      _home = await HomeStore.load();
       _students = await StudentsStore.load();
       _session = await ClassSessionStore.load();
 
@@ -1140,6 +1144,80 @@ class PairingController extends ChangeNotifier {
 
   Future<void> moverFavorito(int de, int para) async {
     await _favorites?.mover(de, para);
+    notifyListeners();
+  }
+
+  // ---- Página inicial dos alunos ---------------------------------------------------
+
+  PaginaInicial get paginaInicial => _home?.config ?? PaginaInicial.padrao;
+
+  /// Motivo de a última publicação não ter ido ao ar, em português, ou null.
+  String? get erroPaginaInicial => _erroPaginaInicial;
+
+  Future<void> definirTituloDaPagina(String titulo) async {
+    await _home?.definirTitulo(titulo);
+    await _publicarPaginaInicial();
+  }
+
+  Future<void> definirBuscaDaPagina(bool ligada) async {
+    await _home?.definirBusca(ligada);
+    await _publicarPaginaInicial();
+  }
+
+  Future<void> definirBuscadorDaPagina(String buscador) async {
+    await _home?.definirBuscador(buscador);
+    await _publicarPaginaInicial();
+  }
+
+  Future<bool> adicionarAtalhoDaPagina(String label, String url) async {
+    final aceito = await _home?.adicionar(label, url) ?? false;
+    if (aceito) await _publicarPaginaInicial();
+    return aceito;
+  }
+
+  Future<bool> editarAtalhoDaPagina(int indice, String label, String url) async {
+    final aceito = await _home?.editarEm(indice, label, url) ?? false;
+    if (aceito) await _publicarPaginaInicial();
+    return aceito;
+  }
+
+  Future<void> removerAtalhoDaPagina(int indice) async {
+    await _home?.removerEm(indice);
+    await _publicarPaginaInicial();
+  }
+
+  Future<void> moverAtalhoDaPagina(int de, int para) async {
+    await _home?.mover(de, para);
+    await _publicarPaginaInicial();
+  }
+
+  /// Republica o que já está salvo. Serve para o botão "tentar de novo" depois
+  /// de o professor entrar com o Google ou a internet voltar.
+  Future<void> republicarPaginaInicial() => _publicarPaginaInicial();
+
+  // A escrita é da escola inteira e as regras exigem conta Google. Guardar o
+  // motivo em vez de estourar deixa a tela dizer o que fazer.
+  Future<void> _publicarPaginaInicial() async {
+    final home = _home;
+    final transport = _transport;
+    if (home == null) return;
+    if (transport == null) {
+      _erroPaginaInicial = 'Sem conexão com o servidor. Tente de novo.';
+      notifyListeners();
+      return;
+    }
+    if (!logadoComGoogle) {
+      _erroPaginaInicial = 'Entre com o Google (em Ajustes) para publicar a página.';
+      notifyListeners();
+      return;
+    }
+    try {
+      await transport.publicarPaginaInicial(home.config.toMap());
+      _erroPaginaInicial = null;
+    } catch (e) {
+      _erroPaginaInicial = 'Não foi possível publicar agora. Tente de novo.';
+      debugPrint('publicarPaginaInicial: $e');
+    }
     notifyListeners();
   }
 

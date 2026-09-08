@@ -1,11 +1,14 @@
-// Aba Sites: Favoritos e Regras num só lugar (tabs). FAB contextual.
+// Aba Sites: Favoritos, Regras e a Página inicial dos alunos (tabs). FAB
+// contextual.
 // As Views são burras; os dialogs de criar/editar vivem aqui.
 
 import 'package:flutter/material.dart';
 
 import '../commands/domain_rules.dart';
 import '../pairing/pairing_controller.dart';
+import '../pairing/home_store.dart';
 import 'favorites_page.dart';
+import 'home_page_view.dart';
 import 'rules_page.dart';
 
 class SitesPage extends StatefulWidget {
@@ -19,7 +22,7 @@ class SitesPage extends StatefulWidget {
 
 class _SitesPageState extends State<SitesPage>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 2, vsync: this);
+  late final TabController _tabs = TabController(length: 3, vsync: this);
 
   @override
   void initState() {
@@ -157,8 +160,106 @@ class _SitesPageState extends State<SitesPage>
     }
   }
 
+  Future<void> _dialogoAtalho({int? indice}) async {
+    final atalhos = widget.pairing.paginaInicial.atalhos;
+    final existente = indice != null ? atalhos[indice] : null;
+    final labelCtrl = TextEditingController(text: existente?.label ?? '');
+    final urlCtrl = TextEditingController(text: existente?.url ?? 'https://');
+    final salvo = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(existente == null ? 'Novo atalho' : 'Editar atalho'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: labelCtrl,
+              autofocus: true,
+              maxLength: kMaxLabelHome,
+              decoration: const InputDecoration(
+                labelText: 'Nome',
+                hintText: 'ex.: Drive',
+              ),
+            ),
+            TextField(
+              controller: urlCtrl,
+              keyboardType: TextInputType.url,
+              autocorrect: false,
+              decoration: const InputDecoration(
+                labelText: 'Endereço',
+                hintText: 'https://...',
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    if (salvo != true) return;
+    final aceito = indice == null
+        ? await widget.pairing.adicionarAtalhoDaPagina(labelCtrl.text, urlCtrl.text)
+        : await widget.pairing.editarAtalhoDaPagina(indice, labelCtrl.text, urlCtrl.text);
+    if (!aceito && mounted) {
+      final cheia = indice == null &&
+          widget.pairing.paginaInicial.atalhos.length >= kMaxAtalhosHome;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            cheia
+                ? 'A página comporta $kMaxAtalhosHome atalhos. Remova um antes.'
+                : 'Endereço inválido. Ele precisa começar com https:// ou http://',
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _dialogoTitulo() async {
+    final ctrl = TextEditingController(text: widget.pairing.paginaInicial.titulo);
+    final salvo = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nome no topo da página'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLength: kMaxTituloHome,
+          decoration: const InputDecoration(hintText: 'ex.: Celita'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    if (salvo == true) await widget.pairing.definirTituloDaPagina(ctrl.text);
+  }
+
+  // O FAB só faz sentido nas abas que têm lista para acrescentar.
+  ({IconData icone, String texto, VoidCallback acao})? _fab() => switch (_tabs.index) {
+    0 => (icone: Icons.add, texto: 'Novo favorito', acao: _dialogoFavorito),
+    1 => (icone: Icons.add, texto: 'Nova regra', acao: _dialogoRegra),
+    _ => (icone: Icons.add, texto: 'Novo atalho', acao: _dialogoAtalho),
+  };
+
   @override
   Widget build(BuildContext context) {
+    final fab = _fab();
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sites'),
@@ -167,15 +268,20 @@ class _SitesPageState extends State<SitesPage>
           tabs: const [
             Tab(icon: Icon(Icons.star_outline), text: 'Favoritos'),
             Tab(icon: Icon(Icons.shield_outlined), text: 'Regras'),
+            Tab(icon: Icon(Icons.home_outlined), text: 'Página inicial'),
           ],
+          isScrollable: true,
+          tabAlignment: TabAlignment.center,
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'fab_sites',
-        onPressed: () => _tabs.index == 0 ? _dialogoFavorito() : _dialogoRegra(),
-        icon: const Icon(Icons.add),
-        label: Text(_tabs.index == 0 ? 'Novo favorito' : 'Nova regra'),
-      ),
+      floatingActionButton: fab == null
+          ? null
+          : FloatingActionButton.extended(
+              heroTag: 'fab_sites',
+              onPressed: fab.acao,
+              icon: Icon(fab.icone),
+              label: Text(fab.texto),
+            ),
       body: TabBarView(
         controller: _tabs,
         // Sem swipe de página: não briga com o swipe-para-apagar das listas.
@@ -183,6 +289,11 @@ class _SitesPageState extends State<SitesPage>
         children: [
           FavoritesView(pairing: widget.pairing, onEditar: (i) => _dialogoFavorito(indice: i)),
           RulesView(pairing: widget.pairing, onEditar: (i) => _dialogoRegra(indice: i)),
+          HomePageView(
+            pairing: widget.pairing,
+            onEditarAtalho: (i) => _dialogoAtalho(indice: i),
+            onEditarTitulo: _dialogoTitulo,
+          ),
         ],
       ),
     );
