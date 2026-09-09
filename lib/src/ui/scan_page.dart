@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../cloud/qr_payload.dart';
 import '../pairing/pairing_controller.dart';
 import 'theme.dart';
 
@@ -45,7 +46,11 @@ class _ScanPageState extends State<ScanPage> {
     _ultimoEm = agora;
 
     _processando = true;
-    final erro = await widget.pairing.parearComQr(raw);
+    // QR do app do Celita OS pedindo login, ou QR de pareamento de um PC.
+    final login = QrLoginPayload.parse(raw);
+    final erro = login != null
+        ? await widget.pairing.entregarLoginPorQr(login)
+        : await widget.pairing.parearComQr(raw);
     _processando = false;
     if (!mounted) return;
 
@@ -54,11 +59,13 @@ class _ScanPageState extends State<ScanPage> {
     final c = cores(context);
     messenger.hideCurrentSnackBar();
     if (erro == null) {
-      setState(() => _pareados++);
+      if (login == null) setState(() => _pareados++);
       messenger.showSnackBar(
         SnackBar(
           content: Text(
-            '✅ PC pareado! Pode escanear o próximo.',
+            login != null
+                ? '✅ Login entregue ao computador.'
+                : '✅ PC pareado! Pode escanear o próximo.',
             style: TextStyle(color: c.onOnline),
           ),
           backgroundColor: c.online,

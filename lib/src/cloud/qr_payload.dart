@@ -43,3 +43,27 @@ class QrPairPayload {
     );
   }
 }
+
+/// QR do app do professor no Celita OS pedindo login (protocolo §2.1):
+/// {"v":1,"t":"login","c":"<canal>","pub":"<b64url>"}. O celular entrega
+/// id_token + chave do professor cifrados para `pub` em /handoff/{canal}.
+class QrLoginPayload {
+  QrLoginPayload({required this.channel, required this.pub});
+
+  final String channel;
+  final String pub;
+
+  static QrLoginPayload? parse(String raw) {
+    try {
+      final m = jsonDecode(raw);
+      if (m is! Map || m['v'] != 1 || m['t'] != 'login') return null;
+      final c = m['c'];
+      final pub = m['pub'];
+      if (c is! String || c.isEmpty || c.length > 64) return null;
+      if (pub is! String || pub.isEmpty || pub.length > 64) return null;
+      return QrLoginPayload(channel: c, pub: pub);
+    } catch (_) {
+      return null;
+    }
+  }
+}

@@ -17,6 +17,7 @@ import '../cloud/aula_locks.dart';
 import '../cloud/broadcast_target.dart';
 import '../cloud/firebase_transport.dart';
 import '../cloud/history_store.dart';
+import '../cloud/login_handoff.dart';
 import '../cloud/qr_payload.dart';
 import '../cloud/school_keys.dart';
 import '../cloud/school_sync.dart';
@@ -414,6 +415,37 @@ class PairingController extends ChangeNotifier {
       }
     } catch (e) {
       return 'erro:$e';
+    }
+  }
+
+  /// QR de login do app do Celita OS: entrega id_token fresco + chave do
+  /// professor ao computador, que vira o mesmo professor deste celular.
+  Future<String?> entregarLoginPorQr(QrLoginPayload qr) async {
+    if (!logadoComGoogle) {
+      return 'Entre com Google (em Ajustes) para entregar o login ao computador.';
+    }
+    try {
+      if (!_googleInit) {
+        await GoogleSignIn.instance.initialize(serverClientId: _kWebClientId);
+        _googleInit = true;
+      }
+      var conta = await GoogleSignIn.instance.attemptLightweightAuthentication();
+      conta ??= await GoogleSignIn.instance.authenticate();
+      final idToken = conta.authentication.idToken;
+      if (idToken == null) return 'O Google não devolveu o token — tente de novo.';
+      final keys = await KeyStore.lerBruto();
+      if (keys == null) return 'Chave local ainda não existe — reabra o app.';
+      final payload = await LoginHandoff.montar(
+        qr: qr,
+        idToken: idToken,
+        keys: keys,
+        teacherName: deviceName,
+        schoolUid: schoolUid,
+      );
+      await LoginHandoff.entregar(qr, payload);
+      return null;
+    } catch (e) {
+      return 'Falha ao entregar o login: $e';
     }
   }
 
