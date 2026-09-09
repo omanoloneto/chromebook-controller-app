@@ -1,6 +1,7 @@
 // Aba Ajustes: aparência (tema), nome do professor e versão.
 
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../pairing/pairing_controller.dart';
 import 'settings_controller.dart';
@@ -220,6 +221,42 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _escolherPapelDeParede() async {
+    final img = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 2048,
+      maxHeight: 2048,
+      imageQuality: 85,
+    );
+    if (img == null || !mounted) return;
+    final n = widget.pairing.pcs.length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Papel de parede'),
+        content: Text('Aplicar esta imagem como papel de parede em $n PC(s)?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Aplicar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await widget.pairing.definirPapelDeParede(await img.readAsBytes());
+    } on ArgumentError {
+      _snack('A imagem é grande demais. Escolha uma com menos de 4 MB.');
+      return;
+    }
+    _snack('Papel de parede enviado para $n PC(s).');
+  }
+
   Widget _secao(String titulo) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
@@ -263,6 +300,17 @@ class _SettingsPageState extends State<SettingsPage> {
               onSelectionChanged: (sel) =>
                   widget.settings.setThemeMode(sel.first),
             ),
+          ),
+          _secao('Turma'),
+          ListTile(
+            leading: const Icon(Icons.wallpaper),
+            title: const Text('Papel de parede da turma'),
+            subtitle: Text(
+              widget.pairing.wallpaperHash == null
+                  ? 'Aplicar uma imagem em todos os PCs'
+                  : 'Imagem aplicada. Toque para trocar.',
+            ),
+            onTap: _escolherPapelDeParede,
           ),
           _secao('Escola'),
           if (widget.pairing.workspaceAtivo)

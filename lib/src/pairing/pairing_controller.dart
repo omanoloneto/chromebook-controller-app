@@ -7,6 +7,7 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart'; // também exporta FirebaseException
 import 'package:firebase_database/firebase_database.dart' show FirebaseDatabase;
+import 'package:crypto/crypto.dart' as c;
 import 'package:flutter/foundation.dart';
 
 import 'package:google_sign_in/google_sign_in.dart';
@@ -35,6 +36,7 @@ import 'name_store.dart';
 import 'rules_store.dart';
 import 'students_store.dart';
 import 'unit_store.dart';
+import 'wallpaper_store.dart';
 
 class PairingController extends ChangeNotifier {
   PairingController({this.deviceName = 'Professor'});
@@ -54,6 +56,7 @@ class PairingController extends ChangeNotifier {
   RulesStore? _rules;
   FavoritesStore? _favorites;
   HomeStore? _home;
+  WallpaperStore? _wallpaper;
   String? _erroPaginaInicial;
   StudentsStore? _students;
   ClassSessionStore? _session;
@@ -250,6 +253,7 @@ class PairingController extends ChangeNotifier {
       _rules = await RulesStore.load();
       _favorites = await FavoritesStore.load();
       _home = await HomeStore.load();
+      _wallpaper = await WallpaperStore.load();
       _students = await StudentsStore.load();
       _session = await ClassSessionStore.load();
 
@@ -591,6 +595,8 @@ class PairingController extends ChangeNotifier {
       if (_rules != null)
         buildSetRules(_regrasParaDevice(deviceId), rev: _proximoRev()),
       if (numero != null) buildSetUnit(rev: _proximoRev(), numero: numero),
+      // Papel de parede vigente: sem isto um PC pareado depois nunca o recebe.
+      if (_wallpaper?.hash != null) buildSetWallpaper(_wallpaper!.hash!),
     ];
   }
 
@@ -1144,6 +1150,25 @@ class PairingController extends ChangeNotifier {
 
   Future<void> moverFavorito(int de, int para) async {
     await _favorites?.mover(de, para);
+    notifyListeners();
+  }
+
+  // ---- Papel de parede -------------------------------------------------------------
+
+  String? get wallpaperHash => _wallpaper?.hash;
+
+  /// Publica o blob no RTDB (compartilhado pela turma) e grava o comando de
+  /// estado (só o hash) em cada PC. Vale no ChromeOS e no Celita OS.
+  Future<void> definirPapelDeParede(Uint8List bytes) async {
+    final transport = _transport;
+    if (transport == null) return;
+    if (bytes.length > 4 * 1024 * 1024) {
+      throw ArgumentError('imagem_grande'); // vira base64 ~5.3MB no banco
+    }
+    final hash = c.sha256.convert(bytes).toString().substring(0, 8);
+    await transport.publishWallpaper(bytes, hash);
+    await _wallpaper?.definir(hash);
+    await transport.setStateAll(buildSetWallpaper(hash));
     notifyListeners();
   }
 

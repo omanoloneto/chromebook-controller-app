@@ -372,6 +372,16 @@ class FirebaseTransport {
     await _dev(deviceId).child('state/$kind').remove();
   }
 
+  /// Publica o blob do papel de parede (1x, compartilhado pela turma).
+  /// O comando set_wallpaper (só o hash) vai por setStateAll.
+  Future<void> publishWallpaper(Uint8List bytes, String hash) async {
+    await _db.ref('wallpapers/$_donoUid').set({
+      'hash': hash,
+      'jpeg': base64Encode(bytes),
+      'ts': ServerValue.timestamp,
+    });
+  }
+
   /// Página inicial dos alunos: única escrita em claro do app. Não é comando de
   /// PC — é a configuração da escola, que a página escolacelita.com/home lê sem
   /// login. As regras só aceitam esta escrita da conta Google da escola.
