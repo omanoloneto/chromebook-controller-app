@@ -1216,6 +1216,13 @@ class PairingController extends ChangeNotifier {
     await _publicarPaginaInicial();
   }
 
+  /// Site aberto no lugar da página; false = endereço recusado.
+  Future<bool> definirUrlDaPagina(String url) async {
+    final aceito = await _home?.definirUrl(url) ?? false;
+    if (aceito) await _publicarPaginaInicial();
+    return aceito;
+  }
+
   Future<void> definirBuscaDaPagina(bool ligada) async {
     await _home?.definirBusca(ligada);
     await _publicarPaginaInicial();

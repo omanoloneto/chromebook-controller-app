@@ -48,6 +48,21 @@ void main() {
     expect(store.config.titulo.length, kMaxTituloHome);
   });
 
+  test('site no lugar da página: só http(s), vazio volta para a página', () async {
+    final store = await _store();
+    expect(store.config.url, '');
+    expect(await store.definirUrl(' https://escola.edu/portal '), isTrue);
+    expect(store.config.url, 'https://escola.edu/portal');
+    expect(store.config.toMap()['url'], 'https://escola.edu/portal');
+    expect(await store.definirUrl('javascript:alert(1)'), isFalse);
+    expect(await store.definirUrl('escola.edu'), isFalse);
+    expect(store.config.url, 'https://escola.edu/portal');
+    expect(await store.definirUrl(''), isTrue);
+    expect(store.config.url, '');
+    expect(PaginaInicial.fromMap({'url': 'ftp://x/'}).url, '');
+    expect(PaginaInicial.fromMap({'url': 'https://x/'}).url, 'https://x/');
+  });
+
   test('título vazio volta ao padrão', () async {
     final store = await _store();
     await store.definirTitulo('Escola');
@@ -116,7 +131,7 @@ void main() {
     final store = await _store();
     await store.adicionar('Drive', 'https://drive.google.com/');
     final json = jsonDecode(jsonEncode(store.config.toMap())) as Map<String, dynamic>;
-    expect(json.keys.toSet(), {'titulo', 'busca', 'buscador', 'atalhos'});
+    expect(json.keys.toSet(), {'titulo', 'busca', 'buscador', 'atalhos', 'url'});
     expect((json['atalhos'] as List).single, {'label': 'Drive', 'url': 'https://drive.google.com/'});
   });
 }

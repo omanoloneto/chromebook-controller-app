@@ -15,6 +15,7 @@ import 'favorites_store.dart';
 const int kMaxAtalhosHome = 12;
 const int kMaxLabelHome = 24;
 const int kMaxTituloHome = 20;
+const int kMaxUrlHome = 2048;
 
 const String kBuscadorGoogle = 'google';
 const String kBuscadorDuckDuckGo = 'duckduckgo';
@@ -25,12 +26,16 @@ class PaginaInicial {
     required this.busca,
     required this.buscador,
     required this.atalhos,
+    this.url = '',
   });
 
   final String titulo;
   final bool busca;
   final String buscador;
   final List<Favorito> atalhos;
+
+  /// Site aberto no lugar da página do Celita; vazio = a página.
+  final String url;
 
   static const PaginaInicial padrao = PaginaInicial(
     titulo: 'Celita',
@@ -44,11 +49,13 @@ class PaginaInicial {
     bool? busca,
     String? buscador,
     List<Favorito>? atalhos,
+    String? url,
   }) => PaginaInicial(
     titulo: titulo ?? this.titulo,
     busca: busca ?? this.busca,
     buscador: buscador ?? this.buscador,
     atalhos: atalhos ?? this.atalhos,
+    url: url ?? this.url,
   );
 
   Map<String, dynamic> toMap() => {
@@ -56,6 +63,7 @@ class PaginaInicial {
     'busca': busca,
     'buscador': buscador,
     'atalhos': atalhos.map((a) => a.toMap()).toList(),
+    'url': url,
   };
 
   static PaginaInicial fromMap(dynamic m) {
@@ -66,6 +74,7 @@ class PaginaInicial {
         : <Favorito>[];
     final titulo = m['titulo'];
     final buscador = m['buscador'];
+    final url = m['url'];
     return PaginaInicial(
       titulo: titulo is String && titulo.trim().isNotEmpty
           ? _cortar(titulo.trim(), kMaxTituloHome)
@@ -73,6 +82,9 @@ class PaginaInicial {
       busca: m['busca'] != false,
       buscador: buscador == kBuscadorDuckDuckGo ? kBuscadorDuckDuckGo : kBuscadorGoogle,
       atalhos: atalhos,
+      url: url is String && url.trim().length <= kMaxUrlHome && urlDeAtalhoValida(url)
+          ? url.trim()
+          : '',
     );
   }
 }
@@ -119,6 +131,18 @@ class HomeStore {
       titulo: novo.isEmpty ? PaginaInicial.padrao.titulo : _cortar(novo, kMaxTituloHome),
     );
     await _save();
+  }
+
+  /// Site no lugar da página do Celita. Vazio volta para a página; false =
+  /// endereço recusado (só http e https).
+  Future<bool> definirUrl(String url) async {
+    final novo = url.trim();
+    if (novo.isNotEmpty && (novo.length > kMaxUrlHome || !urlDeAtalhoValida(novo))) {
+      return false;
+    }
+    _config = _config.copyWith(url: novo);
+    await _save();
+    return true;
   }
 
   Future<void> definirBusca(bool ligada) async {

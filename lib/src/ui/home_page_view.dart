@@ -14,11 +14,13 @@ class HomePageView extends StatelessWidget {
     required this.pairing,
     required this.onEditarAtalho,
     required this.onEditarTitulo,
+    required this.onEditarUrl,
   });
 
   final PairingController pairing;
   final void Function(int indice) onEditarAtalho;
   final VoidCallback onEditarTitulo;
+  final VoidCallback onEditarUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -50,6 +52,13 @@ class HomePageView extends StatelessWidget {
           ),
 
         const _Titulo('Como a página aparece'),
+        ListTile(
+          leading: const Icon(Icons.home_outlined),
+          title: const Text('Abrir um site no lugar da página'),
+          subtitle: Text(config.url.isEmpty ? 'Não: a página do Celita abre' : config.url),
+          trailing: const Icon(Icons.edit_outlined),
+          onTap: onEditarUrl,
+        ),
         ListTile(
           leading: const Icon(Icons.title),
           title: const Text('Nome no topo'),

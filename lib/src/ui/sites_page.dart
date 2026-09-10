@@ -250,6 +250,42 @@ class _SitesPageState extends State<SitesPage>
     if (salvo == true) await widget.pairing.definirTituloDaPagina(ctrl.text);
   }
 
+  Future<void> _dialogoUrl() async {
+    final ctrl = TextEditingController(text: widget.pairing.paginaInicial.url);
+    final salvo = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Site no lugar da página'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(
+            hintText: 'https://escola.edu/portal',
+            helperText: 'Vazio: a nova aba abre a página do Celita',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    if (salvo != true) return;
+    final aceito = await widget.pairing.definirUrlDaPagina(ctrl.text);
+    if (!aceito && mounted) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Endereço inválido: use http:// ou https://')));
+    }
+  }
+
   // O FAB só faz sentido nas abas que têm lista para acrescentar.
   ({IconData icone, String texto, VoidCallback acao})? _fab() => switch (_tabs.index) {
     0 => (icone: Icons.add, texto: 'Novo favorito', acao: _dialogoFavorito),
@@ -293,6 +329,7 @@ class _SitesPageState extends State<SitesPage>
             pairing: widget.pairing,
             onEditarAtalho: (i) => _dialogoAtalho(indice: i),
             onEditarTitulo: _dialogoTitulo,
+            onEditarUrl: _dialogoUrl,
           ),
         ],
       ),
