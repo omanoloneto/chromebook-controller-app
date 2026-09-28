@@ -70,4 +70,29 @@ void main() {
     );
     expect(alvo, ['pc1', 'pc3']);
   });
+
+  group('regras que chegaram de outro celular', () {
+    test('só os PCs com trava ou liberação minha recebem de novo', () {
+      // pc2 foi liberado sem aula por OUTRO celular: reenviar o snapshot
+      // daqui (sem a liberação dele) desfaria o desbloqueio.
+      final alvo = alvoDeRegrasRemotas(
+        todos: todos,
+        meus: {'pc1', 'pc3'},
+      );
+      expect(alvo, ['pc1', 'pc3']);
+    });
+
+    test('nada meu: ninguém recebe (quem editou já distribuiu)', () {
+      expect(alvoDeRegrasRemotas(todos: todos, meus: const {}), isEmpty);
+    });
+
+    test('PC com liberação minha preso na aula de outro fica de fora', () {
+      final alvo = alvoDeRegrasRemotas(
+        todos: todos,
+        meus: {'pc1', 'pc2'},
+        travadosPorOutros: {'pc2'},
+      );
+      expect(alvo, ['pc1']);
+    });
+  });
 }

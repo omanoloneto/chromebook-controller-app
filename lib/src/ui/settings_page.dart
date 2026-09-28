@@ -1,9 +1,12 @@
-// Aba Ajustes: aparência (tema), nome do professor e versão.
+// Aba Ajustes: conectar PCs, aparência (tema), escola, conta, nome do
+// professor e versão.
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../pairing/pairing_controller.dart';
+import 'scan_page.dart';
+import 'school_members_page.dart';
 import 'settings_controller.dart';
 import 'theme.dart';
 
@@ -275,6 +278,17 @@ class _SettingsPageState extends State<SettingsPage> {
       appBar: AppBar(title: const Text('Ajustes')),
       body: ListView(
         children: [
+          _secao('Computadores'),
+          ListTile(
+            leading: const Icon(Icons.qr_code_scanner),
+            title: const Text('Conectar um Chromebook'),
+            subtitle: const Text('Ler o QR Code do PC ou do app do professor'),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => ScanPage(pairing: widget.pairing),
+              ),
+            ),
+          ),
           _secao('Aparência'),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -313,7 +327,7 @@ class _SettingsPageState extends State<SettingsPage> {
             onTap: _escolherPapelDeParede,
           ),
           _secao('Escola'),
-          if (widget.pairing.workspaceAtivo)
+          if (widget.pairing.workspaceAtivo) ...[
             const ListTile(
               leading: Icon(Icons.school_outlined),
               title: Text('Escola conectada'),
@@ -321,8 +335,22 @@ class _SettingsPageState extends State<SettingsPage> {
                 'PCs, turmas, regras e histórico compartilhados entre os '
                 'professores da escola.',
               ),
-            )
-          else ...[
+            ),
+            if (widget.pairing.souFundador)
+              ListTile(
+                leading: const Icon(Icons.group_outlined),
+                title: const Text('Professores da escola'),
+                subtitle: const Text('Quem pode entrar na escola pelo app'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => SchoolMembersPage(
+                      emailFundador: widget.pairing.emailGoogle,
+                    ),
+                  ),
+                ),
+              ),
+          ] else ...[
             ListTile(
               leading: const Icon(Icons.group_add_outlined),
               title: const Text('Entrar na escola'),
@@ -409,7 +437,8 @@ class _SettingsPageState extends State<SettingsPage> {
             secondary: const Icon(Icons.notifications_active_outlined),
             title: const Text('Avisar com som'),
             subtitle: const Text(
-              'Quando um PC abrir site de alerta ou tentar um site bloqueado.',
+              'Quando um PC abrir um site marcado "Só me avisar" ou tentar '
+              'um site bloqueado.',
             ),
             value: widget.settings.notificarSites,
             onChanged: (v) => widget.settings.setNotificarSites(v),

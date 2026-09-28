@@ -1,4 +1,4 @@
-// Lista de regras de sites (View da aba Sites): bloquear ou alertar.
+// Lista de regras de sites (View da aba Sites): bloquear ou só avisar.
 // Criar/editar vem da SitesPage.
 
 import 'package:flutter/material.dart';
@@ -32,8 +32,9 @@ class RulesView extends StatelessWidget {
                         const Text(
                           'Bloqueie os sites que atrapalham a aula — vale em '
                           'todos os PCs, até offline.\n\n'
-                          'Bloquear: o site não abre no Chromebook.\n'
-                          'Alertar: você é avisado quando o aluno entra.',
+                          'Bloquear (e me avisar): o site não abre e você é '
+                          'avisado da tentativa.\n'
+                          'Só me avisar: o site abre e você é avisado.',
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 8),
@@ -67,7 +68,9 @@ class RulesView extends StatelessWidget {
                           color: bloqueia ? scheme.error : cores(context).atencao,
                         ),
                         title: Text(r.pattern),
-                        subtitle: Text(bloqueia ? 'Bloquear' : 'Alertar'),
+                        subtitle: Text(
+                          bloqueia ? 'Bloquear (e me avisar)' : 'Só me avisar',
+                        ),
                         onTap: () => onEditar(i),
                       ),
                     );

@@ -45,7 +45,10 @@ class SchoolSync {
   final Map<String, Timer> _debounce = {};
   final List<StreamSubscription<DatabaseEvent>> _subs = [];
 
-  /// Chamado após aplicar um store remoto (o controller recarrega o store).
+  /// Chamado só quando o conteúdo remoto difere do local (o controller
+  /// recarrega o store). Abrir o app de um colega reenvia o mesmo conteúdo com
+  /// rev novo — sem este filtro as regras seriam redistribuídas sem as
+  /// liberações de quem as fez.
   void Function(String k)? onRemoto;
 
   Future<File> _file(String k) async {
@@ -84,8 +87,8 @@ class SchoolSync {
     _debounce.clear();
   }
 
-  /// Aplica um snapshot remoto se for mais novo que o último visto.
-  /// Retorna true se o arquivo local foi sobrescrito.
+  /// Aplica um snapshot remoto se for mais novo que o último visto e tiver
+  /// conteúdo diferente do local. Retorna true se o arquivo foi sobrescrito.
   Future<bool> aplicarRemoto(String k, Object? rev, Object? env) async {
     if (rev is! num || env is! String) return false;
     if (rev <= (_lastRev[k] ?? -1)) return false; // já visto/mais velho
@@ -97,9 +100,12 @@ class SchoolSync {
     }
     final json = msg['json'];
     if (json is! String) return false;
+    final h = _hash(json);
     _lastRev[k] = rev;
-    _lastHash[k] = _hash(json);
-    await (await _file(k)).writeAsString(json);
+    _lastHash[k] = h;
+    final f = await _file(k);
+    if (await f.exists() && _hash(await f.readAsString()) == h) return false;
+    await f.writeAsString(json);
     onRemoto?.call(k);
     return true;
   }

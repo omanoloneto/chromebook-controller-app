@@ -122,9 +122,6 @@ void main() {
 
     test('liberações: liberar/revogar persistem; encerrar limpa', () async {
       var s = await ClassSessionStore.load(dir: tmp);
-      await s.liberar('pc1', 'youtube.com'); // sem aula = no-op
-      expect(s.excecoesDe('pc1'), isEmpty);
-
       await s.iniciar('A');
       await s.liberar('pc1', 'youtube.com');
       await s.liberar('pc1', 'reddit.com/r/games');
@@ -140,6 +137,23 @@ void main() {
       await s.encerrar();
       s = await ClassSessionStore.load(dir: tmp);
       expect(s.devicesComExcecao, isEmpty);
+    });
+
+    test('liberação sem aula vale e sobrevive ao iniciar a próxima aula',
+        () async {
+      var s = await ClassSessionStore.load(dir: tmp);
+      expect(s.ativa, false);
+      await s.liberar('pc1', 'youtube.com'); // sem aula
+      expect(s.excecoesDe('pc1'), {'youtube.com'});
+
+      s = await ClassSessionStore.load(dir: tmp);
+      expect(s.excecoesDe('pc1'), {'youtube.com'}); // persiste sem aula
+
+      await s.iniciar('A'); // iniciar não derruba liberações
+      expect(s.excecoesDe('pc1'), {'youtube.com'});
+
+      await s.encerrar(); // só o encerrar derruba
+      expect(s.excecoesDe('pc1'), isEmpty);
     });
   });
 

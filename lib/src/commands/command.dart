@@ -101,11 +101,16 @@ Map<String, dynamic> buildCloseTabs({String? domain, String? url}) {
   };
 }
 
-/// Monta o comando `set_rules` — snapshot completo; só regras `block` viajam
-/// (as `alert` são avaliadas apenas no celular).
-Map<String, dynamic> buildSetRules(List<DomainRule> regras, {required int rev}) {
-  final block = regras
-      .where((r) => r.action == RuleAction.block)
+/// Monta o comando `set_rules` — snapshot completo. `rules` = bloqueios menos
+/// os [liberados] deste PC; `alerts` = todas as regras "só me avisar" (a
+/// liberação só afeta bloqueio). `alerts` vai sempre, mesmo vazio.
+Map<String, dynamic> buildSetRules(
+  List<DomainRule> regras, {
+  required int rev,
+  Set<String> liberados = const {},
+}) {
+  List<Map<String, String>> padroes(bool Function(DomainRule) filtro) => regras
+      .where(filtro)
       .take(kMaxRules)
       .map((r) => {'pattern': r.pattern})
       .toList();
@@ -113,7 +118,13 @@ Map<String, dynamic> buildSetRules(List<DomainRule> regras, {required int rev}) 
     'v': kProtocolVersion,
     'type': MessageType.setRules,
     'id': _nextId(),
-    'payload': {'rev': rev, 'rules': block},
+    'payload': {
+      'rev': rev,
+      'rules': padroes(
+        (r) => r.action == RuleAction.block && !liberados.contains(r.pattern),
+      ),
+      'alerts': padroes((r) => r.action == RuleAction.alert),
+    },
   };
 }
 

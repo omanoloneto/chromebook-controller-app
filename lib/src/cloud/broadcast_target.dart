@@ -19,3 +19,16 @@ List<String> alvoDeBroadcast({
       .where((id) => id != pcProfessorId && !travadosPorOutros.contains(id))
       .toList();
 }
+
+/// Regras mudaram em OUTRO celular: quem editou já mandou o snapshot aos PCs
+/// livres. Aqui só reenvia para os PCs em que este celular tem trava ou
+/// liberação própria ([meus]) — o snapshot daqui leva as liberações daqui.
+List<String> alvoDeRegrasRemotas({
+  required Iterable<String> todos,
+  required Set<String> meus,
+  Set<String> travadosPorOutros = const {},
+}) {
+  return todos
+      .where((id) => meus.contains(id) && !travadosPorOutros.contains(id))
+      .toList();
+}

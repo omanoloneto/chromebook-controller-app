@@ -2,6 +2,8 @@
 // Ponto de entrada: Firebase, preferências (tema/nome) e o shell de abas.
 // O root é o DONO do PairingController (as abas só o observam).
 
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
@@ -11,6 +13,7 @@ import 'src/pairing/prefs_store.dart';
 import 'src/service/foreground_service.dart';
 import 'src/service/notification_service.dart';
 import 'src/ui/app_shell.dart';
+import 'src/ui/device_page.dart';
 import 'src/ui/settings_controller.dart';
 import 'src/ui/theme.dart';
 
@@ -40,6 +43,8 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
   late final PairingController _pairing =
       PairingController(deviceName: widget.prefs.teacherName);
   final NotificationService _notificacoes = NotificationService();
+  final GlobalKey<NavigatorState> _navigator = GlobalKey<NavigatorState>();
+  StreamSubscription<ToqueNotificacao>? _toques;
 
   @override
   void initState() {
@@ -47,6 +52,7 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
     _pairing.notificacoes = _notificacoes;
     _pairing.notificarSites = _settings.notificarSites;
     _pairing.schoolUid = widget.prefs.schoolUid;
+    _pairing.prefs = widget.prefs;
     _pairing.marcarPcProfessor(widget.prefs.teacherPcId);
     // Preferências → controller (toggle de notificações muda em Ajustes).
     _settings.addListener(_sincronizarPrefs);
@@ -54,9 +60,32 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
     // Aula, que só conhece o pairing; o root persiste).
     _pairing.addListener(_persistirPcProfessor);
     if (widget.autoStart) {
-      _notificacoes.init();
+      _toques = _notificacoes.toques.listen(_abrirPc);
+      _notificacoes.init().then((_) {
+        final abertura = _notificacoes.consumirAbertura();
+        if (abertura != null) _abrirPc(abertura);
+      });
       _pairing.start();
     }
+  }
+
+  // Toque numa notificação: leva à tela do PC. Se ela já estiver aberta,
+  // volta até ela em vez de empilhar outra igual.
+  void _abrirPc(ToqueNotificacao toque) {
+    final nav = _navigator.currentState;
+    if (nav == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _abrirPc(toque));
+      return;
+    }
+    final nome = rotaDoPc(toque.deviceId);
+    nav.popUntil((r) => r.settings.name == nome || r.isFirst);
+    var jaAberta = false;
+    nav.popUntil((r) {
+      jaAberta = r.settings.name == nome;
+      return true;
+    });
+    if (jaAberta) return;
+    nav.push(rotaDevicePage(_pairing, toque.deviceId));
   }
 
   void _sincronizarPrefs() {
@@ -75,6 +104,7 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
 
   @override
   void dispose() {
+    _toques?.cancel();
     _settings.removeListener(_sincronizarPrefs);
     _pairing.removeListener(_persistirPcProfessor);
     _pairing.stop();
@@ -87,6 +117,7 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
     return ListenableBuilder(
       listenable: _settings,
       builder: (context, _) => MaterialApp(
+        navigatorKey: _navigator,
         title: 'Controle de Aula',
         debugShowCheckedModeBanner: false,
         theme: buildTheme(Brightness.light),

@@ -105,6 +105,13 @@ class AulaLocks {
     return !travaExpirada(ts: t.ts, agoraMs: nowServerMs());
   }
 
+  /// PC preso na MINHA aula (trava viva minha)?
+  bool travadoPorMim(String deviceId) {
+    final t = _travas[deviceId];
+    if (t == null || t.uid != meuUid) return false;
+    return !travaExpirada(ts: t.ts, agoraMs: nowServerMs());
+  }
+
   /// Mensagem "Em aula com {prof} ({turma})" para a UI, se preso.
   String? motivoDe(String deviceId) {
     final t = _travas[deviceId];

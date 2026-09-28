@@ -88,7 +88,7 @@ void main() {
       expect(porUrl['payload'], {'url': 'https://x.com/a'});
     });
 
-    test('buildSetRules só envia regras block', () {
+    test('buildSetRules: bloqueios em rules, alertas em alerts', () {
       final cmd = buildSetRules(
         [
           DomainRule(pattern: 'youtube.com', action: RuleAction.block),
@@ -101,6 +101,34 @@ void main() {
       expect(payload['rules'], [
         {'pattern': 'youtube.com'},
       ]);
+      expect(payload['alerts'], [
+        {'pattern': 'espiar.com'},
+      ]);
+    });
+
+    test('buildSetRules: liberação só tira bloqueio; alerts vai sempre', () {
+      final regras = [
+        DomainRule(pattern: 'youtube.com', action: RuleAction.block),
+        DomainRule(pattern: 'reddit.com', action: RuleAction.block),
+        DomainRule(pattern: 'espiar.com', action: RuleAction.alert),
+      ];
+      final payload = buildSetRules(
+        regras,
+        rev: 7,
+        liberados: {'youtube.com', 'espiar.com'},
+      )['payload'] as Map<String, dynamic>;
+      expect(payload['rules'], [
+        {'pattern': 'reddit.com'},
+      ]);
+      expect(payload['alerts'], [
+        {'pattern': 'espiar.com'},
+      ]);
+
+      // Telão / sem regras: listas vazias, mas a chave existe.
+      final vazio = buildSetRules(const [], rev: 8)['payload'] as Map;
+      expect(vazio['rules'], isEmpty);
+      expect(vazio.containsKey('alerts'), true);
+      expect(vazio['alerts'], isEmpty);
     });
 
     test('buildSetWallpaper carrega o hash', () {
@@ -159,9 +187,13 @@ void main() {
         ],
         rev: 1767369600000,
       );
-      final payloadFio = jsonEncode(msg['payload']);
-      final payloadDart = jsonEncode(construido['payload']);
-      expect(payloadDart, payloadFio);
+      // O vetor do JS é anterior a `alerts`: compara rev/rules e confere
+      // que `alerts` vai (vazio, sem regras de aviso).
+      final fio = msg['payload'] as Map<String, dynamic>;
+      final dart = construido['payload'] as Map<String, dynamic>;
+      expect(dart['rev'], fio['rev']);
+      expect(jsonEncode(dart['rules']), jsonEncode(fio['rules']));
+      expect(dart['alerts'], isEmpty);
     });
   });
 }

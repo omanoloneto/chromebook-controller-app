@@ -54,8 +54,12 @@ class HomePageView extends StatelessWidget {
         const _Titulo('Como a página aparece'),
         ListTile(
           leading: const Icon(Icons.home_outlined),
-          title: const Text('Abrir um site no lugar da página'),
-          subtitle: Text(config.url.isEmpty ? 'Não: a página do Celita abre' : config.url),
+          title: const Text('Site que abre com o navegador'),
+          subtitle: Text(
+            config.url.isEmpty
+                ? 'Nenhum: o navegador abre na página do Celita'
+                : config.url,
+          ),
           trailing: const Icon(Icons.edit_outlined),
           onTap: onEditarUrl,
         ),
@@ -121,8 +125,8 @@ class HomePageView extends StatelessWidget {
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text(
-            'O que você muda aqui aparece nos computadores da escola quando o '
-            'aluno abrir ou recarregar a página inicial.',
+            'Vale nos PCs com Celita OS em até 1 minuto. O site aparece na '
+            'próxima vez que o aluno abrir o navegador.',
           ),
         ),
       ],

@@ -120,16 +120,18 @@ class _SitesPageState extends State<SitesPage>
                 ),
               ),
               const SizedBox(height: 16),
+              // Vertical: os nomes longos não cabem lado a lado no diálogo.
               SegmentedButton<String>(
+                direction: Axis.vertical,
                 segments: const [
                   ButtonSegment(
                     value: RuleAction.block,
-                    label: Text('Bloquear'),
+                    label: Text('Bloquear (e me avisar)'),
                     icon: Icon(Icons.block),
                   ),
                   ButtonSegment(
                     value: RuleAction.alert,
-                    label: Text('Alertar'),
+                    label: Text('Só me avisar'),
                     icon: Icon(Icons.warning_amber),
                   ),
                 ],
@@ -255,14 +257,17 @@ class _SitesPageState extends State<SitesPage>
     final salvo = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Site no lugar da página'),
+        title: const Text('Site que abre com o navegador'),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           keyboardType: TextInputType.url,
           decoration: const InputDecoration(
             hintText: 'https://escola.edu/portal',
-            helperText: 'Vazio: a nova aba abre a página do Celita',
+            helperText: 'Abre quando o aluno abre o navegador e no botão '
+                'Início (casinha). A nova aba continua mostrando a página do '
+                'Celita.',
+            helperMaxLines: 4,
           ),
         ),
         actions: [

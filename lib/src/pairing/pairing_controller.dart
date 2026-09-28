@@ -12,6 +12,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../cloud/archive_store.dart';
 import '../cloud/backup_store.dart';
 import '../cloud/aula_locks.dart';
 import '../cloud/broadcast_target.dart';
@@ -20,6 +21,7 @@ import '../cloud/history_store.dart';
 import '../cloud/login_handoff.dart';
 import '../cloud/qr_payload.dart';
 import '../cloud/school_keys.dart';
+import '../cloud/school_members.dart';
 import '../cloud/school_sync.dart';
 import '../cloud/session_registry.dart';
 import '../commands/class_view.dart';
@@ -30,10 +32,12 @@ import '../secure/key_store.dart';
 import '../secure/school_crypto.dart';
 import '../service/foreground_service.dart';
 import '../service/notification_service.dart';
+import '../util/versao.dart';
 import 'class_session_store.dart';
 import 'favorites_store.dart';
 import 'home_store.dart';
 import 'name_store.dart';
+import 'prefs_store.dart';
 import 'rules_store.dart';
 import 'students_store.dart';
 import 'unit_store.dart';
@@ -91,6 +95,17 @@ class PairingController extends ChangeNotifier {
 
   /// Workspace ativo?
   bool get workspaceAtivo => schoolUid != null;
+
+  /// Este celular está na escola, mas o e-mail ainda não foi liberado pelo
+  /// fundador: nada da escola sobe até "Tentar de novo" passar.
+  bool naoLiberadoNaEscola = false;
+
+  /// Só o fundador cuida de "Professores da escola".
+  bool get souFundador =>
+      schoolUid != null && _usuarioAtual?.uid == schoolUid;
+
+  /// Injetado pelo root: guarda o dia da última poda do arquivo.
+  PrefsStore? prefs;
 
   SchoolSync? _schoolSync;
   AulaLocks? _aulaLocks;
@@ -266,6 +281,14 @@ class PairingController extends ChangeNotifier {
       if (user == null) {
         throw StateError('auth_anonima_falhou');
       }
+      // Escola fechada: sem liberação não sobe nada da escola (nem o roster).
+      // Não sai da escola nem mexe na keypair — o fundador pode liberar depois.
+      if (schoolUid != null && !await _liberadoNaEscola(user)) {
+        naoLiberadoNaEscola = true;
+        erroDeConexao = textoNaoLiberado(user.email ?? emailGoogle);
+        return;
+      }
+      naoLiberadoNaEscola = false;
 
       final transport = FirebaseTransport(
         teacher: teacher,
@@ -280,6 +303,7 @@ class PairingController extends ChangeNotifier {
       transport.registry.onChange = _scheduleNotify;
       transport.registry.avaliarAlerta = _avaliarAlerta;
       transport.registry.onNovosEventos = _onNovosEventos;
+      transport.onAcessoNegado = _acessoNegadoNaEscola;
       transport.pcProfessorId = _pcProfessorId;
       transport.registry.pcProfessorId = _pcProfessorId;
       await transport.start();
@@ -309,6 +333,7 @@ class PairingController extends ChangeNotifier {
             if (aulaAtiva) _aulaLocks?.heartbeat();
           },
         );
+        unawaited(_podarArquivo(transport));
       }
 
       // Heartbeat da visão da turma: mantém o "atualizado há Xs" do telão
@@ -534,7 +559,7 @@ class PairingController extends ChangeNotifier {
         _students = await StudentsStore.load();
       case 'rules':
         _rules = await RulesStore.load();
-        _distribuirRegras(); // meus PCs recebem o snapshot novo
+        _redistribuirRegrasRemotas();
       case 'units':
         _units = await UnitStore.load();
       case 'names':
@@ -584,10 +609,19 @@ class PairingController extends ChangeNotifier {
       final user = _usuarioAtual;
       if (user == null) return 'Login falhou.';
       await user.getIdToken(true);
-      final escola = await SchoolKeys().baixar();
-      if (escola == null) {
-        return 'A escola ainda não foi criada — peça ao professor fundador.';
+      const semEscola =
+          'A escola ainda não foi criada — peça ao professor fundador.';
+      final chaves = SchoolKeys();
+      final fundador = await chaves.schoolUidPublicado();
+      if (fundador == null) return semEscola;
+      if (user.uid != fundador) {
+        final email = user.email ?? emailGoogle;
+        if (email == null || !await SchoolMembers().liberado(email)) {
+          return textoNaoLiberado(email);
+        }
       }
+      final escola = await chaves.baixar();
+      if (escola == null) return semEscola;
       final minhas = await KeyStore.lerBruto();
       if (minhas != escola.keys) await SchoolKeys().adotar(escola);
       schoolUid = escola.schoolUid;
@@ -596,6 +630,69 @@ class PairingController extends ChangeNotifier {
     } catch (e) {
       return 'Falha ao entrar no workspace: $e';
     }
+  }
+
+  Future<bool> _liberadoNaEscola(User user) async {
+    if (user.uid == schoolUid) return true;
+    final email = user.email ?? emailGoogle;
+    if (email == null) return false;
+    return liberadoAoAbrir(() => SchoolMembers().liberado(email));
+  }
+
+  // O fundador tirou o e-mail da lista com o app aberto: as leituras da
+  // escola passam a ser negadas. Para tudo e mostra o texto único.
+  void _acessoNegadoNaEscola() {
+    if (schoolUid == null || naoLiberadoNaEscola) return;
+    naoLiberadoNaEscola = true;
+    erroDeConexao = textoNaoLiberado(_usuarioAtual?.email ?? emailGoogle);
+    unawaited(() async {
+      await _aulaLocks?.stop();
+      _aulaLocks = null;
+      await _schoolSync?.stop();
+      _schoolSync = null;
+      await _transport?.stop();
+      _transport = null;
+      notifyListeners();
+    }());
+    notifyListeners();
+  }
+
+  // Reserva da retenção do agente: 1x por dia por celular, apaga de hoje−45
+  // a hoje−15 em cada PC da escola. O agente é quem poda de verdade.
+  Future<void> _podarArquivo(FirebaseTransport transport) async {
+    final p = prefs;
+    if (p == null) return;
+    // Sem o relógio do servidor não poda hoje: um celular com a data
+    // adiantada apagaria dias ainda dentro dos 15.
+    try {
+      await transport.relogioPronto.timeout(const Duration(seconds: 30));
+    } on TimeoutException {
+      return;
+    }
+    final agora = transport.nowServer().millisecondsSinceEpoch;
+    final hoje = dayOf(agora);
+    if (p.ultimaPodaArquivo == hoje) return;
+    try {
+      final roster =
+          (await FirebaseDatabase.instance.ref('school/devices').get()).value;
+      if (roster is Map && roster.isNotEmpty) {
+        await ArchiveStore.prune(roster.keys.map((k) => '$k'), agora);
+      }
+      await p.setUltimaPodaArquivo(hoje);
+    } catch (e) {
+      debugPrint('[CdA] poda do arquivo falhou: $e');
+    }
+  }
+
+  /// Agora (ms) no relógio do servidor: é por ele que se escolhe o dia.
+  int agoraServidorMs() =>
+      (_transport?.nowServer() ?? DateTime.now()).millisecondsSinceEpoch;
+
+  /// Arquivo de 15 dias de um PC (histórico + fotos), com a chave dele.
+  ArchiveStore? arquivoDe(String deviceId) {
+    final s = pcPorId(deviceId);
+    if (s == null) return null;
+    return ArchiveStore(deviceId: deviceId, crypto: s.crypto);
   }
 
   /// Retry manual após erro de inicialização.
@@ -624,8 +721,7 @@ class PairingController extends ChangeNotifier {
   List<Map<String, dynamic>> _comandosDeEstado(String deviceId) {
     final numero = _units?.numeroDe(deviceId);
     return [
-      if (_rules != null)
-        buildSetRules(_regrasParaDevice(deviceId), rev: _proximoRev()),
+      if (_rules != null) _setRulesPara(deviceId),
       if (numero != null) buildSetUnit(rev: _proximoRev(), numero: numero),
       // Papel de parede vigente: sem isto um PC pareado depois nunca o recebe.
       if (_wallpaper?.hash != null) buildSetWallpaper(_wallpaper!.hash!),
@@ -672,14 +768,17 @@ class PairingController extends ChangeNotifier {
         .catchError((e) => debugPrint('set_unit falhou: $e'));
   }
 
-  /// Regras válidas para um PC = regras da casa − liberações desta aula.
+  /// set_rules de um PC: bloqueios da casa − liberações dele; alertas todos.
   /// PC do professor: sem regra nenhuma (o telão precisa abrir qualquer link).
-  List<DomainRule> _regrasParaDevice(String deviceId) {
-    if (deviceId == _pcProfessorId) return const [];
-    final regras = _rules?.regras ?? const <DomainRule>[];
-    final liberados = _session?.excecoesDe(deviceId) ?? const <String>{};
-    if (liberados.isEmpty) return regras;
-    return regras.where((r) => !liberados.contains(r.pattern)).toList();
+  Map<String, dynamic> _setRulesPara(String deviceId) {
+    if (deviceId == _pcProfessorId) {
+      return buildSetRules(const [], rev: _proximoRev());
+    }
+    return buildSetRules(
+      _rules?.regras ?? const [],
+      rev: _proximoRev(),
+      liberados: _session?.excecoesDe(deviceId) ?? const {},
+    );
   }
 
   // O guard do cliente exige rev estritamente crescente; como o snapshot de
@@ -743,8 +842,18 @@ class PairingController extends ChangeNotifier {
       }
       final bloqueado = r.action == RuleAction.block;
       final futuro = bloqueado
-          ? notifs.notificarBloqueado(pc: nomePc, dominio: dominio)
-          : notifs.notificarAlerta(pc: nomePc, dominio: dominio);
+          ? notifs.notificarBloqueado(
+              deviceId: deviceId,
+              ts: e.ts,
+              pc: nomePc,
+              dominio: dominio,
+            )
+          : notifs.notificarAlerta(
+              deviceId: deviceId,
+              ts: e.ts,
+              pc: nomePc,
+              dominio: dominio,
+            );
       // Mesma decisão de throttle vale pro telão: se disparou no celular,
       // apita também no PC do professor (se marcado e online).
       futuro.then((disparou) {
@@ -783,11 +892,18 @@ class PairingController extends ChangeNotifier {
 
   PcSession? pcPorId(String deviceId) => _transport?.registry.byId(deviceId);
 
+  /// PC ainda carregando (app abrindo, roster a caminho ou rehidratando).
+  bool carregandoPc(String deviceId) =>
+      iniciando || (_transport?.aguardandoPc(deviceId) ?? false);
+
   bool isOnline(PcSession s) =>
       s.online(_transport?.nowServer() ?? DateTime.now());
 
   /// Nome dado pelo professor, ou o label do aparelho (renomeável no popup).
   String nomeDe(PcSession s) => _names?.nameOf(s.deviceId) ?? s.label;
+
+  /// Nome + " (versão)" para as listas; nunca é gravado como nome.
+  String rotuloDe(PcSession s) => nomeComVersao(nomeDe(s), s.versaoExt);
 
   /// Salva o nome do aluno para este PC (vazio remove).
   Future<void> renomear(String deviceId, String nome) async {
@@ -883,6 +999,14 @@ class PairingController extends ChangeNotifier {
       professor: t.professor ?? 'outro professor',
       turma: t.turma,
     );
+  }
+
+  /// Professor da aula em que o PC está preso (trava viva de OUTRO professor),
+  /// ou null se o PC está livre para mim.
+  String? professorQueTravou(String deviceId) {
+    final locks = _aulaLocks;
+    if (locks == null || !locks.travadoPorOutro(deviceId)) return null;
+    return locks.travaVivaDe(deviceId)?.professor ?? 'outro professor';
   }
 
   Future<void> _enviarParaAlvo(Map<String, dynamic> cmd) async {
@@ -1083,6 +1207,7 @@ class PairingController extends ChangeNotifier {
     final comExcecao = _session?.devicesComExcecao ?? const <String>[];
     await _session?.encerrar();
     for (final deviceId in comExcecao) {
+      if (_travadoPorOutro(deviceId)) continue; // PC já é da aula de outro
       _distribuirRegrasPara(deviceId); // snapshot volta ao completo
     }
     await _aulaLocks?.destravarTodas();
@@ -1121,22 +1246,48 @@ class PairingController extends ChangeNotifier {
     // aula de OUTRO professor ficam de fora — o dono da trava redistribui os
     // dele (com as liberações locais dele) quando o sync entregar a mudança.
     for (final s in transport.registry.all) {
-      if (_aulaLocks?.travadoPorOutro(s.deviceId) ?? false) continue;
+      if (_travadoPorOutro(s.deviceId)) continue;
       _distribuirRegrasPara(s.deviceId);
     }
     notifyListeners();
   }
 
-  void _distribuirRegrasPara(String deviceId) {
-    _transport?.setStateOne(
-      deviceId,
-      buildSetRules(_regrasParaDevice(deviceId), rev: _proximoRev()),
+  // Mudança vinda de outro celular: reenviar a todos derrubaria liberações
+  // feitas por outros professores fora de aula.
+  void _redistribuirRegrasRemotas() {
+    final transport = _transport;
+    final locks = _aulaLocks;
+    final session = _session;
+    if (_rules == null || transport == null) return;
+    final todos = transport.registry.all.map((s) => s.deviceId).toList();
+    final alvo = alvoDeRegrasRemotas(
+      todos: todos,
+      meus: {
+        for (final id in todos)
+          if ((locks?.travadoPorMim(id) ?? false) ||
+              (session?.excecoesDe(id).isNotEmpty ?? false))
+            id,
+      },
+      travadosPorOutros:
+          locks == null ? const {} : todos.where(locks.travadoPorOutro).toSet(),
     );
+    for (final id in alvo) {
+      _distribuirRegrasPara(id);
+    }
   }
 
-  // ---- Liberações por PC (valem só durante a aula) --------------------------------
+  bool _travadoPorOutro(String deviceId) =>
+      _aulaLocks?.travadoPorOutro(deviceId) ?? false;
 
-  /// Padrões de bloqueio liberados para um PC nesta aula.
+  void _distribuirRegrasPara(String deviceId) {
+    _transport?.setStateOne(deviceId, _setRulesPara(deviceId));
+  }
+
+  // ---- Liberações por PC ----------------------------------------------------------
+  // Valem até o professor bloquear de novo ou até o próximo "Encerrar aula"
+  // (decisão do usuário: não exigem aula em andamento).
+
+  /// Padrões de bloqueio liberados para um PC.
   Set<String> liberacoesDe(String deviceId) =>
       _session?.excecoesDe(deviceId) ?? const {};
 
@@ -1146,18 +1297,21 @@ class PairingController extends ChangeNotifier {
           if (r.action == RuleAction.block) r.pattern,
       ];
 
-  /// Libera um padrão bloqueado para UM PC até o fim da aula.
-  Future<void> liberarPara(String deviceId, String pattern) async {
-    if (!aulaAtiva) return;
+  /// Libera um padrão bloqueado para UM PC. Retorna null (ok) ou o motivo da
+  /// recusa: PC na aula de outro professor é dele.
+  Future<String?> liberarPara(String deviceId, String pattern) async {
+    final professor = professorQueTravou(deviceId);
+    if (professor != null) return 'Está na aula de $professor.';
     await _session?.liberar(deviceId, pattern);
     _distribuirRegrasPara(deviceId);
     notifyListeners();
+    return null;
   }
 
   /// Revoga a liberação (o bloqueio volta a valer na hora).
   Future<void> revogarLiberacao(String deviceId, String pattern) async {
     await _session?.revogar(deviceId, pattern);
-    _distribuirRegrasPara(deviceId);
+    if (!_travadoPorOutro(deviceId)) _distribuirRegrasPara(deviceId);
     notifyListeners();
   }
 

@@ -111,6 +111,33 @@ void main() {
     );
   });
 
+  test('onRemoto só dispara quando o conteúdo muda (rev novo, mesmo conteúdo)',
+      () async {
+    final colega = sync();
+    await escrever('rules', '[{"pattern":"youtube.com"}]');
+    final igual = await colega.prepararPush('rules');
+
+    // Meu celular já tem o mesmo conteúdo: rev novo não redistribui nada.
+    final eu = sync();
+    final chamadas = <String>[];
+    eu.onRemoto = chamadas.add;
+    expect(await eu.aplicarRemoto('rules', igual!['rev'], igual['env']), false);
+    expect(chamadas, isEmpty);
+
+    // Conteúdo diferente: aplica e avisa.
+    relogio = 2000;
+    final outro = sync();
+    await escrever('rules', '[{"pattern":"tiktok.com"}]');
+    final diferente = await outro.prepararPush('rules');
+    await escrever('rules', '[{"pattern":"youtube.com"}]');
+    expect(
+      await eu.aplicarRemoto('rules', diferente!['rev'], diferente['env']),
+      true,
+    );
+    expect(chamadas, ['rules']);
+    expect(await ler('rules'), '[{"pattern":"tiktok.com"}]');
+  });
+
   test('payload inválido não aplica', () async {
     final s = sync();
     expect(await s.aplicarRemoto('turmas', 'x', 'env'), false);

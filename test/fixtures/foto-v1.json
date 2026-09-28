@@ -1,0 +1,35 @@
+{
+  "descricao": "Vetor de paridade do formato foto-v1 (spec 3.1) e do dia em UTC-3 (spec 3.0). Gerado com node:crypto. Não editar à mão.",
+  "keyHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "nonceHex": "a0a1a2a3a4a5a6a7a8a9aaab",
+  "header": {
+    "v": 1,
+    "type": "archived_photo",
+    "ts": 1790000000123,
+    "motivo": "bloqueado",
+    "user": "joão.aluno",
+    "login": 1789999000000,
+    "url": "https://exemplo.com/jogo"
+  },
+  "jpegHex": "ffd8ffe000104a46494600010100000100010000ffd9",
+  "headerJson": "{\"v\":1,\"type\":\"archived_photo\",\"ts\":1790000000123,\"motivo\":\"bloqueado\",\"user\":\"joão.aluno\",\"login\":1789999000000,\"url\":\"https://exemplo.com/jogo\"}",
+  "objetoB64": "oKGio6SlpqeoqaqrnToKD3/6Lp0WHPe2JUDivwLPMXnk0iYz7GZJ8hCJWSOmBWXFnhVqDW+sNPg5SrLLdDdkJQ2kcwgufDF8xhzqwcHZ5Atfh8jCgZGaaq307tCiyAjL66D1D4AaHLaT9iLz5uoJkTKZt6Kn4j9gtbjdGBR8Q9usWbkGDaeq0MQmyGLqdMgavjLseBk6keY9IP6x5/vQYUEIBWz93fez5oE0KscYH7C2a0AWfdO+/7j45skns+nkGIbYnDAu",
+  "dias": [
+    {
+      "ts": 1790000000123,
+      "dia": "2026-09-21"
+    },
+    {
+      "ts": 1790650799999,
+      "dia": "2026-09-28"
+    },
+    {
+      "ts": 1790650800000,
+      "dia": "2026-09-29"
+    },
+    {
+      "ts": 1767229200000,
+      "dia": "2025-12-31"
+    }
+  ]
+}

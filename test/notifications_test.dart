@@ -30,6 +30,59 @@ void main() {
     });
   });
 
+  group('NotificationService: payload do toque', () {
+    test('payload leva deviceId e ts, e volta igual', () {
+      final p = NotificationService.montarPayload('pc-9', 1767369600000);
+      expect(p, '{"d":"pc-9","ts":1767369600000}');
+      final t = NotificationService.lerPayload(p)!;
+      expect(t.deviceId, 'pc-9');
+      expect(t.ts, 1767369600000);
+    });
+
+    test('payload ausente ou estranho vira null', () {
+      expect(NotificationService.lerPayload(null), isNull);
+      expect(NotificationService.lerPayload(''), isNull);
+      expect(NotificationService.lerPayload('não é json'), isNull);
+      expect(NotificationService.lerPayload('[1,2]'), isNull);
+      expect(NotificationService.lerPayload('{"d":"","ts":1}'), isNull);
+      expect(NotificationService.lerPayload('{"d":"pc","ts":"1"}'), isNull);
+      expect(NotificationService.lerPayload('{"ts":1}'), isNull);
+    });
+
+    test('throttle é pelo deviceId, não pelo nome exibido', () async {
+      final agora = DateTime(2026, 9, 28, 8);
+      final svc = NotificationService(relogio: () => agora);
+      expect(
+        await svc.notificarAlerta(
+          deviceId: 'pc1',
+          ts: 1,
+          pc: 'Unidade 3',
+          dominio: 'youtube.com',
+        ),
+        true,
+      );
+      // Mesmo PC com aluno escolhido (nome mudou): continua no throttle.
+      expect(
+        await svc.notificarAlerta(
+          deviceId: 'pc1',
+          ts: 2,
+          pc: 'Maria',
+          dominio: 'youtube.com',
+        ),
+        false,
+      );
+      expect(
+        await svc.notificarBloqueado(
+          deviceId: 'pc2',
+          ts: 3,
+          pc: 'Maria',
+          dominio: 'youtube.com',
+        ),
+        true,
+      );
+    });
+  });
+
   group('SessionRegistry.onNovosEventos', () {
     final chave = List<int>.generate(32, (i) => i);
     NavEvent ev(int ts, String url) => NavEvent(url: url, title: 't', ts: ts);

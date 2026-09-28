@@ -6,12 +6,14 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 
 import '../commands/command.dart';
 import '../secure/keypair.dart';
 import 'qr_payload.dart';
+import 'server_clock.dart';
 import 'session_registry.dart';
 
 class FirebaseTransport {
@@ -60,6 +62,10 @@ class FirebaseTransport {
   /// pedido de câmera não pode ser resolvido por uma captura de tela.
   void Function(String deviceId, String tipo, Uint8List jpeg)? onSnapshot;
 
+  /// O roster foi negado pelas rules (e-mail tirado da escola com o app
+  /// aberto). Injetado pelo controller.
+  void Function()? onAcessoNegado;
+
   // Época de sessão (anti-replay): amostrada 1x por vida do processo.
   // Multi-remetente (workspace): sid NOVO por mensagem, no relógio do
   // SERVIDOR — o guard do PC aceita sid crescente, e o relógio do servidor é
@@ -73,41 +79,70 @@ class FirebaseTransport {
     return _ultimoSidEnviado;
   }
 
-  int _serverOffsetMs = 0;
+  final RelogioDoServidor _relogio = RelogioDoServidor();
   StreamSubscription<DatabaseEvent>? _offsetSub;
+  StreamSubscription<DatabaseEvent>? _conexaoSub;
   StreamSubscription<DatabaseEvent>? _rosterSub;
   final Map<String, List<StreamSubscription<DatabaseEvent>>> _deviceSubs = {};
   final Map<String, bool> _primeiroReport = {};
+  bool _rosterRecebido = false;
+
+  /// PC ainda a caminho: roster não chegou ou a sessão está sendo
+  /// rehidratada (a tela mostra "Carregando…" em vez de "desconectado").
+  bool aguardandoPc(String deviceId) =>
+      !_rosterRecebido ||
+      (_deviceSubs.containsKey(deviceId) && registry.byId(deviceId) == null);
 
   /// Agora na base de tempo do SERVIDOR (p/ comparar com presence.lastSeen).
-  DateTime nowServer() => DateTime.now().add(Duration(milliseconds: _serverOffsetMs));
+  DateTime nowServer() => _relogio.agora();
+
+  /// Conclui quando [nowServer] já usa o offset real do servidor.
+  Future<void> get relogioPronto => _relogio.pronto;
 
   DatabaseReference _dev(String deviceId) => _db.ref('devices/$deviceId');
 
   Future<void> start() async {
-    _offsetSub = _db.ref('.info/serverTimeOffset').onValue.listen((e) {
-      _serverOffsetMs = (e.snapshot.value as num?)?.toInt() ?? 0;
-    });
+    _offsetSub = _db
+        .ref('.info/serverTimeOffset')
+        .onValue
+        .listen((e) => _relogio.aoReceberOffset(e.snapshot.value));
+    _conexaoSub = _db
+        .ref('.info/connected')
+        .onValue
+        .listen((e) => _relogio.aoMudarConexao(e.snapshot.value));
     // Roster: sincroniza o conjunto de PCs pareados (da escola, no workspace).
-    _rosterSub = _db.ref(_rosterPath).onValue.listen((e) {
-      final ids = <String>{};
-      final v = e.snapshot.value;
-      if (v is Map) {
-        for (final k in v.keys) {
-          ids.add(k.toString());
+    _rosterSub = _db.ref(_rosterPath).onValue.listen(
+      (e) {
+        final ids = <String>{};
+        final v = e.snapshot.value;
+        if (v is Map) {
+          for (final k in v.keys) {
+            ids.add(k.toString());
+          }
         }
-      }
-      for (final id in ids) {
-        if (!_deviceSubs.containsKey(id)) _attach(id);
-      }
-      for (final id in _deviceSubs.keys.toList()) {
-        if (!ids.contains(id)) _detach(id, removerSessao: true);
-      }
-    });
+        for (final id in ids) {
+          if (!_deviceSubs.containsKey(id)) _attach(id);
+        }
+        for (final id in _deviceSubs.keys.toList()) {
+          if (!ids.contains(id)) _detach(id, removerSessao: true);
+        }
+        if (!_rosterRecebido) {
+          _rosterRecebido = true;
+          registry.onChange?.call();
+        }
+      },
+      onError: (Object e) {
+        debugPrint('[CdA] roster: $e');
+        if (e is FirebaseException && e.code == 'permission-denied') {
+          onAcessoNegado?.call();
+        }
+      },
+    );
   }
 
   Future<void> stop() async {
     await _offsetSub?.cancel();
+    await _conexaoSub?.cancel();
     await _rosterSub?.cancel();
     for (final id in _deviceSubs.keys.toList()) {
       _detach(id);

@@ -1,5 +1,5 @@
-// Aba Aula: a tela de trabalho do professor — lista de PCs em destaque,
-// comando de site compacto e a sessão de aula. Nada aqui usa cor hardcoded
+// Aba Aula: a tela de trabalho do professor — lista de PCs em destaque e a
+// sessão de aula; "abrir um site" fica na barra do topo. Nada aqui usa cor hardcoded
 // (ver theme.dart / CoresAula).
 
 import 'package:flutter/material.dart';
@@ -25,8 +25,6 @@ class AulaPage extends StatefulWidget {
 
 class _AulaPageState extends State<AulaPage> {
   PairingController get _pairing => widget.pairing;
-  final TextEditingController _urlCtrl =
-      TextEditingController(text: 'https://');
 
   /// Lista: offline colapsado atrás de "Ver todos" quando há online.
   bool _mostrarTodos = false;
@@ -40,7 +38,6 @@ class _AulaPageState extends State<AulaPage> {
   @override
   void dispose() {
     _pairing.removeListener(_onChange);
-    _urlCtrl.dispose();
     super.dispose();
   }
 
@@ -61,40 +58,23 @@ class _AulaPageState extends State<AulaPage> {
     if (mounted) setState(() {});
   }
 
-  // ---- Comandos de turma ---------------------------------------------------------
-
-  // Alvo dos comandos de turma (só vinculados durante a aula). Retorna -1 e
-  // avisa quando não há ninguém pra receber.
-  int? _alvoOuAviso() {
-    final n = _pairing.pcsAlvoCount;
-    if (n == 0) {
-      _snack(
-        _pairing.aulaAtiva
-            ? 'Nenhum PC com aluno nesta aula ainda.'
-            : 'Nenhum PC conectado ainda.',
+  void _abrirSiteNaTurma() => mostrarSheetAbrirSite(
+        context,
+        _pairing,
+        onEditarFavoritos: widget.onIrParaSites,
       );
-      return null;
-    }
-    return n;
-  }
 
-  void _abrirEmTodos() {
-    final url = _urlCtrl.text.trim();
-    if (url.isEmpty) return;
-    final n = _alvoOuAviso();
-    if (n == null) return;
-    _pairing.abrirEmTodos(url);
-    _snack('Enviado para $n PC(s).');
-  }
-
-  void _abrirEm(String deviceId, String label) {
-    final url = _urlCtrl.text.trim();
-    if (url.isEmpty) {
-      _snack('Digite/escolha um site primeiro.');
-      return;
-    }
-    _pairing.abrirEm(deviceId, url);
-    _snack('Enviado para $label.');
+  void _abrirDevicePage(String deviceId) {
+    Navigator.of(context).push(
+      rotaDevicePage(
+        _pairing,
+        deviceId,
+        onIrParaSites: () {
+          Navigator.of(context).popUntil((r) => r.isFirst);
+          widget.onIrParaSites();
+        },
+      ),
+    );
   }
 
   Future<bool> _confirmar({
@@ -203,7 +183,7 @@ class _AulaPageState extends State<AulaPage> {
             if (atual != null)
               ListTile(
                 leading: const Icon(Icons.person_remove),
-                title: const Text('Remover vínculo'),
+                title: const Text('Tirar aluno do PC'),
                 onTap: () => Navigator.pop(ctx, ' remover'),
               ),
             if (disponiveis.isEmpty && atual == null)
@@ -279,10 +259,12 @@ class _AulaPageState extends State<AulaPage> {
     if (mounted) _snack(erro ?? '${nome.trim()} está usando este PC.');
   }
 
-  // Menu do PC (⋮ e long-press): tudo que era gesto escondido, agora visível.
+  // Menu do PC (⋮ e long-press): as mesmas 4 opções em todas as linhas; o
+  // resto vive no ⋮ da tela do PC.
   void _menuPc(PcSession s, String nome) {
     final on = _pairing.isOnline(s);
     final ehProfessor = _pairing.ehPcProfessor(s.deviceId);
+    final travadoPor = _pairing.professorQueTravou(s.deviceId);
     showModalBottomSheet<void>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -294,68 +276,18 @@ class _AulaPageState extends State<AulaPage> {
               subtitle: ehProfessor ? const Text('Computador do Professor') : null,
             ),
             const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.open_in_new),
-              title: const Text('Abrir o site só neste PC'),
-              enabled: on,
-              onTap: () {
-                Navigator.pop(ctx);
-                _abrirEm(s.deviceId, _pairing.alunoDe(s.deviceId) ?? nome);
-              },
-            ),
-            if (_pairing.aulaAtiva && !ehProfessor)
-              ListTile(
-                leading: const Icon(Icons.person_pin_circle_outlined),
-                title: Text(
-                  _pairing.alunoDe(s.deviceId) == null
-                      ? 'Escolher aluno'
-                      : 'Trocar/remover aluno',
-                ),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _vincularAluno(s.deviceId);
-                },
-              ),
             if (!ehProfessor)
               ListTile(
                 leading: const Icon(Icons.lock_open),
                 title: const Text('Desbloquear sites deste PC'),
-                subtitle: _pairing.aulaAtiva
-                    ? null
-                    : const Text('exige uma aula em andamento'),
+                subtitle:
+                    travadoPor == null ? null : Text('Está na aula de $travadoPor'),
+                enabled: travadoPor == null,
                 onTap: () {
                   Navigator.pop(ctx);
                   mostrarSheetLiberarSites(context, _pairing, s.deviceId);
                 },
               ),
-            ListTile(
-              leading: Icon(ehProfessor ? Icons.co_present : Icons.co_present_outlined),
-              title: Text(
-                ehProfessor
-                    ? 'Deixar de ser o Computador do Professor'
-                    : 'Usar como Computador do Professor',
-              ),
-              subtitle: ehProfessor
-                  ? null
-                  : const Text('sem bloqueios/monitoramento; recebe os avisos'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _pairing.marcarPcProfessor(ehProfessor ? null : s.deviceId);
-                _snack(
-                  ehProfessor
-                      ? '$nome voltou a ser PC de aluno.'
-                      : '$nome agora é o Computador do Professor.',
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('Renomear unidade'),
-              onTap: () {
-                Navigator.pop(ctx);
-                mostrarDialogoRenomear(context, _pairing, s.deviceId, nome);
-              },
-            ),
             ListTile(
               leading: const Icon(Icons.chat_bubble_outline),
               title: const Text('Enviar mensagem'),
@@ -367,7 +299,7 @@ class _AulaPageState extends State<AulaPage> {
             ),
             ListTile(
               leading: const Icon(Icons.photo_camera_outlined),
-              title: const Text('Ver quem está no PC (foto)'),
+              title: const Text('Ver quem está no PC'),
               enabled: on,
               onTap: () {
                 Navigator.pop(ctx);
@@ -376,76 +308,12 @@ class _AulaPageState extends State<AulaPage> {
             ),
             ListTile(
               leading: const Icon(Icons.screenshot_monitor_outlined),
-              title: const Text('Ver a tela deste PC'),
+              title: const Text('Ver a tela do PC'),
               subtitle: const Text('só nos PCs com Celita OS'),
               enabled: on,
               onTap: () {
                 Navigator.pop(ctx);
                 mostrarImagemDoPc(context, _pairing, s.deviceId, nome, tela: true);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.pin),
-              title: const Text('Alterar número da unidade'),
-              onTap: () {
-                Navigator.pop(ctx);
-                mostrarDialogoNumeroUnidade(context, _pairing, s.deviceId);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.tab_unselected),
-              title: const Text('Fechar todas as abas deste PC'),
-              enabled: on,
-              onTap: () {
-                Navigator.pop(ctx);
-                _pairing.fecharTodasAsAbasEm(s.deviceId);
-                _snack('Fechando as abas de $nome.');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.link_off),
-              title: const Text('Desconectar este PC'),
-              onTap: () {
-                Navigator.pop(ctx);
-                confirmarEsquecerPc(context, _pairing, s.deviceId, nome);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _menuFavorito(int indice) {
-    final f = _pairing.favoritos[indice];
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            ListTile(
-              title: Text(f.label),
-              subtitle: Text(f.url, maxLines: 1, overflow: TextOverflow.ellipsis),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.groups),
-              title: const Text('Abrir na turma toda'),
-              onTap: () {
-                Navigator.pop(ctx);
-                final n = _pairing.pcs.length;
-                _pairing.abrirEmTodos(f.url);
-                _snack('Enviado para $n PC(s).');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.close),
-              title: Text('Fechar ${dominioDe(f.url)} na turma'),
-              onTap: () {
-                Navigator.pop(ctx);
-                _pairing.fecharSiteEmTodos(dominioDe(f.url));
-                _snack('Fechando ${dominioDe(f.url)} na turma.');
               },
             ),
           ],
@@ -466,9 +334,9 @@ class _AulaPageState extends State<AulaPage> {
         actions: [
           _chipOnline(online),
           IconButton(
-            icon: const Icon(Icons.qr_code_scanner),
-            tooltip: 'Conectar um Chromebook',
-            onPressed: _abrirScanner,
+            icon: const Icon(Icons.open_in_browser),
+            tooltip: 'Abrir um site na turma',
+            onPressed: _abrirSiteNaTurma,
           ),
         ],
       ),
@@ -505,6 +373,7 @@ class _AulaPageState extends State<AulaPage> {
   }
 
   Widget _erroView() {
+    final naoLiberado = _pairing.naoLiberadoNaEscola;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -512,7 +381,7 @@ class _AulaPageState extends State<AulaPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.cloud_off,
+              naoLiberado ? Icons.lock_outline : Icons.cloud_off,
               size: 64,
               color: Theme.of(context).colorScheme.error,
             ),
@@ -522,7 +391,7 @@ class _AulaPageState extends State<AulaPage> {
             FilledButton.icon(
               onPressed: _pairing.tentarNovamente,
               icon: const Icon(Icons.refresh),
-              label: const Text('Tentar novamente'),
+              label: Text(naoLiberado ? 'Tentar de novo' : 'Tentar novamente'),
             ),
           ],
         ),
@@ -582,67 +451,6 @@ class _AulaPageState extends State<AulaPage> {
               ),
             ),
           ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Campo + enviar embutido: 1 linha em vez de campo + botão.
-              TextField(
-                controller: _urlCtrl,
-                keyboardType: TextInputType.url,
-                autocorrect: false,
-                decoration: InputDecoration(
-                  labelText: 'Endereço do site',
-                  hintText: 'https://...',
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      Icons.send,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    tooltip: 'Abrir na turma toda',
-                    onPressed: _abrirEmTodos,
-                  ),
-                ),
-                onSubmitted: (_) => _abrirEmTodos(),
-              ),
-              if (_pairing.favoritos.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 40,
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    children: [
-                      for (var i = 0; i < _pairing.favoritos.length; i++) ...[
-                        GestureDetector(
-                          onLongPress: () => _menuFavorito(i),
-                          child: ActionChip(
-                            avatar: Icon(
-                              Icons.star,
-                              size: 16,
-                              color: cores(context).favorito,
-                            ),
-                            label: Text(_pairing.favoritos[i].label),
-                            onPressed: () => setState(
-                              () => _urlCtrl.text = _pairing.favoritos[i].url,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      ActionChip(
-                        avatar: const Icon(Icons.edit, size: 16),
-                        label: const Text('Editar'),
-                        onPressed: widget.onIrParaSites,
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const Divider(height: 1),
         Expanded(
           child: pcs.isEmpty ? _vazio() : _listaPcs(pcs),
         ),
@@ -766,6 +574,7 @@ class _AulaPageState extends State<AulaPage> {
     final c = cores(context);
     final on = _pairing.isOnline(s);
     final nome = _pairing.nomeDe(s);
+    final rotulo = _pairing.rotuloDe(s);
     final ehProfessor = _pairing.ehPcProfessor(s.deviceId);
     final aluno = !ehProfessor && _pairing.aulaAtiva
         ? _pairing.alunoDe(s.deviceId)
@@ -777,14 +586,17 @@ class _AulaPageState extends State<AulaPage> {
     if (ehProfessor) {
       subtitulo = 'Computador do Professor · ${on ? 'online' : 'offline'}';
     } else {
-      final prefixo = aluno != null ? '$nome · ' : '';
+      final prefixo = aluno != null ? '$rotulo · ' : '';
+      final liberados = _pairing.liberacoesDe(s.deviceId).isNotEmpty
+          ? ' · sites liberados'
+          : '';
       if (!on) {
-        subtitulo = '${prefixo}offline';
+        subtitulo = '${prefixo}offline$liberados';
       } else if (ativa == null) {
-        subtitulo = '${prefixo}online — sem dados de abas';
+        subtitulo = '${prefixo}online — sem dados de abas$liberados';
       } else {
         final titulo = ativa.title.isEmpty ? '(sem título)' : ativa.title;
-        final linha = '$prefixo$titulo\n${dominioDe(ativa.url)}';
+        final linha = '$prefixo$titulo\n${dominioDe(ativa.url)}$liberados';
         subtitulo = alerta != null ? '⚠ Alerta: $alerta\n$linha' : linha;
       }
     }
@@ -814,14 +626,18 @@ class _AulaPageState extends State<AulaPage> {
       ),
     );
 
-    // Caminho crítico descobrível: PC online sem aluno numa aula ativa.
-    final mostrarVincular =
-        !ehProfessor && _pairing.aulaAtiva && aluno == null && on;
+    // Escolher/Trocar aluno sempre à vista durante a aula (menos no telão e
+    // em PC preso na aula de outro professor).
+    final mostrarVincular = !ehProfessor &&
+        _pairing.aulaAtiva &&
+        _pairing.professorQueTravou(s.deviceId) == null;
 
     final conteudo = ListTile(
       leading: avatar,
       title: Text(
-        aluno ?? nome,
+        aluno ?? rotulo,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: Theme.of(context)
             .textTheme
             .titleMedium
@@ -837,11 +653,13 @@ class _AulaPageState extends State<AulaPage> {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Vincular como ícone (junto do ⋮): PC online sem aluno em aula.
           if (mostrarVincular)
             IconButton(
-              icon: Icon(Icons.person_add_alt, color: scheme.primary),
-              tooltip: 'Escolher aluno',
+              icon: Icon(
+                aluno == null ? Icons.person_add_alt : Icons.manage_accounts,
+                color: scheme.primary,
+              ),
+              tooltip: aluno == null ? 'Escolher aluno' : 'Trocar aluno',
               onPressed: () => _vincularAluno(s.deviceId),
             ),
           IconButton(
@@ -855,11 +673,7 @@ class _AulaPageState extends State<AulaPage> {
 
     // Flat (sem card): fundo = scaffold; o alerta aparece pelo avatar/subtítulo.
     return InkWell(
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => DevicePage(pairing: _pairing, deviceId: s.deviceId),
-        ),
-      ),
+      onTap: () => _abrirDevicePage(s.deviceId),
       onLongPress: () => _menuPc(s, nome),
       child: on ? conteudo : Opacity(opacity: 0.55, child: conteudo),
     );

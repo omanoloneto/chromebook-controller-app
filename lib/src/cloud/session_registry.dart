@@ -106,6 +106,7 @@ class SessionRegistry {
       s.lastReportAt = old.lastReportAt;
       s.alerta = old.alerta;
       s.lastSeen = old.lastSeen;
+      s.versaoExt = old.versaoExt;
     }
     _byId[deviceId] = s;
     onChange?.call();

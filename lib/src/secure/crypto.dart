@@ -7,8 +7,22 @@
 
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart';
+
+/// Foto arquivada já aberta ("foto-v1", docs/protocolo.md).
+class ArchivedPhoto {
+  const ArchivedPhoto({required this.header, required this.jpeg});
+
+  final Map<String, dynamic> header;
+  final Uint8List jpeg;
+
+  int get ts => (header['ts'] as num).toInt();
+  String? get motivo => header['motivo'] as String?;
+  String? get user => header['user'] as String?;
+  int? get login => (header['login'] as num?)?.toInt();
+}
 
 class SessionCrypto {
   SessionCrypto(this.key);
@@ -62,5 +76,50 @@ class SessionCrypto {
     final box = SecretBox(cipherText, nonce: nonce, mac: Mac(mac));
     final plaintext = await _algo.decrypt(box, secretKey: await _secretKey());
     return jsonDecode(utf8.decode(plaintext)) as Map<String, dynamic>;
+  }
+
+  /// Objeto foto-v1 (binário): nonce(12) || AES-GCM(utf8(header) || 0x0A || jpeg).
+  /// Só o agente do Celita gera fotos; aqui serve para teste.
+  Future<Uint8List> sealPhoto(
+    Map<String, dynamic> header,
+    List<int> jpeg, {
+    List<int>? nonce,
+  }) async {
+    final n = nonce ?? _algo.newNonce();
+    final plaintext = <int>[...utf8.encode(jsonEncode(header)), 0x0A, ...jpeg];
+    final box = await _algo.encrypt(
+      plaintext,
+      secretKey: await _secretKey(),
+      nonce: n,
+    );
+    return Uint8List.fromList([...box.nonce, ...box.cipherText, ...box.mac.bytes]);
+  }
+
+  /// Abre um objeto foto-v1. [ts] = ts13 do nome do arquivo: um cabeçalho
+  /// com outro ts é recusado (objeto trocado de lugar no bucket).
+  Future<ArchivedPhoto> openPhoto(List<int> data, {required int ts}) async {
+    if (data.length < 12 + 16 + 1) {
+      throw const FormatException('foto_curta');
+    }
+    final box = SecretBox(
+      data.sublist(12, data.length - 16),
+      nonce: data.sublist(0, 12),
+      mac: Mac(data.sublist(data.length - 16)),
+    );
+    final plaintext = await _algo.decrypt(box, secretKey: await _secretKey());
+    final sep = plaintext.indexOf(0x0A);
+    if (sep < 0) throw const FormatException('foto_sem_separador');
+    final header = jsonDecode(utf8.decode(plaintext.sublist(0, sep)));
+    if (header is! Map<String, dynamic> ||
+        header['v'] != 1 ||
+        header['type'] != 'archived_photo' ||
+        header['ts'] is! num ||
+        (header['ts'] as num).toInt() != ts) {
+      throw const FormatException('foto_cabecalho_invalido');
+    }
+    return ArchivedPhoto(
+      header: header,
+      jpeg: Uint8List.fromList(plaintext.sublist(sep + 1)),
+    );
   }
 }

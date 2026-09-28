@@ -19,7 +19,8 @@ class ClassSessionStore {
   String _turma = '';
   int _inicio = 0;
   final Map<String, String> _vinculos = {}; // deviceId -> aluno
-  // Liberações de bloqueio desta aula: deviceId -> padrões liberados.
+  // Liberações de bloqueio: deviceId -> padrões. Não dependem de aula; só o
+  // "Encerrar aula" as derruba.
   final Map<String, Set<String>> _excecoes = {};
 
   /// `dir` é injetável para testes; por padrão usa o diretório do app.
@@ -65,7 +66,7 @@ class ClassSessionStore {
 
   String? alunoDe(String deviceId) => _vinculos[deviceId];
 
-  /// Padrões de bloqueio liberados para um PC nesta aula.
+  /// Padrões de bloqueio liberados para um PC.
   Set<String> excecoesDe(String deviceId) =>
       Set.unmodifiable(_excecoes[deviceId] ?? const {});
 
@@ -77,13 +78,11 @@ class ClassSessionStore {
     _turma = turma;
     _inicio = DateTime.now().millisecondsSinceEpoch;
     _vinculos.clear();
-    _excecoes.clear();
     await _save();
   }
 
-  /// Libera um padrão de bloqueio para um PC (só durante esta aula).
+  /// Libera um padrão de bloqueio para um PC (com ou sem aula).
   Future<void> liberar(String deviceId, String pattern) async {
-    if (!_ativa) return;
     (_excecoes[deviceId] ??= {}).add(pattern);
     await _save();
   }
