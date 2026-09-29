@@ -7,9 +7,10 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../commands/domain_rules.dart';
+import '../commands/filtros.dart';
 
 class RulesStore {
-  RulesStore._(this._file, this._rules, this._rev);
+  RulesStore._(this._file, this._rules, this._rev, this._filtros);
 
   static const _fileName = 'domain_rules.json';
 
@@ -17,12 +18,17 @@ class RulesStore {
   final List<DomainRule> _rules;
   int _rev;
 
+  // Os filtros viajam no mesmo arquivo das regras: a escola já sincroniza
+  // este arquivo inteiro, então não precisam de nó novo no Firebase.
+  Filtros _filtros;
+
   /// `dir` é injetável para testes; por padrão usa o diretório do app.
   static Future<RulesStore> load({Directory? dir}) async {
     final base = dir ?? await getApplicationSupportDirectory();
     final file = File('${base.path}/$_fileName');
     var rules = <DomainRule>[];
     var rev = 0;
+    var filtros = Filtros.padrao;
     if (await file.exists()) {
       try {
         final decoded = jsonDecode(await file.readAsString());
@@ -32,16 +38,23 @@ class RulesStore {
           if (raw is List) {
             rules = raw.map(DomainRule.fromMap).whereType<DomainRule>().toList();
           }
+          filtros = Filtros.fromMap(decoded['filtros']);
         }
       } catch (_) {
         // arquivo corrompido -> recomeça vazio
       }
     }
-    return RulesStore._(file, rules, rev);
+    return RulesStore._(file, rules, rev, filtros);
   }
 
   List<DomainRule> get regras => List.unmodifiable(_rules);
   int get rev => _rev;
+  Filtros get filtros => _filtros;
+
+  Future<void> definirFiltros(Filtros filtros) async {
+    _filtros = filtros;
+    await _save();
+  }
 
   Future<void> adicionar(String pattern, String action) async {
     final p = normalizarPadrao(pattern);
@@ -71,6 +84,7 @@ class RulesStore {
       jsonEncode({
         'rev': _rev,
         'rules': _rules.map((r) => r.toMap()).toList(),
+        'filtros': _filtros.toMap(),
       }),
     );
   }

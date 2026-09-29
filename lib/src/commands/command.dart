@@ -3,6 +3,7 @@
 // (control_server.dart via crypto.dart). Aqui só montamos/parseamos o conteúdo.
 
 import 'domain_rules.dart';
+import 'filtros.dart';
 
 const int kProtocolVersion = 1;
 
@@ -23,6 +24,7 @@ class MessageType {
   static const String cameraSnapshot = 'camera_snapshot'; // ext -> app: foto cifrada
   static const String captureScreen = 'capture_screen'; // app -> agente Celita: tela
   static const String screenSnapshot = 'screen_snapshot'; // agente -> app: tela cifrada
+  static const String liberarIas = 'liberar_ias'; // app -> agente Celita: IAs até o logout
   // Reservados (futuro):
   static const String lockScreen = 'lock_screen';
   static const String unlockScreen = 'unlock_screen';
@@ -108,6 +110,7 @@ Map<String, dynamic> buildSetRules(
   List<DomainRule> regras, {
   required int rev,
   Set<String> liberados = const {},
+  Filtros filtros = Filtros.padrao,
 }) {
   List<Map<String, String>> padroes(bool Function(DomainRule) filtro) => regras
       .where(filtro)
@@ -124,7 +127,20 @@ Map<String, dynamic> buildSetRules(
         (r) => r.action == RuleAction.block && !liberados.contains(r.pattern),
       ),
       'alerts': padroes((r) => r.action == RuleAction.alert),
+      'filtros': filtros.toMap(),
     },
+  };
+}
+
+/// Monta o comando `liberar_ias` — libera (ou volta a bloquear) as IAs só na
+/// sessão aberta no PC; a liberação acaba quando a pessoa sai da conta. Só o
+/// agente do Celita OS atende; sem ninguém na conta vem `sem_sessao`.
+Map<String, dynamic> buildLiberarIas({required bool liberar}) {
+  return {
+    'v': kProtocolVersion,
+    'type': MessageType.liberarIas,
+    'id': _nextId(),
+    'payload': {'liberar': liberar},
   };
 }
 
@@ -224,11 +240,15 @@ class TabInfo {
 
 /// Um evento de navegação (URL visitada).
 class NavEvent {
-  NavEvent({required this.url, required this.title, required this.ts});
+  NavEvent({required this.url, required this.title, required this.ts, this.bloqueio});
 
   final String url;
   final String title;
   final int ts; // epoch ms
+
+  /// Motivo com que a extensão bloqueou a tentativa ('regra', 'shorts',
+  /// 'reels', 'tiktok', 'ia', 'canal'); null = não foi bloqueada.
+  final String? bloqueio;
 
   static NavEvent? fromMap(dynamic m) {
     if (m is! Map) return null;
@@ -238,6 +258,9 @@ class NavEvent {
       url: url,
       title: m['title'] as String? ?? '',
       ts: (m['ts'] as num?)?.toInt() ?? 0,
+      bloqueio: m['bloqueio'] is String && (m['bloqueio'] as String).isNotEmpty
+          ? _corta(m['bloqueio'] as String, 20)
+          : null,
     );
   }
 }
@@ -269,6 +292,7 @@ class TabReport {
     required this.events,
     this.apps = const [],
     this.user,
+    this.iasLiberadas = false,
   });
 
   final List<TabInfo> tabs;
@@ -278,6 +302,9 @@ class TabReport {
   /// Celita OS manda (a extensão omite; lista vazia e null são o normal).
   final List<AppInfo> apps;
   final String? user;
+
+  /// As IAs estão liberadas na sessão aberta no PC (comando liberar_ias).
+  final bool iasLiberadas;
 
   /// Tolerante: entradas malformadas são puladas; caps defensivos
   /// independentes do que o cliente enviou.
@@ -314,6 +341,12 @@ class TabReport {
     final user = rawUser is String && rawUser.isNotEmpty
         ? _corta(rawUser, kMaxReportUser)
         : null;
-    return TabReport(tabs: tabs, events: events, apps: apps, user: user);
+    return TabReport(
+      tabs: tabs,
+      events: events,
+      apps: apps,
+      user: user,
+      iasLiberadas: m['iasLiberadas'] == true,
+    );
   }
 }

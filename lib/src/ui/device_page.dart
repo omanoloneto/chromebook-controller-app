@@ -42,7 +42,7 @@ Future<void> mostrarSheetLiberarSites(
     return;
   }
   final padroes = pairing.padroesBloqueio;
-  if (padroes.isEmpty) {
+  if (padroes.isEmpty && !pairing.filtros.ias) {
     snack('Nenhum site bloqueado nas regras.');
     return;
   }
@@ -65,6 +65,22 @@ Future<void> mostrarSheetLiberarSites(
                 ),
               ),
               const Divider(height: 1),
+              if (pairing.filtros.ias)
+                SwitchListTile(
+                  secondary: const Icon(Icons.auto_awesome_outlined),
+                  title: const Text('IAs (Gemini, ChatGPT e outras)'),
+                  subtitle: Text(
+                    pairing.iasLiberadasEm(deviceId)
+                        ? 'LIBERADAS até o aluno sair da conta'
+                        : 'bloqueadas — liberar vale até o aluno sair da conta',
+                  ),
+                  value: pairing.iasLiberadasEm(deviceId),
+                  onChanged: (ligar) async {
+                    final erro = await pairing.liberarIas(deviceId, ligar);
+                    if (erro != null) snack(erro);
+                    setSheet(() {});
+                  },
+                ),
               for (final p in padroes)
                 SwitchListTile(
                   title: Text(p),

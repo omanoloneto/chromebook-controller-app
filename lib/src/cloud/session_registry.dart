@@ -43,6 +43,9 @@ class PcSession {
   /// Celita OS reporta; num Chromebook comum ficam vazios.
   List<AppInfo> apps = [];
   String? usuario;
+
+  /// IAs liberadas na sessão aberta no PC (até a pessoa sair da conta).
+  bool iasLiberadas = false;
   final List<NavEvent> history = [];
   DateTime? lastReportAt;
   String? alerta; // domínio que disparou alerta (null = sem alerta)
@@ -137,6 +140,7 @@ class SessionRegistry {
     s.tabs = r.tabs;
     s.apps = r.apps;
     s.usuario = r.user;
+    s.iasLiberadas = r.iasLiberadas;
     s.lastReportAt = reportAt ?? DateTime.now();
     // PC do professor: sem histórico/alerta/notificações (abas ficam — servem
     // p/ confirmar visualmente um open_url no telão).

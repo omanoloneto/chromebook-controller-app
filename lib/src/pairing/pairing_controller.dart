@@ -27,6 +27,7 @@ import '../cloud/session_registry.dart';
 import '../commands/class_view.dart';
 import '../commands/command.dart';
 import '../commands/domain_rules.dart';
+import '../commands/filtros.dart';
 import '../secure/history_crypto.dart';
 import '../secure/key_store.dart';
 import '../secure/school_crypto.dart';
@@ -772,12 +773,13 @@ class PairingController extends ChangeNotifier {
   /// PC do professor: sem regra nenhuma (o telão precisa abrir qualquer link).
   Map<String, dynamic> _setRulesPara(String deviceId) {
     if (deviceId == _pcProfessorId) {
-      return buildSetRules(const [], rev: _proximoRev());
+      return buildSetRules(const [], rev: _proximoRev(), filtros: Filtros.nenhum);
     }
     return buildSetRules(
       _rules?.regras ?? const [],
       rev: _proximoRev(),
       liberados: _session?.excecoesDe(deviceId) ?? const {},
+      filtros: filtros,
     );
   }
 
@@ -826,21 +828,24 @@ class PairingController extends ChangeNotifier {
 
     final notifs = notificacoes;
     if (!notificarSites || notifs == null) return;
-    final regras = _rules?.regras;
-    if (regras == null || regras.isEmpty) return;
+    final regras = _rules?.regras ?? const <DomainRule>[];
     final liberados = _session?.excecoesDe(deviceId) ?? const <String>{};
     final s = _transport?.registry.byId(deviceId);
     final nomePc = (s != null ? alunoDe(deviceId) ?? nomeDe(s) : deviceId);
     for (final e in novos) {
-      final r = acharRegra(regras, e.url);
-      if (r == null || liberados.contains(r.pattern)) continue;
+      final r = regras.isEmpty ? null : acharRegra(regras, e.url);
+      final porRegra = r != null && !liberados.contains(r.pattern);
+      // Filtros (Shorts, IA...) não viram regra aqui: a extensão marca a tentativa.
+      final filtro = descricaoBloqueio(e.bloqueio);
+      if (!porRegra && filtro == null) continue;
       String dominio;
       try {
         dominio = Uri.parse(e.url).host;
       } catch (_) {
-        dominio = r.pattern;
+        dominio = r?.pattern ?? e.url;
       }
-      final bloqueado = r.action == RuleAction.block;
+      if (!porRegra) dominio = '$filtro ($dominio)';
+      final bloqueado = !porRegra || r.action == RuleAction.block;
       final futuro = bloqueado
           ? notifs.notificarBloqueado(
               deviceId: deviceId,
@@ -1221,6 +1226,15 @@ class PairingController extends ChangeNotifier {
 
   List<DomainRule> get regras => _rules?.regras ?? const [];
 
+  /// Filtros prontos da escola (Shorts, Reels, TikTok, IAs, canais).
+  Filtros get filtros => _rules?.filtros ?? Filtros.padrao;
+
+  Future<void> definirFiltros(Filtros novos) async {
+    await _rules?.definirFiltros(novos);
+    _schoolSync?.push('rules');
+    _distribuirRegras();
+  }
+
   Future<void> adicionarRegra(String pattern, String action) async {
     await _rules?.adicionar(pattern, action);
     _schoolSync?.push('rules');
@@ -1281,6 +1295,27 @@ class PairingController extends ChangeNotifier {
 
   void _distribuirRegrasPara(String deviceId) {
     _transport?.setStateOne(deviceId, _setRulesPara(deviceId));
+  }
+
+  // ---- IAs por PC ------------------------------------------------------------------
+  // Valem só para a conta aberta agora: o agente desfaz quando a pessoa sai.
+
+  bool iasLiberadasEm(String deviceId) =>
+      _transport?.registry.byId(deviceId)?.iasLiberadas ?? false;
+
+  /// null = ok; senão o motivo em linguagem leiga.
+  Future<String?> liberarIas(String deviceId, bool liberar) async {
+    final professor = professorQueTravou(deviceId);
+    if (professor != null) return 'Está na aula de $professor.';
+    final transport = _transport;
+    final s = transport?.registry.byId(deviceId);
+    if (transport == null || s == null) return 'Ainda conectando — tente de novo.';
+    if (liberar && s.usuario == null) return 'Ninguém entrou numa conta neste PC agora.';
+    await transport.sendCommand(deviceId, buildLiberarIas(liberar: liberar));
+    // Otimista: o próximo relatório do PC confirma (ou desfaz).
+    s.iasLiberadas = liberar;
+    notifyListeners();
+    return null;
   }
 
   // ---- Liberações por PC ----------------------------------------------------------
