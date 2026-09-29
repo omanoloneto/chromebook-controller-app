@@ -24,6 +24,7 @@ import '../cloud/school_keys.dart';
 import '../cloud/school_members.dart';
 import '../cloud/school_sync.dart';
 import '../cloud/session_registry.dart';
+import '../cloud/versao_publicada.dart';
 import '../commands/class_view.dart';
 import '../commands/command.dart';
 import '../commands/domain_rules.dart';
@@ -76,6 +77,7 @@ class PairingController extends ChangeNotifier {
   // Visão da turma no telão: debounce de push + heartbeat + dedupe.
   Timer? _classViewTimer;
   Timer? _classViewHeartbeat;
+  Timer? _versaoTimer;
   String? _classViewFingerprint;
 
   /// Estado de inicialização (a UI observa; start() não lança).
@@ -339,6 +341,9 @@ class PairingController extends ChangeNotifier {
 
       // Heartbeat da visão da turma: mantém o "atualizado há Xs" do telão
       // vivo e propaga online→offline (derivado de lastSeen, não gera evento).
+      _buscarVersaoPublicada();
+      _versaoTimer ??= Timer.periodic(const Duration(minutes: 30), (_) => _buscarVersaoPublicada());
+
       _classViewHeartbeat ??= Timer.periodic(
         const Duration(seconds: 60),
         (_) => _pushClassView(force: true),
@@ -907,8 +912,50 @@ class PairingController extends ChangeNotifier {
   /// Nome dado pelo professor, ou o label do aparelho (renomeável no popup).
   String nomeDe(PcSession s) => _names?.nameOf(s.deviceId) ?? s.label;
 
-  /// Nome + " (versão)" para as listas; nunca é gravado como nome.
-  String rotuloDe(PcSession s) => nomeComVersao(nomeDe(s), s.versaoExt);
+  /// Nome + " (versão do Celita OS)" para as listas; nunca é gravado como nome.
+  String rotuloDe(PcSession s) =>
+      nomeComVersao(nomeDe(s), s.versaoOs, desatualizado: desatualizado(s));
+
+  // ---- Versão do Celita OS -----------------------------------------------------
+
+  /// Última versão publicada no canal de atualização (null = ainda não lida).
+  String? versaoPublicada;
+
+  Future<void> _buscarVersaoPublicada() async {
+    final v = await buscarVersaoPublicada();
+    if (v != null && v != versaoPublicada) {
+      versaoPublicada = v;
+      notifyListeners();
+    }
+  }
+
+  bool desatualizado(PcSession s) => celitaDesatualizado(s.versaoOs, s.versaoExt, versaoPublicada);
+
+  /// PCs ligados agora com o Celita mais velho que o publicado.
+  List<PcSession> get desatualizadosOnline => [
+        for (final s in _transport?.registry.all ?? const <PcSession>[])
+          if (isOnline(s) && desatualizado(s)) s,
+      ];
+
+  /// Pede ao PC para atualizar o sistema agora. null = pedido enviado.
+  Future<String?> atualizarPc(String deviceId) async {
+    final transport = _transport;
+    final s = transport?.registry.byId(deviceId);
+    if (transport == null || s == null) return 'Ainda conectando — tente de novo.';
+    if (!isOnline(s)) return 'O PC está desligado.';
+    if (!temCelita(s.versaoExt)) return 'Só os PCs com Celita OS se atualizam pelo app.';
+    await transport.sendCommand(deviceId, buildAtualizar());
+    return null;
+  }
+
+  /// Pede atualização a todos os desatualizados ligados; devolve quantos.
+  Future<int> atualizarDesatualizados() async {
+    var n = 0;
+    for (final s in desatualizadosOnline) {
+      if (await atualizarPc(s.deviceId) == null) n++;
+    }
+    return n;
+  }
 
   /// Salva o nome do aluno para este PC (vazio remove).
   Future<void> renomear(String deviceId, String nome) async {
@@ -1484,6 +1531,8 @@ class PairingController extends ChangeNotifier {
     _notifyTimer?.cancel();
     _classViewTimer?.cancel();
     _classViewHeartbeat?.cancel();
+    _versaoTimer?.cancel();
+    _versaoTimer = null;
     _lockHeartbeat?.cancel();
     super.dispose();
   }

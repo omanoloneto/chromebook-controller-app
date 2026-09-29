@@ -25,6 +25,7 @@ class MessageType {
   static const String captureScreen = 'capture_screen'; // app -> agente Celita: tela
   static const String screenSnapshot = 'screen_snapshot'; // agente -> app: tela cifrada
   static const String liberarIas = 'liberar_ias'; // app -> agente Celita: IAs até o logout
+  static const String atualizar = 'atualizar'; // app -> agente Celita: atualizar o sistema agora
   // Reservados (futuro):
   static const String lockScreen = 'lock_screen';
   static const String unlockScreen = 'unlock_screen';
@@ -129,6 +130,17 @@ Map<String, dynamic> buildSetRules(
       'alerts': padroes((r) => r.action == RuleAction.alert),
       'filtros': filtros.toMap(),
     },
+  };
+}
+
+/// Monta o comando `atualizar` — o PC roda na hora a mesma verificação do
+/// "Atualizar agora" da Central do Celita. Só o agente do Celita OS atende.
+Map<String, dynamic> buildAtualizar() {
+  return {
+    'v': kProtocolVersion,
+    'type': MessageType.atualizar,
+    'id': _nextId(),
+    'payload': const <String, dynamic>{},
   };
 }
 

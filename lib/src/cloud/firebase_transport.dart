@@ -266,6 +266,14 @@ class FirebaseTransport {
           registry.onChange?.call();
         }
       }),
+      _dev(deviceId).child('meta/os').onValue.listen((e) {
+        final v = e.snapshot.value;
+        final s = registry.byId(deviceId);
+        if (s != null && v is String && s.versaoOs != v) {
+          s.versaoOs = v;
+          registry.onChange?.call();
+        }
+      }),
     ]);
   }
 

@@ -29,6 +29,9 @@ class PcSession {
   /// (PC pareado antes desta versão do app/extensão).
   String? versaoExt;
 
+  /// Versão do Celita OS (meta/os); null = agente antigo ou PC sem Celita.
+  String? versaoOs;
+
   /// Última presença, em TEMPO DO SERVIDOR (o transporte converte).
   DateTime lastSeen = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -110,6 +113,7 @@ class SessionRegistry {
       s.alerta = old.alerta;
       s.lastSeen = old.lastSeen;
       s.versaoExt = old.versaoExt;
+      s.versaoOs = old.versaoOs;
     }
     _byId[deviceId] = s;
     onChange?.call();

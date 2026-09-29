@@ -638,6 +638,22 @@ class _DevicePageState extends State<DevicePage> {
         onEditarFavoritos: widget.onIrParaSites,
       );
 
+  Future<void> _atualizar(String nome) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final erro = await widget.pairing.atualizarPc(widget.deviceId);
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            erro ??
+                '$nome vai baixar e instalar a atualização sozinho. A versão '
+                    'nova aparece aqui quando terminar.',
+          ),
+        ),
+      );
+  }
+
   void _alternarPcProfessor(String nome) {
     final ehProfessor = widget.pairing.ehPcProfessor(widget.deviceId);
     widget.pairing.marcarPcProfessor(ehProfessor ? null : widget.deviceId);
@@ -765,7 +781,14 @@ class _DevicePageState extends State<DevicePage> {
     final on = widget.pairing.isOnline(s);
     final ativa = s.abaAtiva;
     final ehProfessor = widget.pairing.ehPcProfessor(widget.deviceId);
-    final versao = versaoCurta(s.versaoExt);
+    final celita = temCelita(s.versaoExt);
+    final desatualizado = widget.pairing.desatualizado(s);
+    final maisNova = widget.pairing.versaoPublicada;
+    final versao = !celita
+        ? versaoCurta(s.versaoExt)
+        : s.versaoOs == null
+            ? null
+            : 'Celita OS ${s.versaoOs}';
 
     return Scaffold(
       appBar: AppBar(
@@ -820,6 +843,7 @@ class _DevicePageState extends State<DevicePage> {
                 );
               }
               if (v == 'historico') _verHistorico();
+              if (v == 'atualizar') _atualizar(nome);
               if (v == 'professor') _alternarPcProfessor(nome);
               if (v == 'esquecer') _confirmarEsquecer(nome);
             },
@@ -869,6 +893,22 @@ class _DevicePageState extends State<DevicePage> {
                   subtitle: temCelita(s.versaoExt)
                       ? null
                       : const Text('só nos PCs com Celita OS'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'atualizar',
+                enabled: on && celita,
+                child: ListTile(
+                  leading: const Icon(Icons.system_update_alt),
+                  title: const Text('Atualizar o Celita OS agora'),
+                  subtitle: Text(
+                    !celita
+                        ? 'só nos PCs com Celita OS'
+                        : desatualizado
+                            ? 'este PC está desatualizado'
+                            : 'baixa e instala o que houver de novo',
+                  ),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -953,13 +993,18 @@ class _DevicePageState extends State<DevicePage> {
               ),
             ],
           ),
-          if (versao != null)
+          if (versao != null || desatualizado)
             Padding(
               padding: const EdgeInsets.only(top: 4),
               child: Text(
-                'Versão $versao',
+                [
+                  if (versao != null) celita ? versao : 'Versão $versao',
+                  if (desatualizado) 'desatualizado (a mais nova é $maisNova)',
+                ].join(' · '),
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      color: desatualizado
+                          ? Theme.of(context).colorScheme.error
+                          : Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
               ),
             ),

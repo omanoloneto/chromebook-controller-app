@@ -289,6 +289,40 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ),
           ),
+          Builder(
+            builder: (context) {
+              final velhos = widget.pairing.desatualizadosOnline;
+              final maisNova = widget.pairing.versaoPublicada;
+              return ListTile(
+                leading: const Icon(Icons.system_update_alt),
+                title: const Text('Atualizar os PCs desatualizados'),
+                subtitle: Text(
+                  maisNova == null
+                      ? 'Verificando a versão mais nova do Celita OS…'
+                      : velhos.isEmpty
+                          ? 'Todos os PCs ligados estão na versão mais nova ($maisNova).'
+                          : '${velhos.length} ${velhos.length == 1 ? 'PC ligado está' : 'PCs ligados estão'} '
+                              'numa versão antiga. A mais nova é a $maisNova.',
+                ),
+                enabled: velhos.isNotEmpty,
+                onTap: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  final n = await widget.pairing.atualizarDesatualizados();
+                  messenger
+                    ..hideCurrentSnackBar()
+                    ..showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          n == 1
+                              ? '1 PC vai baixar e instalar a atualização.'
+                              : '$n PCs vão baixar e instalar a atualização.',
+                        ),
+                      ),
+                    );
+                },
+              );
+            },
+          ),
           _secao('Aparência'),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),

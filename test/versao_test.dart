@@ -1,6 +1,7 @@
 // Versão exibida do PC: prefixo "celita-" some; nome salvo nunca é trocado.
 
 import 'package:controle_de_aula/src/cloud/session_registry.dart';
+import 'package:controle_de_aula/src/cloud/versao_publicada.dart';
 import 'package:controle_de_aula/src/util/versao.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,10 +15,47 @@ void main() {
     expect(versaoCurta('celita-'), isNull);
   });
 
-  test('nomeComVersao acrescenta a versão sem mexer no nome', () {
-    expect(nomeComVersao('Maria (fundo)', 'celita-0.10.0'), 'Maria (fundo) (0.10.0)');
-    expect(nomeComVersao('Unidade 3', '0.4.11'), 'Unidade 3 (0.4.11)');
+  test('nomeComVersao mostra a versão do Celita OS e marca desatualizado', () {
+    expect(nomeComVersao('Maria (fundo)', '1.23.0'), 'Maria (fundo) (1.23.0)');
+    expect(nomeComVersao('Unidade 3', '1.22.0', desatualizado: true),
+        'Unidade 3 (1.22.0 · desatualizado)',);
+    expect(nomeComVersao('Unidade 3', null, desatualizado: true),
+        'Unidade 3 (desatualizado)',);
     expect(nomeComVersao('Unidade 3', null), 'Unidade 3');
+  });
+
+  test('compararVersoes e celitaDesatualizado', () {
+    expect(compararVersoes('1.9.0', '1.10.0'), -1);
+    expect(compararVersoes('1.23.0', '1.23.0'), 0);
+    expect(compararVersoes('1.24.0', '1.23.9'), 1);
+    expect(compararVersoes('1.23', '1.23.0'), 0);
+    expect(celitaDesatualizado('1.23.0', 'celita-0.12.0', '1.24.0'), true);
+    expect(celitaDesatualizado('1.24.0', 'celita-0.12.0', '1.24.0'), false);
+    expect(celitaDesatualizado(null, 'celita-0.11.0', '1.24.0'), true,
+        reason: 'agente antigo não publica meta/os',);
+    expect(celitaDesatualizado(null, '0.4.11', '1.24.0'), false,
+        reason: 'ChromeOS não conta',);
+    expect(celitaDesatualizado('1.20.0', 'celita-0.9.3', null), false,
+        reason: 'sem a versão publicada, não marca',);
+  });
+
+  test('versaoMaisNovaNoIndice pega o maior celita-os-completo', () {
+    const indice = '''Package: celita-os-completo
+Version: 1.9.0
+Architecture: amd64
+
+Package: tema-gtk-celita
+Version: 9.0.0
+
+Package: celita-os-completo
+Version: 1.23.0
+Architecture: amd64
+
+Package: celita-os-completo
+Version: 1.10.0
+''';
+    expect(versaoMaisNovaNoIndice(indice), '1.23.0');
+    expect(versaoMaisNovaNoIndice('lixo'), isNull);
   });
 
   test('SessionRegistry.bind preserva a versão já lida', () {
