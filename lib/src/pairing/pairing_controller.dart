@@ -2132,10 +2132,15 @@ class PairingController extends ChangeNotifier {
     int? rulesRev;
     int? examRev;
     if (provaNoPc(deviceId)) {
-      await session.liberarNaProva(deviceId, pedido.site);
+      final novo = await session.liberarNaProva(deviceId, pedido.site);
       final rev = _proximoRev();
       final erro = await _gravarEstados({deviceId: _setExamPara(deviceId, on: true, rev: rev)});
-      if (erro != null) return erro;
+      if (erro != null) {
+        // O professor viu o erro: o site não pode ser liberado depois, calado,
+        // pela renovação de 5 min. O pedido continua em Recados.
+        if (novo) await session.revogarNaProva(deviceId, pedido.site);
+        return erro;
+      }
       examRev = rev;
     } else {
       final lista = padroes ?? padroesParaLiberar(pedido);

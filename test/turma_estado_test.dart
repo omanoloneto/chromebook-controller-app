@@ -52,6 +52,21 @@ void main() {
       expect(s.provaLiberacoesDe('pc1'), isEmpty);
     });
 
+    test('liberação da prova desfeita (gravação falhou) não volta escondida', () async {
+      var s = await ClassSessionStore.load(dir: tmp);
+      await s.iniciar('A');
+      expect(await s.liberarNaProva('pc1', 'geogebra.org'), isTrue);
+      expect(await s.liberarNaProva('pc1', 'geogebra.org'), isFalse, reason: 'já estava');
+      await s.liberarNaProva('pc1', 'wikipedia.org');
+      await s.revogarNaProva('pc1', 'wikipedia.org');
+      await s.revogarNaProva('pc9', 'x.org'); // nada a desfazer
+      s = await ClassSessionStore.load(dir: tmp);
+      expect(s.provaLiberacoesDe('pc1'), {'geogebra.org'});
+      await s.revogarNaProva('pc1', 'geogebra.org');
+      s = await ClassSessionStore.load(dir: tmp);
+      expect(s.provaLiberacoesDe('pc1'), isEmpty);
+    });
+
     test('aula.json antigo (sem trava/prova) carrega desligado', () async {
       await File('${tmp.path}/aula.json').writeAsString(
         jsonEncode({'ativa': true, 'turma': 'A', 'inicio': 1, 'vinculos': {}, 'excecoes': {}}),

@@ -109,9 +109,21 @@ class ClassSessionStore {
     await _save();
   }
 
-  /// Libera um host na prova para um PC (pedido aprovado em prova).
-  Future<void> liberarNaProva(String deviceId, String host) async {
-    if ((_provaLiberacoes[deviceId] ??= {}).add(host)) await _save();
+  /// Libera um host na prova para um PC (pedido aprovado em prova). true =
+  /// o host entrou agora (não estava liberado).
+  Future<bool> liberarNaProva(String deviceId, String host) async {
+    final novo = (_provaLiberacoes[deviceId] ??= {}).add(host);
+    if (novo) await _save();
+    return novo;
+  }
+
+  /// Desfaz [liberarNaProva] (a gravação do state/exam falhou: a liberação
+  /// não pode entrar escondida na próxima renovação da prova).
+  Future<void> revogarNaProva(String deviceId, String host) async {
+    final hosts = _provaLiberacoes[deviceId];
+    if (hosts == null || !hosts.remove(host)) return;
+    if (hosts.isEmpty) _provaLiberacoes.remove(deviceId);
+    await _save();
   }
 
   Future<void> iniciar(String turma) async {
