@@ -12,7 +12,10 @@ import '../pairing/pairing_controller.dart';
 import '../util/abrir_no_celular.dart';
 import '../util/versao.dart';
 import 'archive_page.dart';
+import 'chat_page.dart';
+import 'faixa_entrega.dart';
 import 'theme.dart';
+import 'trava_sheet.dart';
 
 /// Domínio de uma URL para exibição compacta ("pt.khanacademy.org").
 String dominioDe(String url) {
@@ -139,11 +142,11 @@ Future<void> mostrarSheetAbrirSite(
         );
         return false;
       }
+      // A faixa da aba Aula acompanha a entrega PC a PC.
       pairing.abrirEmTodos(u);
-      snack('Enviado para $n PC(s).');
     } else {
+      // A faixa da tela do PC diz se ele recebeu.
       pairing.abrirEm(deviceId, u);
-      snack('Enviado para ${nomePc ?? 'este PC'}.');
     }
     return true;
   }
@@ -225,9 +228,7 @@ Future<void> mostrarSheetAbrirSite(
                         TextButton(
                           style: estiloBotao,
                           onPressed: () {
-                            final dominio = dominioDe(f.url);
-                            pairing.fecharSiteEmTodos(dominio);
-                            snack('Fechando $dominio na turma.');
+                            pairing.fecharSiteEmTodos(dominioDe(f.url));
                             Navigator.pop(ctx);
                           },
                           child: const Text('Fechar na turma'),
@@ -322,7 +323,6 @@ Future<void> mostrarDialogoRenomear(
   if (novo != null) await pairing.renomear(deviceId, novo);
 }
 
-/// Diálogo "Enviar mensagem" (popup no Chrome do aluno) — aqui e na aba Aula.
 /// Pede uma imagem ao PC e mostra num dialog: [tela] false = foto da câmera
 /// (quem está sentado ali; o LED do aluno acende), true = captura da tela,
 /// que só o agente do Celita OS atende.
@@ -439,50 +439,6 @@ Future<void> mostrarDialogoImagem(
         ),
       ),
     ),
-  );
-}
-
-Future<void> mostrarDialogoMensagem(
-  BuildContext context,
-  PairingController pairing,
-  String deviceId,
-  String nome,
-) async {
-  final ctrl = TextEditingController();
-  final texto = await showDialog<String>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text('Mensagem para $nome'),
-      content: TextField(
-        controller: ctrl,
-        autofocus: true,
-        maxLength: 500,
-        maxLines: 4,
-        minLines: 2,
-        textCapitalization: TextCapitalization.sentences,
-        decoration: const InputDecoration(
-          hintText: 'Ex.: Volte para a atividade, por favor.',
-          helperText: 'Abre na tela do PC na hora, só para este aluno.',
-          helperMaxLines: 2,
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(ctx, ctrl.text),
-          child: const Text('Enviar'),
-        ),
-      ],
-    ),
-  );
-  if (texto == null || !context.mounted) return;
-  final erro = await pairing.enviarMensagem(deviceId, texto);
-  if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(erro ?? 'Mensagem enviada a $nome.')),
   );
 }
 
@@ -790,10 +746,35 @@ class _DevicePageState extends State<DevicePage> {
             ? null
             : 'Celita OS ${s.versaoOs}';
 
+    final travadoPor = widget.pairing.professorQueTravou(widget.deviceId);
+    final naoLidas = widget.pairing.naoLidasDe(widget.deviceId);
+    final chips = ehProfessor
+        ? const <Widget>[]
+        : chipsDeTrava(context, widget.pairing, widget.deviceId);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(nome),
         actions: [
+          if (!ehProfessor && travadoPor == null)
+            IconButton(
+              tooltip: switch (naoLidas) {
+                0 => 'Conversar',
+                1 => 'Conversar (1 nova)',
+                _ => 'Conversar ($naoLidas novas)',
+              },
+              onPressed: () =>
+                  abrirConversa(context, widget.pairing, widget.deviceId),
+              icon: Badge.count(
+                count: naoLidas,
+                isLabelVisible: naoLidas > 0,
+                child: Icon(
+                  widget.pairing.maoLevantada(widget.deviceId)
+                      ? Icons.back_hand_outlined
+                      : Icons.chat_bubble_outline,
+                ),
+              ),
+            ),
           IconButton(
             icon: const Icon(Icons.edit),
             tooltip: 'Renomear',
@@ -809,13 +790,8 @@ class _DevicePageState extends State<DevicePage> {
             tooltip: 'Mais opções',
             onSelected: (v) {
               if (v == 'site') _abrirSite(nome);
-              if (v == 'mensagem') {
-                mostrarDialogoMensagem(
-                  context,
-                  widget.pairing,
-                  widget.deviceId,
-                  nome,
-                );
+              if (v == 'conversar') {
+                abrirConversa(context, widget.pairing, widget.deviceId);
               }
               if (v == 'numero') {
                 mostrarDialogoNumeroUnidade(
@@ -858,11 +834,14 @@ class _DevicePageState extends State<DevicePage> {
                 ),
               ),
               PopupMenuItem(
-                value: 'mensagem',
-                enabled: on,
-                child: const ListTile(
-                  leading: Icon(Icons.chat_bubble_outline),
-                  title: Text('Enviar mensagem'),
+                value: 'conversar',
+                enabled: travadoPor == null,
+                child: ListTile(
+                  leading: const Icon(Icons.chat_bubble_outline),
+                  title: const Text('Conversar'),
+                  subtitle: travadoPor == null
+                      ? null
+                      : Text('Está na aula de $travadoPor'),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -954,6 +933,17 @@ class _DevicePageState extends State<DevicePage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Confirmação do último envio para ESTE PC ("Ana recebeu ✓").
+          FaixaEntrega(
+            pairing: widget.pairing,
+            deviceId: widget.deviceId,
+            cartao: true,
+          ),
+          if (chips.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Wrap(spacing: 6, runSpacing: 4, children: chips),
+            ),
           if (on && s.alerta != null)
             Container(
               margin: const EdgeInsets.only(bottom: 12),

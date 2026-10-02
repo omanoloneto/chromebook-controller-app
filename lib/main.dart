@@ -13,7 +13,10 @@ import 'src/pairing/prefs_store.dart';
 import 'src/service/foreground_service.dart';
 import 'src/service/notification_service.dart';
 import 'src/ui/app_shell.dart';
+import 'src/ui/chat_page.dart';
 import 'src/ui/device_page.dart';
+import 'src/ui/grade_telas.dart';
+import 'src/ui/recados_page.dart';
 import 'src/ui/settings_controller.dart';
 import 'src/ui/theme.dart';
 
@@ -69,15 +72,26 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
     }
   }
 
-  // Toque numa notificação: leva à tela do PC. Se ela já estiver aberta,
-  // volta até ela em vez de empilhar outra igual.
+  // Toque numa notificação: alerta de site leva à tela do PC; recado de
+  // chat ou mão, à conversa; pedido de liberação, a Recados. Se a tela já
+  // estiver aberta, volta até ela em vez de empilhar outra igual.
   void _abrirPc(ToqueNotificacao toque) {
     final nav = _navigator.currentState;
     if (nav == null) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _abrirPc(toque));
       return;
     }
-    final nome = rotaDoPc(toque.deviceId);
+    final (String nome, Route<void> Function() rota) = switch (toque.k) {
+      'chat' || 'mao' => (
+          rotaDaConversa(toque.deviceId),
+          () => rotaChatPage(_pairing, toque.deviceId),
+        ),
+      'pedido' => (rotaDosRecados, () => rotaRecadosPage(_pairing)),
+      _ => (
+          rotaDoPc(toque.deviceId),
+          () => rotaDevicePage(_pairing, toque.deviceId),
+        ),
+    };
     nav.popUntil((r) => r.settings.name == nome || r.isFirst);
     var jaAberta = false;
     nav.popUntil((r) {
@@ -85,7 +99,7 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
       return true;
     });
     if (jaAberta) return;
-    nav.push(rotaDevicePage(_pairing, toque.deviceId));
+    nav.push(rota());
   }
 
   void _sincronizarPrefs() {
@@ -118,6 +132,8 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
       listenable: _settings,
       builder: (context, _) => MaterialApp(
         navigatorKey: _navigator,
+        // A grade de telas para quando outra tela cobre a aba Aula.
+        navigatorObservers: [observadorDeRotas],
         title: 'Controle de Aula',
         debugShowCheckedModeBanner: false,
         theme: buildTheme(Brightness.light),

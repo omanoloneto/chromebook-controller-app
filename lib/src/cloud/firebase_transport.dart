@@ -1,9 +1,11 @@
 // Transporte via Firebase RTDB (protocolo v4) — substitui o ControlServer.
 // O app escuta o roster (/teachers/{uid}/devices) e, por PC, os nós report/
-// presence/ack/bind. Comandos saem selados (AES-256-GCM, cabeçalho
-// {sid,seq,ts}) para cmd/ (fila) ou state/ (snapshot). Ver docs/protocolo.md.
+// presence/ack/bind/up/state/lock/state/exam. Comandos saem selados
+// (AES-256-GCM, cabeçalho {sid,seq,ts}) para cmd/ (fila) ou state/
+// (snapshot). Ver docs/protocolo.md.
 
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart' show FirebaseException;
@@ -12,9 +14,24 @@ import 'package:flutter/foundation.dart';
 
 import '../commands/command.dart';
 import '../secure/keypair.dart';
+import '../util/ids.dart';
 import 'qr_payload.dart';
 import 'server_clock.dart';
 import 'session_registry.dart';
+import 'up_router.dart';
+
+/// Nó de `state/` de cada comando de estado. Tipo desconhecido LANÇA: cair em
+/// 'rules' sobrescreveria as regras do PC com outra coisa.
+String noDeEstado(Object? type) => switch (type) {
+      MessageType.setRules => 'rules',
+      MessageType.setWallpaper => 'wallpaper',
+      MessageType.setClassView => 'classview',
+      MessageType.setUnit => 'unit',
+      MessageType.setLock => 'lock',
+      MessageType.setExam => 'exam',
+      MessageType.setMonitor => 'monitor',
+      _ => throw ArgumentError.value(type, 'type', 'não é comando de estado'),
+    };
 
 class FirebaseTransport {
   FirebaseTransport({
@@ -66,6 +83,50 @@ class FirebaseTransport {
   /// aberto). Injetado pelo controller.
   void Function()? onAcessoNegado;
 
+  /// Ack decifrado e aceito pelo guard (de qualquer remetente: o controller
+  /// só se importa com os ids que emitiu). Injetado pelo controller.
+  void Function(String deviceId, Ack ack)? onAck;
+
+  /// Destino do up/ de um PC (reserva de aula). Sem isto: mostra e notifica.
+  DestinoUp Function(String deviceId)? destinoDoUp;
+
+  /// Item novo do up/, decifrado, validado e deduplicado. [ms] = hora do
+  /// servidor tirada do push id.
+  void Function(String deviceId, UpMessage msg, int ms, DestinoUp destino)? onUp;
+
+  /// O item [mid] saiu do up/ (outro aparelho agiu, o PC podou).
+  void Function(String deviceId, String mid)? onUpRemovido;
+
+  /// O PC passou do limite de mensagens e ficou silenciado por 10 min.
+  void Function(String deviceId)? onUpSilenciado;
+
+  /// state/lock ou state/exam mudou (já decifrado em PcSession.trava/.prova).
+  void Function(String deviceId)? onEstadoTurma;
+
+  /// Ids de comando emitidos por ESTE processo: só os acks deles são apagados.
+  final IdsEmitidos idsEmitidos = IdsEmitidos();
+
+  /// Teto, silêncio, idade e dedup do up/.
+  final UpRouter upRouter = UpRouter();
+
+  // Itens do up/ de PC reservado por outro: guardados sem ler (só os 20 mais
+  // novos, como em Recados), para o caso de o PC ficar livre (ou meu) depois.
+  final Map<String, SplayTreeMap<String, String>> _upIgnorados = {};
+
+  // Processamento em série por PC e canal: o guard (sid,seq) exige ordem, e
+  // decifrar é assíncrono.
+  final Map<String, Future<void>> _filas = {};
+  Future<void> _emSerie(String chave, Future<void> Function() tarefa) {
+    final anterior = _filas[chave] ?? Future<void>.value();
+    final proxima = anterior.then((_) => tarefa()).catchError((Object e) {
+      debugPrint('[CdA] $chave: $e');
+    });
+    _filas[chave] = proxima;
+    return proxima;
+  }
+
+  final Map<String, StreamSubscription<DatabaseEvent>> _thumbSubs = {};
+
   // Época de sessão (anti-replay): amostrada 1x por vida do processo.
   // Multi-remetente (workspace): sid NOVO por mensagem, no relógio do
   // SERVIDOR — o guard do PC aceita sid crescente, e o relógio do servidor é
@@ -96,6 +157,11 @@ class FirebaseTransport {
   /// Agora na base de tempo do SERVIDOR (p/ comparar com presence.lastSeen).
   DateTime nowServer() => _relogio.agora();
 
+  /// O SDK está falando com o servidor (.info/connected)? Sem conexão, uma
+  /// escrita fica na fila do SDK e o `await` não volta: as ações novas
+  /// avisam "Sem conexão…" em vez de esperar para sempre.
+  bool conectado = false;
+
   /// Conclui quando [nowServer] já usa o offset real do servidor.
   Future<void> get relogioPronto => _relogio.pronto;
 
@@ -106,10 +172,10 @@ class FirebaseTransport {
         .ref('.info/serverTimeOffset')
         .onValue
         .listen((e) => _relogio.aoReceberOffset(e.snapshot.value));
-    _conexaoSub = _db
-        .ref('.info/connected')
-        .onValue
-        .listen((e) => _relogio.aoMudarConexao(e.snapshot.value));
+    _conexaoSub = _db.ref('.info/connected').onValue.listen((e) {
+      conectado = e.snapshot.value == true;
+      _relogio.aoMudarConexao(e.snapshot.value);
+    });
     // Roster: sincroniza o conjunto de PCs pareados (da escola, no workspace).
     _rosterSub = _db.ref(_rosterPath).onValue.listen(
       (e) {
@@ -146,6 +212,9 @@ class FirebaseTransport {
     await _rosterSub?.cancel();
     for (final id in _deviceSubs.keys.toList()) {
       _detach(id);
+    }
+    for (final id in _thumbSubs.keys.toList()) {
+      cancelarThumb(id);
     }
   }
 
@@ -241,7 +310,25 @@ class FirebaseTransport {
       }),
       _dev(deviceId).child('ack').onChildAdded.listen((e) {
         final env = e.snapshot.value;
-        if (env is String) _onAck(deviceId, e.snapshot.key!, env);
+        final key = e.snapshot.key!;
+        if (env is String) _emSerie('$deviceId|ack', () => _onAck(deviceId, key, env));
+      }),
+      _dev(deviceId).child('up').onChildAdded.listen((e) {
+        final env = e.snapshot.value;
+        final key = e.snapshot.key!;
+        _emSerie('$deviceId|up', () => _onUp(deviceId, key, env));
+      }),
+      _dev(deviceId).child('up').onChildRemoved.listen((e) {
+        final key = e.snapshot.key!;
+        _emSerie('$deviceId|up', () async => _onUpRemovido(deviceId, key));
+      }),
+      _dev(deviceId).child('state/lock').onValue.listen((e) {
+        final v = e.snapshot.value;
+        _emSerie('$deviceId|lock', () => _onEstado(deviceId, 'lock', v));
+      }),
+      _dev(deviceId).child('state/exam').onValue.listen((e) {
+        final v = e.snapshot.value;
+        _emSerie('$deviceId|exam', () => _onEstado(deviceId, 'exam', v));
       }),
       _dev(deviceId).child('bind').onValue.listen((e) {
         // Bind sumiu = aluno desvinculou pelo popup: limpa roster e sessão.
@@ -285,6 +372,9 @@ class FirebaseTransport {
       }
     }
     _primeiroReport.remove(deviceId);
+    cancelarThumb(deviceId);
+    upRouter.limparPc(deviceId);
+    _upIgnorados.remove(deviceId);
     if (removerSessao) registry.remove(deviceId);
   }
 
@@ -343,11 +433,16 @@ class FirebaseTransport {
     }
   }
 
+  // Cliente novo só apaga ack de id que ELE emitiu: os de outro professor (ou
+  // de antes de reiniciar o app) ficam para quem os emitiu, e o PC poda o
+  // resto (≤ 20). O PC também repete os últimos acks em `aplicado.acks`.
   Future<void> _onAck(String deviceId, String pushId, String env) async {
     final s = registry.byId(deviceId);
     if (s == null) return;
+    Ack? ack;
     try {
       final msg = await s.crypto.open(env);
+      ack = Ack.fromMap(msg);
       final agora = DateTime.now().millisecondsSinceEpoch;
       final ok = s.ackGuard.accept(
         sid: (msg['sid'] as num?)?.toInt() ?? 0,
@@ -355,17 +450,189 @@ class FirebaseTransport {
         ts: (msg['ts'] as num?)?.toInt() ?? agora,
         nowMs: agora,
       );
-      if (ok) {
-        final ack = Ack.fromMap(msg);
-        if (ack != null && !ack.ok) {
+      if (ok && ack != null) {
+        if (!ack.ok) {
           debugPrint('[CdA] ack com erro de $deviceId: ${ack.error} (${ack.id})');
         }
+        onAck?.call(deviceId, ack);
       }
     } catch (_) {
-      // ilegível — só consome
+      return; // ilegível (outra chave): não sabemos de quem é — o PC poda
     }
-    await _dev(deviceId).child('ack/$pushId').remove().catchError((_) {});
+    if (ack != null && idsEmitidos.contem(ack.id)) {
+      await _dev(deviceId).child('ack/$pushId').remove().catchError((_) {});
+    }
   }
+
+  // ---- Canal up/ (aluno -> professor) ---------------------------------------
+  // Ordem (SPEC-turma §2.7): destino pela reserva de aula (ignorar = nem
+  // decifra, nem apaga) → idade/teto/silêncio → decifra + upGuard → valida
+  // caps e site → dedup por (deviceId, mid) → controller.
+
+  DestinoUp _destino(String deviceId) =>
+      destinoDoUp?.call(deviceId) ?? DestinoUp.mostrarENotificar;
+
+  Future<void> _onUp(String deviceId, String key, Object? env) async {
+    final destino = _destino(deviceId);
+    if (destino == DestinoUp.ignorar) {
+      if (env is String) _guardarIgnorado(deviceId, key, env);
+      return;
+    }
+    // O que ficou guardado enquanto o PC era de outro professor vem ANTES
+    // deste item: o upGuard (sid,seq) exige a ordem de chegada (a reserva
+    // pode vencer pelo relógio, sem nenhum evento em /school/aulas).
+    await _drenarIgnorados(deviceId, destino);
+    await _lerUp(deviceId, key, env, destino);
+  }
+
+  void _guardarIgnorado(String deviceId, String key, String env) {
+    final itens = _upIgnorados[deviceId] ??= SplayTreeMap<String, String>();
+    itens[key] = env;
+    while (itens.length > kUpMaxEntradas) {
+      itens.remove(itens.firstKey());
+    }
+  }
+
+  Future<void> _drenarIgnorados(String deviceId, DestinoUp destino) async {
+    final itens = _upIgnorados.remove(deviceId);
+    if (itens == null) return;
+    for (final e in itens.entries) {
+      await _lerUp(deviceId, e.key, e.value, destino);
+    }
+  }
+
+  Future<void> _lerUp(String deviceId, String key, Object? env, DestinoUp destino) async {
+    final agora = nowServer().millisecondsSinceEpoch;
+    final chegada = upRouter.aoChegar(deviceId, key, agora);
+    for (final velha in chegada.apagar) {
+      unawaited(apagarUp(deviceId, velha).catchError((_) {}));
+    }
+    if (chegada.silenciou) onUpSilenciado?.call(deviceId);
+    if (!chegada.ler || env is! String) return;
+    if (env.length >= kUpMaxEnvelope) return; // as rules já barram; defensivo
+    final s = registry.byId(deviceId);
+    if (s == null) return;
+    final Map<String, dynamic> msg;
+    try {
+      msg = await s.crypto.open(env);
+    } catch (_) {
+      return; // outra chave (re-pareamento): o PC poda em 2 h
+    }
+    final up = UpMessage.fromMap(msg);
+    if (up == null) return; // fora do protocolo: descarta calado
+    final ok = s.upGuard.accept(sid: up.sid, seq: up.seq, ts: up.ts, nowMs: agora);
+    if (!ok) return;
+    if (!upRouter.aoLer(deviceId, key, up)) return; // repetido (mesmo mid)
+    onUp?.call(deviceId, up, pushIdMs(key) ?? agora, destino);
+  }
+
+  void _onUpRemovido(String deviceId, String key) {
+    _upIgnorados[deviceId]?.remove(key);
+    final mid = upRouter.aoRemover(deviceId, key);
+    if (mid != null) onUpRemovido?.call(deviceId, mid);
+  }
+
+  /// A reserva de aula mudou (ou pode ter vencido): itens guardados de PC que
+  /// deixou de ser de outro professor passam pelo caminho normal, na fila do
+  /// PC (depois do que já estava na fila, na ordem do push id).
+  void reavaliarUpIgnorados() {
+    for (final deviceId in _upIgnorados.keys.toList()) {
+      _emSerie('$deviceId|up', () async {
+        final destino = _destino(deviceId);
+        if (destino == DestinoUp.ignorar) return;
+        await _drenarIgnorados(deviceId, destino);
+      });
+    }
+  }
+
+  /// Apaga um item do up/ (só filhos: as rules não deixam o professor apagar
+  /// o nó inteiro). Lança em erro (o controller mostra o texto de §1.3).
+  Future<void> apagarUp(String deviceId, String key) =>
+      _dev(deviceId).child('up/$key').remove();
+
+  /// Apaga todas as chaves do item [mid] (o pedido/mão que o professor
+  /// resolveu, com as repetições).
+  Future<void> apagarUpDoMid(String deviceId, String mid) async {
+    final chaves = upRouter.chavesDe(deviceId, mid);
+    if (chaves.isEmpty) return;
+    await _dev(deviceId).child('up').update({for (final k in chaves) k: null});
+  }
+
+  /// "Encerrar aula": apaga todo o up/ de um PC, filho a filho.
+  Future<void> apagarTodoUp(String deviceId) async {
+    final snap = await _dev(deviceId).child('up').get();
+    final chaves = [for (final c in snap.children) if (c.key != null) c.key!];
+    if (chaves.isEmpty) return;
+    await _dev(deviceId).child('up').update({for (final k in chaves) k: null});
+  }
+
+  // ---- state/lock e state/exam (o que o PC deve aplicar) ----------------------
+
+  Future<void> _onEstado(String deviceId, String no, Object? v) async {
+    final s = registry.byId(deviceId);
+    if (s == null) return;
+    Map<String, dynamic>? cmd;
+    if (v is String) {
+      try {
+        cmd = await s.crypto.open(v);
+      } catch (_) {
+        cmd = null; // chave nova (app reinstalado): o PC destrava pelo prazo
+      }
+    }
+    if (no == 'lock') {
+      s.trava = cmd == null ? null : EstadoTrava.fromCommand(cmd);
+    } else {
+      s.prova = cmd == null ? null : EstadoProva.fromCommand(cmd);
+    }
+    onEstadoTurma?.call(deviceId);
+    registry.onChange?.call();
+  }
+
+  // ---- Miniaturas da grade (/thumbs/{id}, fora de /devices) -------------------
+
+  /// Assina a miniatura do PC (só enquanto a grade está aberta).
+  void assinarThumb(String deviceId) {
+    if (_thumbSubs.containsKey(deviceId)) return;
+    _thumbSubs[deviceId] = _db.ref('thumbs/$deviceId').onValue.listen(
+      (e) {
+        final v = e.snapshot.value;
+        _emSerie('$deviceId|thumb', () => _onThumb(deviceId, v));
+      },
+      onError: (Object e) => debugPrint('[CdA] thumbs/$deviceId: $e'),
+    );
+  }
+
+  void cancelarThumb(String deviceId) {
+    _thumbSubs.remove(deviceId)?.cancel();
+    registry.byId(deviceId)?.thumb = null;
+  }
+
+  Future<void> _onThumb(String deviceId, Object? v) async {
+    final s = registry.byId(deviceId);
+    if (s == null || !_thumbSubs.containsKey(deviceId)) return;
+    Miniatura? m;
+    if (v is Map) {
+      final env = v['env'];
+      final ts = v['ts'];
+      if (env is String && env.length < kThumbCapLido && ts is num) {
+        try {
+          m = Miniatura.fromMap(await s.crypto.open(env), ts: ts.toInt());
+        } catch (_) {
+          m = null;
+        }
+      }
+    }
+    s.thumb = m;
+    registry.onChange?.call();
+  }
+
+  /// Apaga a miniatura do PC (ao fechar a grade). Lança em erro.
+  Future<void> apagarThumb(String deviceId) =>
+      _db.ref('thumbs/$deviceId').remove();
+
+  /// Apaga state/monitor (o PC para de capturar na hora). Lança em erro.
+  Future<void> apagarMonitor(String deviceId) =>
+      _dev(deviceId).child('state/monitor').remove();
 
   // ---- Saída (comandos) -----------------------------------------------------------
 
@@ -379,11 +646,15 @@ class FirebaseTransport {
   }
 
   /// Enfileira um comando one-shot (open_url, close_tabs) para um PC.
-  Future<void> sendCommand(String deviceId, Map<String, dynamic> cmd) async {
+  /// Devolve o id do comando (o do ack), ou null se o PC não está na sessão.
+  Future<String?> sendCommand(String deviceId, Map<String, dynamic> cmd) async {
     final s = registry.byId(deviceId);
-    if (s == null) return;
+    if (s == null) return null;
+    final id = cmd['id'];
+    if (id is String) idsEmitidos.registrar(id);
     final env = await _sealFor(s, cmd);
     await _dev(deviceId).child('cmd').push().set(env);
+    return id is String ? id : null;
   }
 
   /// Turma toda (envelopes diferem: cada sessão tem sua chave).
@@ -395,16 +666,12 @@ class FirebaseTransport {
     }
   }
 
-  /// Comando de estado: sobrescreve state/rules|wallpaper|classview.
+  /// Comando de estado: sobrescreve state/rules|wallpaper|classview|unit|
+  /// lock|exam|monitor. Tipo que não é de estado lança [ArgumentError].
   Future<void> setStateOne(String deviceId, Map<String, dynamic> cmd) async {
+    final kind = noDeEstado(cmd['type']);
     final s = registry.byId(deviceId);
     if (s == null) return;
-    final kind = switch (cmd['type']) {
-      MessageType.setWallpaper => 'wallpaper',
-      MessageType.setClassView => 'classview',
-      MessageType.setUnit => 'unit',
-      _ => 'rules',
-    };
     final env = await _sealFor(s, cmd);
     await _dev(deviceId).child('state/$kind').set(env);
   }
@@ -428,8 +695,9 @@ class FirebaseTransport {
   /// Página inicial dos alunos: única escrita em claro do app. Não é comando de
   /// PC — é a configuração da escola, que a página escolacelita.com/home lê sem
   /// login. As regras só aceitam esta escrita da conta Google da escola.
+  /// `update` (não `set`): preserva chaves que outros clientes gravem no nó.
   Future<void> publicarPaginaInicial(Map<String, dynamic> config) async {
-    await _db.ref('home/escola').set({
+    await _db.ref('home/escola').update({
       'rev': DateTime.now().millisecondsSinceEpoch,
       'cfg': jsonEncode(config),
     });

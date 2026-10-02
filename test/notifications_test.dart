@@ -39,6 +39,37 @@ void main() {
       expect(t.ts, 1767369600000);
     });
 
+    test('payload antigo {d, ts} continua valendo (k nulo = alerta de site)', () {
+      final t = NotificationService.lerPayload('{"d":"pc-9","ts":1767369600000}')!;
+      expect(t.deviceId, 'pc-9');
+      expect(t.ts, 1767369600000);
+      expect(t.k, isNull);
+    });
+
+    test('recado leva k (chat, pedido, mao) e volta igual', () {
+      for (final k in ['chat', 'pedido', 'mao']) {
+        final p = NotificationService.montarPayload('pc-1', 5, k: k);
+        expect(p, '{"d":"pc-1","ts":5,"k":"$k"}');
+        expect(NotificationService.lerPayload(p)!.k, k);
+      }
+      // k estranho não derruba o toque: vira o de alerta (abre o PC).
+      final estranho = NotificationService.lerPayload('{"d":"pc","ts":1,"k":"x"}')!;
+      expect(estranho.k, isNull);
+      expect(estranho.deviceId, 'pc');
+    });
+
+    test('notificarRecado aceita só os três tipos', () async {
+      final svc = NotificationService();
+      expect(
+        await svc.notificarRecado(k: 'chat', deviceId: 'pc', ts: 1, titulo: 'Ana', corpo: 'oi'),
+        isTrue,
+      );
+      expect(
+        await svc.notificarRecado(k: 'alerta', deviceId: 'pc', ts: 1, titulo: 'x', corpo: 'y'),
+        isFalse,
+      );
+    });
+
     test('payload ausente ou estranho vira null', () {
       expect(NotificationService.lerPayload(null), isNull);
       expect(NotificationService.lerPayload(''), isNull);

@@ -24,6 +24,9 @@ const Map<String, String> kStoresCompartilhados = {
   'rules': 'domain_rules.json',
   'units': 'unit_numbers.json',
   'names': 'device_names.json',
+  // Sites permitidos no modo prova (store próprio: clientes antigos não o
+  // conhecem, então não o apagam ao regravar as regras).
+  'prova': 'sites_prova.json',
 };
 
 class SchoolSync {

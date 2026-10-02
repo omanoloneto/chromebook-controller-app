@@ -5,6 +5,7 @@
 
 import '../commands/command.dart';
 import '../secure/crypto.dart';
+import 'conversa.dart';
 import 'replay_guard.dart';
 
 /// Máximo de eventos de navegação guardados por PC (em memória).
@@ -38,6 +39,35 @@ class PcSession {
   // Anti-replay dos canais de entrada (PC -> professor).
   final ReplayGuard reportGuard = ReplayGuard();
   final ReplayGuard ackGuard = ReplayGuard();
+
+  /// Canal up/ (aluno -> professor): 12 h no passado, 120 s no futuro.
+  final ReplayGuard upGuard =
+      ReplayGuard(maxAgeMs: kUpJanelaPassado.inMilliseconds);
+
+  // ---- Recursos de turma (só em memória; somem ao fechar o app) ----
+
+  /// Conversa com o aluno deste PC (≤ 200 itens, em ordem de hora).
+  final List<ChatItem> chat = [];
+
+  /// Mensagens do aluno ainda não vistas (zera ao abrir a conversa).
+  int naoLidas = 0;
+
+  /// Pedidos de liberação pendentes (um por site).
+  final List<PedidoLiberacao> pedidos = [];
+
+  /// Mão levantada: hora (ms do servidor) e os mids no up/; null = baixada.
+  int? maoEm;
+  final Set<String> maoMids = {};
+
+  /// Último state/lock e state/exam decifrados (o que o PC deve aplicar).
+  EstadoTrava? trava;
+  EstadoProva? prova;
+
+  /// Confirmação positiva do último relatório (null = cliente antigo).
+  Aplicado? aplicado;
+
+  /// Última miniatura da grade (só enquanto a grade está aberta).
+  Miniatura? thumb;
 
   // Monitoramento (último relatório de abas recebido).
   List<TabInfo> tabs = [];
@@ -87,6 +117,10 @@ class SessionRegistry {
   /// PC. Injetado pelo controller (notificações de alerta/bloqueio).
   void Function(String deviceId, List<NavEvent> novos)? onNovosEventos;
 
+  /// Relatório com `aplicado` (confirmação positiva). Injetado pelo
+  /// controller (faixa de entrega, balões do chat).
+  void Function(String deviceId, Aplicado aplicado)? onAplicado;
+
   PcSession? byId(String deviceId) => _byId[deviceId];
 
   List<PcSession> get all => _byId.values.toList();
@@ -114,6 +148,14 @@ class SessionRegistry {
       s.lastSeen = old.lastSeen;
       s.versaoExt = old.versaoExt;
       s.versaoOs = old.versaoOs;
+      s.chat.addAll(old.chat);
+      s.naoLidas = old.naoLidas;
+      s.pedidos.addAll(old.pedidos);
+      s.maoEm = old.maoEm;
+      s.maoMids.addAll(old.maoMids);
+      s.trava = old.trava;
+      s.prova = old.prova;
+      s.aplicado = old.aplicado;
     }
     _byId[deviceId] = s;
     onChange?.call();
@@ -146,6 +188,11 @@ class SessionRegistry {
     s.usuario = r.user;
     s.iasLiberadas = r.iasLiberadas;
     s.lastReportAt = reportAt ?? DateTime.now();
+    final aplicado = r.aplicado;
+    if (aplicado != null) {
+      s.aplicado = aplicado;
+      onAplicado?.call(deviceId, aplicado);
+    }
     // PC do professor: sem histórico/alerta/notificações (abas ficam — servem
     // p/ confirmar visualmente um open_url no telão).
     if (deviceId == pcProfessorId) {

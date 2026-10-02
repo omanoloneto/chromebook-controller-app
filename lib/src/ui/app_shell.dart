@@ -24,6 +24,20 @@ class AppShell extends StatefulWidget {
 class _AppShellState extends State<AppShell> {
   int _index = 0;
 
+  // "Editar sites" do modo prova: abre a aba Sites já na lista da prova.
+  final ValueNotifier<int?> _abaDosSites = ValueNotifier<int?>(null);
+
+  @override
+  void dispose() {
+    _abaDosSites.dispose();
+    super.dispose();
+  }
+
+  void _irParaSitesDaProva() {
+    _abaDosSites.value = kAbaProva;
+    setState(() => _index = 2);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -87,10 +101,12 @@ class _AppShellState extends State<AppShell> {
         children: [
           AulaPage(
             pairing: widget.pairing,
+            visivel: _index == 0,
             onIrParaSites: () => setState(() => _index = 2),
+            onIrParaSitesDaProva: _irParaSitesDaProva,
           ),
           StudentsPage(pairing: widget.pairing),
-          SitesPage(pairing: widget.pairing),
+          SitesPage(pairing: widget.pairing, abaPedida: _abaDosSites),
           SettingsPage(pairing: widget.pairing, settings: widget.settings),
         ],
       ),
