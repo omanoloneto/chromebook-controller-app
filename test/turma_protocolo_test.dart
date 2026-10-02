@@ -87,6 +87,19 @@ void main() {
       expect(((muitos['payload'] as Map)['allow'] as List).length, 1000);
     });
 
+    test('set_exam nunca libera sufixo público nem domínio de topo inteiro', () {
+      final e = buildSetExam(
+        rev: 1,
+        on: true,
+        allow: ['com.br', 'https://gov.br/', 'co', 'org/x', 'wikipedia.org', 'pt.khanacademy.org/math'],
+        ate: 2,
+      );
+      expect((e['payload'] as Map)['allow'], [
+        {'pattern': 'wikipedia.org'},
+        {'pattern': 'pt.khanacademy.org/math'},
+      ]);
+    });
+
     test('set_monitor e close_all_tabs com fimDeAula', () {
       expect(buildSetMonitor(rev: 1, ate: 2)['payload'], {'rev': 1, 'ate': 2});
       expect(buildCloseAllTabs(closeWindows: true, fimDeAula: true)['payload'], {'closeWindows': true, 'fimDeAula': true});

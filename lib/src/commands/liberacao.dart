@@ -35,6 +35,16 @@ bool siteValido(String? site) {
   return !kSufixosPublicos.contains(site);
 }
 
+/// Padrão largo demais para LIBERAR na prova: o host (antes da `/`) não tem
+/// ponto (casaria um domínio de topo inteiro, ex.: `co`) ou é sufixo público
+/// (`com.br` liberaria todo site .com.br). Um erro de digitação desses abriria
+/// meia internet durante a prova, então a lista da prova o recusa.
+bool padraoAmploDemais(String pattern) {
+  final barra = pattern.indexOf('/');
+  final host = barra == -1 ? pattern : pattern.substring(0, barra);
+  return host.isEmpty || !host.contains('.') || kSufixosPublicos.contains(host);
+}
+
 /// O `url` do pedido é mesmo do `site` (igual ou subdomínio)? Sem isto um PC
 /// adulterado poderia mostrar um site ao professor e liberar outro.
 bool urlDoSite(String url, String site) {

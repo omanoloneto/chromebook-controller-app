@@ -84,6 +84,15 @@ void main() {
       expect(p.padroes, ['wikipedia.org', 'geogebra.org']);
     });
 
+    test('recusa sufixo público (liberaria meia internet na prova)', () async {
+      final p = await ProvaStore.load(dir: tmp);
+      expect(await p.adicionar('com.br'), isFalse);
+      expect(await p.adicionar('https://edu.br/'), isFalse);
+      expect(await p.adicionar('br'), isFalse);
+      expect(await p.adicionarEmLote('gov.br, escola.edu.br co'), 1);
+      expect(p.padroes, ['escola.edu.br']);
+    });
+
     test('arquivo corrompido vira lista vazia', () async {
       await File('${tmp.path}/${ProvaStore.fileName}').writeAsString('{nao é json');
       final p = await ProvaStore.load(dir: tmp);

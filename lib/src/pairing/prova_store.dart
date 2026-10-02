@@ -10,6 +10,7 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 import '../commands/domain_rules.dart';
+import '../commands/liberacao.dart';
 
 class ProvaStore {
   ProvaStore._(this._file, this._padroes, this._rev);
@@ -52,13 +53,12 @@ class ProvaStore {
   List<String> get padroes => List.unmodifiable(_padroes);
   int get rev => _rev;
 
-  /// Acrescenta um padrão (normalizado como as regras). false = vazio,
-  /// repetido ou lista cheia.
+  /// Acrescenta um padrão (normalizado como as regras). false = vazio, largo
+  /// demais (sufixo público: liberaria meia internet), repetido ou lista
+  /// cheia.
   Future<bool> adicionar(String pattern) async {
     final p = normalizarPadrao(pattern);
-    if (p.isEmpty || _padroes.contains(p) || _padroes.length >= kMaxRules) {
-      return false;
-    }
+    if (!_aceita(p)) return false;
     _padroes.add(p);
     await _save();
     return true;
@@ -70,15 +70,19 @@ class ProvaStore {
     var n = 0;
     for (final parte in texto.split(RegExp(r'[\s,;]+'))) {
       final p = normalizarPadrao(parte);
-      if (p.isEmpty || _padroes.contains(p) || _padroes.length >= kMaxRules) {
-        continue;
-      }
+      if (!_aceita(p)) continue;
       _padroes.add(p);
       n++;
     }
     if (n > 0) await _save();
     return n;
   }
+
+  bool _aceita(String p) =>
+      p.isNotEmpty &&
+      !padraoAmploDemais(p) &&
+      !_padroes.contains(p) &&
+      _padroes.length < kMaxRules;
 
   Future<void> removerEm(int indice) async {
     if (indice < 0 || indice >= _padroes.length) return;

@@ -210,7 +210,7 @@ Map<String, dynamic> buildSetLock({
 
 /// Monta o comando de estado `set_exam` (modo prova) para `state/exam`.
 /// [allow] = padrões permitidos (normalizados como as regras, sem repetição,
-/// ≤ 1000); [inicio] = página inicial da escola (só http/https ≤ 2048).
+/// sem sufixo público, ≤ 1000); [inicio] = página inicial da escola (só http/https ≤ 2048).
 Map<String, dynamic> buildSetExam({
   required int rev,
   required bool on,
@@ -221,7 +221,8 @@ Map<String, dynamic> buildSetExam({
   final padroes = <String>[];
   for (final p in allow) {
     final n = normalizarPadrao(p);
-    if (n.isEmpty || padroes.contains(n)) continue;
+    // Sufixo público/domínio de topo liberaria meia internet na prova.
+    if (n.isEmpty || padraoAmploDemais(n) || padroes.contains(n)) continue;
     padroes.add(n);
     if (padroes.length >= kMaxRules) break;
   }
