@@ -1974,6 +1974,12 @@ class PairingController extends ChangeNotifier {
     );
   }
 
+  /// O aluno do PC está com a mão levantada (há menos de 10 min)?
+  bool maoLevantada(String deviceId) {
+    final s = pcPorId(deviceId);
+    return s != null && _maoVisivel(s, agoraServidorMs());
+  }
+
   bool _maoVisivel(PcSession s, int agoraMs) {
     final em = s.maoEm;
     return em != null && agoraMs - em < kMaoVisivel.inMilliseconds;
