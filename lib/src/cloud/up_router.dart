@@ -109,7 +109,8 @@ class UpRouter {
     while (chaves.length > maxPendentes) {
       final velha = chaves.first;
       chaves.remove(velha);
-      _esquecerChave(deviceId, velha);
+      // O mid continua ligado à chave até o `onChildRemoved` dela: é ele que
+      // tira de Recados o pedido/mão que já tinha sido lido.
       apagar.add(velha);
     }
     final ler = chaves.contains(key);

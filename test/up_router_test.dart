@@ -87,6 +87,23 @@ void main() {
     expect(r.aoChegar('pc2', chaves[0], agora).apagar, isEmpty);
   });
 
+  test('item lido e depois cortado pelo teto sai de Recados quando some do banco', () {
+    final r = UpRouter();
+    final chaves = [
+      for (var i = 0; i < 21; i++) _push(agora - 60000 + i * 1000),
+    ];
+    r.aoChegar('pc1', chaves[0], agora);
+    r.aoLer('pc1', chaves[0], _msg('pedido-velho', type: UpType.raiseHand));
+    final apagadas = <String>[];
+    for (final k in chaves.skip(1)) {
+      apagadas.addAll(r.aoChegar('pc1', k, agora).apagar);
+    }
+    expect(apagadas, [chaves[0]]);
+    // O delete do professor dispara o onChildRemoved: o mid volta para o
+    // controller tirar o item da tela.
+    expect(r.aoRemover('pc1', chaves[0]), 'pedido-velho');
+  });
+
   test('mais de 20 itens novos em 10 min silenciam o PC por 10 min', () {
     final r = UpRouter();
     var silenciou = 0;
