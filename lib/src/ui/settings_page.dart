@@ -191,7 +191,8 @@ class _SettingsPageState extends State<SettingsPage> {
       }
     } else if (r.startsWith('erro:') &&
         !r.toLowerCase().contains('cancel')) {
-      _snack('Não deu para entrar: ${r.substring(5)}');
+      debugPrint('[CdA] entrar com Google: ${r.substring(5)}');
+      _snack('Não foi possível entrar com o Google. Tente de novo.');
     }
     if (mounted) setState(() {});
   }

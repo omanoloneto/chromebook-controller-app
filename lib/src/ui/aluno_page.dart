@@ -122,10 +122,11 @@ class _AlunoPageState extends State<AlunoPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snap.hasError) {
-            return Center(
+            debugPrint('[CdA] aulas do aluno: ${snap.error}');
+            return const Center(
               child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text('Não foi possível carregar: ${snap.error}'),
+                padding: EdgeInsets.all(24),
+                child: Text('Não foi possível carregar agora. Tente de novo.'),
               ),
             );
           }

@@ -404,9 +404,9 @@ class PairingController extends ChangeNotifier {
       erroDeConexao = null;
     } catch (e) {
       // Só erros de config/auth chegam aqui; queda de rede transitória o
-      // FlutterFire reconecta sozinho.
-      erroDeConexao = 'Não foi possível conectar ao Firebase: $e\n'
-          'Verifique a internet do celular.';
+      // FlutterFire reconecta sozinho. O erro cru fica só no log.
+      debugPrint('[CdA] start falhou: $e');
+      erroDeConexao = 'Sem conexão com a internet. Tente de novo.';
     } finally {
       iniciando = false;
       notifyListeners();
@@ -502,7 +502,8 @@ class PairingController extends ChangeNotifier {
       await LoginHandoff.entregar(qr, payload);
       return null;
     } catch (e) {
-      return 'Falha ao entregar o login: $e';
+      debugPrint('[CdA] entregar login: $e');
+      return 'Não foi possível entrar no computador agora. Tente de novo.';
     }
   }
 
@@ -545,7 +546,8 @@ class PairingController extends ChangeNotifier {
     } on PinIncorretoException {
       return 'PIN incorreto.';
     } catch (e) {
-      return 'Falha ao restaurar: $e';
+      debugPrint('[CdA] restaurar backup: $e');
+      return 'Não foi possível restaurar o backup. Confira o PIN e tente de novo.';
     }
   }
 
@@ -628,7 +630,8 @@ class PairingController extends ChangeNotifier {
       await _schoolSync?.pushTodos();
       return null;
     } catch (e) {
-      return 'Falha ao criar o workspace: $e';
+      debugPrint('[CdA] criar escola: $e');
+      return 'Não foi possível acessar a escola agora. Tente de novo.';
     }
   }
 
@@ -639,10 +642,13 @@ class PairingController extends ChangeNotifier {
     try {
       if (!logadoComGoogle) {
         final r = await entrarComGoogle();
-        if (r.startsWith('erro:')) return 'Login falhou: ${r.substring(5)}';
+        if (r.startsWith('erro:')) {
+          debugPrint('[CdA] login Google: ${r.substring(5)}');
+          return 'Não foi possível entrar com o Google. Tente de novo.';
+        }
       }
       final user = _usuarioAtual;
-      if (user == null) return 'Login falhou.';
+      if (user == null) return 'Não foi possível entrar com o Google. Tente de novo.';
       await user.getIdToken(true);
       const semEscola =
           'A escola ainda não foi criada — peça ao professor fundador.';
@@ -663,7 +669,8 @@ class PairingController extends ChangeNotifier {
       await _reiniciarTransporte();
       return null;
     } catch (e) {
-      return 'Falha ao entrar no workspace: $e';
+      debugPrint('[CdA] entrar na escola: $e');
+      return 'Não foi possível acessar a escola agora. Tente de novo.';
     }
   }
 
@@ -1032,9 +1039,11 @@ class PairingController extends ChangeNotifier {
         return 'QR expirado ou PC vinculado a outro professor — '
             'gere um QR novo no popup da extensão.';
       }
-      return 'Falha ao parear: ${e.message ?? e.code}';
+      debugPrint('[CdA] parear: ${e.code} ${e.message}');
+      return 'Não foi possível conectar este computador. Tente de novo.';
     } catch (e) {
-      return 'Falha ao parear: $e';
+      debugPrint('[CdA] parear: $e');
+      return 'Não foi possível conectar este computador. Tente de novo.';
     }
   }
 
