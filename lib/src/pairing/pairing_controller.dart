@@ -1752,14 +1752,16 @@ class PairingController extends ChangeNotifier {
     _novaEntrega(e, umPc: umPc && envios.length == 1 ? envios.keys.first : null);
     notifyListeners();
     // Sem rede o SDK guarda as escritas (na ordem) e manda ao reconectar: não
-    // prende quem chamou além de 15 s.
-    await Future.wait([
+    // prende quem chamou (nem além de 15 s com rede lenta).
+    final escritas = Future.wait([
       for (final x in envios.entries)
         transport.sendCommand(x.key, x.value).catchError((Object err) {
           debugPrint('[CdA] envio para ${x.key} falhou: $err');
           return null;
         }),
-    ]).timeout(const Duration(seconds: 15), onTimeout: () => const []);
+    ]);
+    if (!transport.conectado) return;
+    await escritas.timeout(const Duration(seconds: 15), onTimeout: () => const []);
   }
 
   // Ack e `aplicado`: corrigem a faixa e os balões (ack tardio sempre corrige).
@@ -2598,8 +2600,8 @@ class PairingController extends ChangeNotifier {
     if (transport == null) return;
     final rev = _proximoRev();
     // Mesmo sem rede: o SDK guarda e manda ao reconectar (e o prazo de 20 min
-    // / 2 h destrava sozinho se nunca chegar).
-    await Future.wait([
+    // / 2 h destrava sozinho se nunca chegar). Sem rede não espera.
+    final escritas = Future.wait([
       for (final id in travados)
         transport.setStateOne(id, _setLockDesligado(id, rev)).catchError((Object e) {
           debugPrint('[CdA] encerrar: destravar $id: $e');
@@ -2608,7 +2610,10 @@ class PairingController extends ChangeNotifier {
         transport.setStateOne(id, _setExamPara(id, on: false, rev: rev)).catchError((Object e) {
           debugPrint('[CdA] encerrar: prova em $id: $e');
         }),
-    ]).timeout(const Duration(seconds: 15), onTimeout: () => const []);
+    ]);
+    if (transport.conectado) {
+      await escritas.timeout(const Duration(seconds: 15), onTimeout: () => const []);
+    }
     _entregaTrava = null;
     _entregaProva = null;
   }
@@ -2648,6 +2653,8 @@ class PairingController extends ChangeNotifier {
     for (final id in _gradePcs.difference(alvos.toSet()).toList()) {
       await _pararMonitorEm(id); // saiu da turma (ou foi reservado por outro)
     }
+    // A grade pode ter fechado durante o await: não reassina nem regrava.
+    if (_gradeTimer == null) return null;
     for (final id in alvos) {
       transport.assinarThumb(id);
       _gradePcs.add(id);
@@ -2669,13 +2676,22 @@ class PairingController extends ChangeNotifier {
     _gradePcs.remove(deviceId);
     if (transport == null) return;
     transport.cancelarThumb(deviceId);
-    for (final apagar in [transport.apagarMonitor, transport.apagarThumb]) {
-      try {
-        await apagar(deviceId).timeout(const Duration(seconds: 10));
-      } catch (e) {
-        debugPrint('[CdA] fechar grade em $deviceId: $e');
-      }
-    }
+    // PC que passou para a aula de outro professor: a grade dele é dele (o
+    // nosso state/monitor vence sozinho em ≤ 30 s).
+    if (_travadoPorOutro(deviceId)) return;
+    final escritas = [
+      for (final apagar in [transport.apagarMonitor, transport.apagarThumb])
+        apagar(deviceId).catchError((Object e) {
+          debugPrint('[CdA] fechar grade em $deviceId: $e');
+        }),
+    ];
+    // Sem rede o SDK guarda os deletes e manda ao reconectar: não prende a
+    // tela (nem o "Encerrar aula") esperando.
+    if (!transport.conectado) return;
+    await Future.wait(escritas).timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => const [],
+    );
   }
 
   /// Fecha a grade (sair da tela, app em segundo plano): para a renovação e
