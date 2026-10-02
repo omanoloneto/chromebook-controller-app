@@ -16,6 +16,8 @@ import '../cloud/archive_store.dart';
 import '../cloud/backup_store.dart';
 import '../cloud/aula_locks.dart';
 import '../cloud/broadcast_target.dart';
+import '../cloud/conversa.dart';
+import '../cloud/entrega.dart';
 import '../cloud/firebase_transport.dart';
 import '../cloud/history_store.dart';
 import '../cloud/login_handoff.dart';
@@ -24,22 +26,27 @@ import '../cloud/school_keys.dart';
 import '../cloud/school_members.dart';
 import '../cloud/school_sync.dart';
 import '../cloud/session_registry.dart';
+import '../cloud/up_router.dart';
 import '../cloud/versao_publicada.dart';
 import '../commands/class_view.dart';
 import '../commands/command.dart';
 import '../commands/domain_rules.dart';
 import '../commands/filtros.dart';
+import '../commands/liberacao.dart';
 import '../secure/history_crypto.dart';
 import '../secure/key_store.dart';
 import '../secure/school_crypto.dart';
 import '../service/foreground_service.dart';
 import '../service/notification_service.dart';
+import '../ui/textos_erro.dart';
+import '../util/ids.dart';
 import '../util/versao.dart';
 import 'class_session_store.dart';
 import 'favorites_store.dart';
 import 'home_store.dart';
 import 'name_store.dart';
 import 'prefs_store.dart';
+import 'prova_store.dart';
 import 'rules_store.dart';
 import 'students_store.dart';
 import 'unit_store.dart';
@@ -67,6 +74,7 @@ class PairingController extends ChangeNotifier {
   String? _erroPaginaInicial;
   StudentsStore? _students;
   ClassSessionStore? _session;
+  ProvaStore? _provaStore;
   Timer? _notifyTimer;
   int _ultimoOnline = -1;
 
@@ -151,20 +159,10 @@ class PairingController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Mensagem individual: abre um popup com o texto no Chrome do aluno
-  /// (ext >= 0.4.8; antiga degrada p/ notificação). Null = ok.
-  Future<String?> enviarMensagem(String deviceId, String texto) async {
-    final t = texto.trim();
-    if (t.isEmpty) return 'Escreva a mensagem.';
-    if (t.length > 500) return 'Mensagem muito longa (máx. 500 letras).';
-    final transport = _transport;
-    if (transport == null) return 'Ainda conectando — tente de novo.';
-    await transport.sendCommand(
-      deviceId,
-      buildShowMessage('Mensagem do professor', t, popup: true, de: deviceName),
-    );
-    return null;
-  }
+  /// Mensagem individual: agora é a conversa (chat). Mantido para a tela
+  /// antiga até ela trocar "Enviar mensagem" por "Conversar". Null = ok.
+  Future<String?> enviarMensagem(String deviceId, String texto) =>
+      enviarChat(deviceId, texto);
 
   /// Abre uma URL só no PC do professor (ex.: link do histórico de um aluno).
   void abrirNoPcProfessor(String url) {
@@ -275,6 +273,7 @@ class PairingController extends ChangeNotifier {
       _wallpaper = await WallpaperStore.load();
       _students = await StudentsStore.load();
       _session = await ClassSessionStore.load();
+      _provaStore = await ProvaStore.load();
 
       // Auth anônima: o uid identifica este professor nas Security Rules.
       // Persiste entre execuções; some só se o app for reinstalado (recovery:
@@ -309,8 +308,27 @@ class PairingController extends ChangeNotifier {
       transport.onAcessoNegado = _acessoNegadoNaEscola;
       transport.pcProfessorId = _pcProfessorId;
       transport.registry.pcProfessorId = _pcProfessorId;
+      // Recursos de turma: acks e `aplicado` (entrega e balões), up/ (chat,
+      // pedidos, mão) com destino pela reserva de aula.
+      transport.onAck = _aoAck;
+      transport.registry.onAplicado = _aoAplicado;
+      transport.destinoDoUp = _destinoDoUp;
+      transport.onUp = _aoUp;
+      transport.onUpRemovido = _aoUpRemovido;
+      transport.onUpSilenciado = _aoUpSilenciado;
+      // Itens do up/ com push id anterior a isto são reidratação: voltam como
+      // não lidos, sem tocar o celular. O push id está no relógio do
+      // servidor: quando o offset chegar, o corte passa para ele também.
+      final inicioLocal = DateTime.now().millisecondsSinceEpoch;
+      _upInicioMs = inicioLocal;
       await transport.start();
       _transport = transport;
+      unawaited(
+        transport.relogioPronto.then((_) {
+          final decorrido = DateTime.now().millisecondsSinceEpoch - inicioLocal;
+          _upInicioMs = transport.nowServer().millisecondsSinceEpoch - decorrido;
+        }),
+      );
 
       // Sync dos stores compartilhados (workspace): listeners nos 4 stores da
       // escola; mudanças remotas recarregam o store local correspondente.
@@ -328,16 +346,20 @@ class PairingController extends ChangeNotifier {
           crypto: _schoolSync!.crypto,
           nowServerMs: () => transport.nowServer().millisecondsSinceEpoch,
         );
-        _aulaLocks!.onChange = _scheduleNotify;
+        _aulaLocks!.onChange = () {
+          // Reserva mudou: up/ guardado de PC que ficou livre (ou meu) é lido.
+          transport.reavaliarUpIgnorados();
+          _scheduleNotify();
+        };
         _aulaLocks!.start();
-        _lockHeartbeat ??= Timer.periodic(
-          const Duration(minutes: 5),
-          (_) {
-            if (aulaAtiva) _aulaLocks?.heartbeat();
-          },
-        );
         unawaited(_podarArquivo(transport));
       }
+      // Heartbeat da reserva (escola) + renovação de "Olhos em mim" e do modo
+      // prova (os dois modos): 5 min, o mesmo timer.
+      _lockHeartbeat ??= Timer.periodic(kRenovacao, (_) {
+        if (aulaAtiva) _aulaLocks?.heartbeat();
+        unawaited(_renovarTurma());
+      });
 
       // Heartbeat da visão da turma: mantém o "atualizado há Xs" do telão
       // vivo e propaga online→offline (derivado de lastSeen, não gera evento).
@@ -570,6 +592,9 @@ class PairingController extends ChangeNotifier {
         _units = await UnitStore.load();
       case 'names':
         _names = await NameStore.load();
+      case 'prova':
+        _provaStore = await ProvaStore.load();
+        unawaited(_redistribuirProva());
     }
     notifyListeners();
   }
@@ -726,11 +751,17 @@ class PairingController extends ChangeNotifier {
   // com a chave nova; 1º pareamento sai sem — o bind.numero cobre).
   List<Map<String, dynamic>> _comandosDeEstado(String deviceId) {
     final numero = _units?.numeroDe(deviceId);
+    final naTurma = _alvoTurma().contains(deviceId);
     return [
       if (_rules != null) _setRulesPara(deviceId),
       if (numero != null) buildSetUnit(rev: _proximoRev(), numero: numero),
       // Papel de parede vigente: sem isto um PC pareado depois nunca o recebe.
       if (_wallpaper?.hash != null) buildSetWallpaper(_wallpaper!.hash!),
+      // Re-pareamento de PC da aula com trava/prova ligadas: chave nova,
+      // estado reescrito (o envelope antigo ficou ilegível para o PC).
+      if (naTurma && (_session?.trava.on ?? false)) _setLockLigado(),
+      if (naTurma && (_session?.prova.on ?? false))
+        _setExamPara(deviceId, on: true, rev: _proximoRev()),
     ];
   }
 
@@ -1061,22 +1092,19 @@ class PairingController extends ChangeNotifier {
     return locks.travaVivaDe(deviceId)?.professor ?? 'outro professor';
   }
 
-  Future<void> _enviarParaAlvo(Map<String, dynamic> cmd) async {
-    final transport = _transport;
-    if (transport == null) return;
-    for (final deviceId in _devicesAlvo()) {
-      await transport.sendCommand(deviceId, cmd);
-    }
-  }
+  /// Manda um comando (um id por PC) aos PCs alvo e acompanha a entrega na
+  /// faixa (envio novo substitui a anterior).
+  Future<void> _enviarParaAlvo(Map<String, dynamic> Function() montar) =>
+      _enviarComEntrega(_devicesAlvo(), (_) => montar());
 
   /// Abre uma URL nos PCs alvo (turma, ou só vinculados durante a aula).
   void abrirEmTodos(String url) {
-    _enviarParaAlvo(buildOpenUrl(url));
+    _enviarParaAlvo(() => buildOpenUrl(url));
   }
 
   /// Abre uma URL em um PC específico.
   void abrirEm(String deviceId, String url) {
-    _transport?.sendCommand(deviceId, buildOpenUrl(url));
+    _enviarComEntrega([deviceId], (_) => buildOpenUrl(url), umPc: true);
   }
 
   /// Fecha uma aba específica (URL exata) em um PC.
@@ -1086,7 +1114,7 @@ class PairingController extends ChangeNotifier {
 
   /// Fecha todas as abas de um domínio nos PCs alvo.
   void fecharSiteEmTodos(String domain) {
-    _enviarParaAlvo(buildCloseTabs(domain: domain));
+    _enviarParaAlvo(() => buildCloseTabs(domain: domain));
   }
 
   /// Fecha todas as abas de um domínio em um PC.
@@ -1096,7 +1124,7 @@ class PairingController extends ChangeNotifier {
 
   /// Fecha TODAS as abas dos PCs alvo (deixa 1 aba vazia em cada).
   void fecharTodasAsAbasEmTodos() {
-    _enviarParaAlvo(buildCloseAllTabs());
+    _enviarParaAlvo(buildCloseAllTabs);
   }
 
   /// Fecha TODAS as abas de um PC (deixa 1 aba vazia).
@@ -1220,6 +1248,8 @@ class PairingController extends ChangeNotifier {
       if (erro != null) return erro;
     }
     await _session?.vincular(deviceId, aluno);
+    // PC que entra na aula depois herda a trava e a prova vigentes.
+    unawaited(_herdarEstadoDaTurma(deviceId));
     notifyListeners();
     return null;
   }
@@ -1244,17 +1274,28 @@ class PairingController extends ChangeNotifier {
   }
 
   Future<void> desvincularAluno(String deviceId) async {
+    // Saiu da aula: trava e prova daquele PC são desligadas (se ligadas).
+    await _desligarEstadoNoPc(deviceId);
     await _aulaLocks?.destravar(deviceId);
     await _session?.desvincular(deviceId);
     notifyListeners();
   }
 
-  /// Encerra a aula: fecha o NAVEGADOR (todas as janelas) em todos os PCs,
-  /// limpa os vínculos aluno↔PC e derruba as liberações (o bloqueio integral
-  /// volta a valer nos PCs que tinham exceção).
+  /// Encerra a aula, nesta ordem: desliga trava e prova (todo PC com o
+  /// estado ligado, mesmo sem aluno) → fecha a grade → fecha o NAVEGADOR com
+  /// `fimDeAula` (o PC limpa chat, pedidos e contadores) → apaga o up/ do
+  /// alvo → derruba as liberações (o bloqueio integral volta) → solta as
+  /// reservas → devolve o telão.
   Future<void> encerrarAula() async {
     // Alvo calculado ANTES de encerrar (encerrar limpa os vínculos).
-    await _enviarParaAlvo(buildCloseAllTabs(closeWindows: true));
+    final alvo = _devicesAlvo();
+    await _desligarTravaEProvaDeTodos();
+    await fecharGrade();
+    await _enviarComEntrega(
+      alvo,
+      (_) => buildCloseAllTabs(closeWindows: true, fimDeAula: true),
+    );
+    await _limparRecadosDe(alvo);
     await _history?.fecharSessao();
     final comExcecao = _session?.devicesComExcecao ?? const <String>[];
     await _session?.encerrar();
@@ -1340,8 +1381,13 @@ class PairingController extends ChangeNotifier {
   bool _travadoPorOutro(String deviceId) =>
       _aulaLocks?.travadoPorOutro(deviceId) ?? false;
 
-  void _distribuirRegrasPara(String deviceId) {
-    _transport?.setStateOne(deviceId, _setRulesPara(deviceId));
+  /// Grava o set_rules do PC; devolve a escrita (o pedido de liberação
+  /// espera por ela para mandar o `rulesRev` certo).
+  Future<void> _distribuirRegrasPara(String deviceId, {void Function(int rev)? rev}) {
+    final cmd = _setRulesPara(deviceId);
+    final r = (cmd['payload'] as Map)['rev'];
+    if (r is int) rev?.call(r);
+    return _transport?.setStateOne(deviceId, cmd) ?? Future.value();
   }
 
   // ---- IAs por PC ------------------------------------------------------------------
@@ -1521,13 +1567,1140 @@ class PairingController extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ==== Recursos de turma (SPEC-turma) =========================================
+  // Chat (29), Recados com pedidos de liberação e mão levantada (27),
+  // confirmação de entrega (26), "Olhos em mim" (24), modo prova (25) e a
+  // grade de miniaturas (23). O alvo de tudo que é "da turma" é
+  // [pcsDaTurma]: só com aula ativa, só PCs da aula (na escola, reservados
+  // por mim).
+
+  // ---- Alvo e nomes ---------------------------------------------------------------
+
+  List<String> _alvoTurma() {
+    final registry = _transport?.registry;
+    final locks = _aulaLocks;
+    final ids = (registry?.all ?? const <PcSession>[]).map((s) => s.deviceId).toList();
+    return alvoDeTurma(
+      aulaAtiva: aulaAtiva,
+      vinculados: (_session?.vinculos.keys ?? const <String>[])
+          .where((id) => registry?.byId(id) != null),
+      pcProfessorId: _pcProfessorId,
+      modoEscola: workspaceAtivo,
+      reservadosPorMim:
+          locks == null ? const {} : ids.where(locks.travadoPorMim).toSet(),
+      reservadosPorOutros:
+          locks == null ? const {} : ids.where(locks.travadoPorOutro).toSet(),
+    );
+  }
+
+  /// PCs da turma agora (alvo de trava, prova, grade e "Mensagem para a
+  /// turma"): vazio sem aula ativa.
+  List<String> get pcsDaTurma => _alvoTurma();
+
+  /// Texto quando um recurso de turma não tem alvo (null = tem).
+  String? get motivoSemTurma {
+    if (!aulaAtiva) return 'Comece uma aula para usar com a turma.';
+    if (_alvoTurma().isEmpty) return 'Nenhum computador com aluno nesta aula ainda.';
+    return null;
+  }
+
+  /// Nome do aluno vinculado ou, sem vínculo, o nome do PC.
+  String nomeDoPc(String deviceId) {
+    final aluno = alunoDe(deviceId);
+    if (aluno != null) return aluno;
+    final s = pcPorId(deviceId);
+    return s != null ? nomeDe(s) : 'Computador';
+  }
+
+  /// PCs que aparecem em Recados: todos, menos os da aula de outro professor.
+  Iterable<PcSession> get _pcsDosRecados => pcs.where((s) => !_travadoPorOutro(s.deviceId));
+
+  // ---- Escritas novas (falha macia: SPEC-turma §1.3) ------------------------------
+
+  /// Grava estados (state/lock|exam|monitor) e devolve null ou o texto ao
+  /// professor. Sem conexão não espera a fila do SDK; negado pelas rules vira
+  /// "O servidor da escola ainda não foi atualizado…" — nunca sucesso falso.
+  Future<String?> _gravarEstados(Map<String, Map<String, dynamic>> porPc) async {
+    final t = _transport;
+    if (t == null) return 'Ainda conectando — tente de novo.';
+    if (porPc.isEmpty) return null;
+    if (!t.conectado) return kTextoSemInternet;
+    try {
+      await Future.wait([
+        for (final e in porPc.entries) t.setStateOne(e.key, e.value),
+      ]).timeout(const Duration(seconds: 15));
+      return null;
+    } on FirebaseException catch (e) {
+      debugPrint('[CdA] estado de turma recusado: ${e.code} ${e.message}');
+      return textoErroDeEscrita(e.code);
+    } catch (e) {
+      debugPrint('[CdA] estado de turma falhou: $e');
+      return kTextoSemInternet;
+    }
+  }
+
+  // ---- Entrega (faixa) -------------------------------------------------------------
+
+  Entrega? _entrega;
+  String? _entregaUmPc; // deviceId quando o envio foi para UM PC
+  Timer? _entregaTimer;
+  Entrega? _entregaTrava;
+  Timer? _entregaTravaTimer;
+  Entrega? _entregaProva;
+  Timer? _entregaProvaTimer;
+
+  /// Último envio de turma (ou para um PC). Envio novo substitui o anterior.
+  Entrega? get entrega => _entrega;
+
+  /// Texto da faixa do último envio ("Enviando… 3 de 20", "✓ Todos
+  /// receberam (20)", "Ana recebeu ✓"…), ou null.
+  String? get textoDaEntrega {
+    final e = _entrega;
+    if (e == null) return null;
+    final umPc = _entregaUmPc;
+    if (umPc != null) {
+      return textoEntregaUmPc(e, nomeDoPc(umPc), ext: pcPorId(umPc)?.versaoExt);
+    }
+    return textoEntrega(e);
+  }
+
+  /// Confirmação da última mudança de "Olhos em mim".
+  Entrega? get entregaTrava => _entregaTrava;
+  String? get textoDaTrava {
+    final e = _entregaTrava;
+    if (e == null) return null;
+    final desde = _session?.trava.desde ?? 0;
+    return textoTrava(
+      e,
+      desde: e.alvoOn && desde > 0 ? DateTime.fromMillisecondsSinceEpoch(desde) : null,
+    );
+  }
+
+  /// Confirmação da última mudança do modo prova.
+  Entrega? get entregaProva => _entregaProva;
+  String? get textoDaProva => _entregaProva == null ? null : textoProva(_entregaProva!);
+
+  /// Linha por PC do detalhe ("Unidade 3 · Ana — Recebeu ✓").
+  String textoDaEntregaNoPc(Entrega e, EntregaPc p) {
+    final numero = numeroDe(p.deviceId);
+    final nome = nomeDoPc(p.deviceId);
+    final prefixo = numero != null && alunoDe(p.deviceId) != null ? 'Unidade $numero · ' : '';
+    return '$prefixo$nome — ${textoDoPc(e, p, ext: pcPorId(p.deviceId)?.versaoExt)}';
+  }
+
+  /// Esconde a faixa do último envio (o professor dispensou).
+  void dispensarEntrega() {
+    _entrega = null;
+    _entregaUmPc = null;
+    _entregaTimer?.cancel();
+    notifyListeners();
+  }
+
+  Timer _timerDeEntrega(Entrega e) => Timer(
+        e.timeout + const Duration(milliseconds: 200),
+        () {
+          e.aoTempo(DateTime.now());
+          notifyListeners();
+        },
+      );
+
+  void _novaEntrega(Entrega e, {String? umPc}) {
+    _entrega = e;
+    _entregaUmPc = umPc;
+    _entregaTimer?.cancel();
+    _entregaTimer = _timerDeEntrega(e);
+  }
+
+  void _novaEntregaDeEstado(Entrega e) {
+    if (e.tipo == TipoEntrega.trava) {
+      _entregaTrava = e;
+      _entregaTravaTimer?.cancel();
+      _entregaTravaTimer = _timerDeEntrega(e);
+    } else {
+      _entregaProva = e;
+      _entregaProvaTimer?.cancel();
+      _entregaProvaTimer = _timerDeEntrega(e);
+    }
+  }
+
+  /// Comando one-shot para [alvos] (um id por PC), acompanhado na faixa.
+  Future<void> _enviarComEntrega(
+    List<String> alvos,
+    Map<String, dynamic> Function(String deviceId) montar, {
+    bool umPc = false,
+  }) async {
+    final transport = _transport;
+    if (transport == null || alvos.isEmpty) return;
+    final e = Entrega(tipo: TipoEntrega.comando, enviadoEm: DateTime.now());
+    final envios = <String, Map<String, dynamic>>{};
+    for (final id in alvos) {
+      final s = transport.registry.byId(id);
+      if (s == null) continue;
+      final cmd = montar(id);
+      envios[id] = cmd;
+      e.adicionar(
+        id,
+        cmdId: cmd['id'] as String?,
+        online: isOnline(s),
+        suportaTurma: suportaTurma(s.versaoExt),
+      );
+    }
+    _novaEntrega(e, umPc: umPc && envios.length == 1 ? envios.keys.first : null);
+    notifyListeners();
+    // Sem rede o SDK guarda as escritas (na ordem) e manda ao reconectar: não
+    // prende quem chamou além de 15 s.
+    await Future.wait([
+      for (final x in envios.entries)
+        transport.sendCommand(x.key, x.value).catchError((Object err) {
+          debugPrint('[CdA] envio para ${x.key} falhou: $err');
+          return null;
+        }),
+    ]).timeout(const Duration(seconds: 15), onTimeout: () => const []);
+  }
+
+  // Ack e `aplicado`: corrigem a faixa e os balões (ack tardio sempre corrige).
+  void _aoAck(String deviceId, Ack ack) {
+    var mudou = _entrega?.aoAck(deviceId, ack.id, ok: ack.ok, error: ack.error) ?? false;
+    mudou = _atualizarBalao(deviceId, ack.id, ack.ok, ack.error) || mudou;
+    if (mudou) _scheduleNotify();
+  }
+
+  void _aoAplicado(String deviceId, Aplicado aplicado) {
+    var mudou = false;
+    for (final e in [_entrega, _entregaTrava, _entregaProva]) {
+      if (e != null && e.aoAplicado(deviceId, aplicado)) mudou = true;
+    }
+    for (final a in aplicado.acks) {
+      if (_atualizarBalao(deviceId, a.id, a.ok, a.error)) mudou = true;
+    }
+    if (mudou) _scheduleNotify();
+  }
+
+  // ---- Conversas (chat) -------------------------------------------------------------
+
+  final List<Timer> _semRespostaTimers = [];
+
+  /// Conversa com o aluno do PC, em ordem de hora.
+  List<ChatItem> conversaDe(String deviceId) =>
+      List.unmodifiable(pcPorId(deviceId)?.chat ?? const <ChatItem>[]);
+
+  int naoLidasDe(String deviceId) => pcPorId(deviceId)?.naoLidas ?? 0;
+
+  /// Abrir a conversa zera as não lidas e baixa a mão (apaga o up/).
+  Future<void> abrirConversa(String deviceId) async {
+    final s = pcPorId(deviceId);
+    if (s == null) return;
+    s.naoLidas = 0;
+    notifyListeners();
+    if (s.maoMids.isNotEmpty || s.maoEm != null) await baixarMao(deviceId);
+  }
+
+  /// Só zera as não lidas (conversa aberta na tela enquanto chega mensagem).
+  void marcarConversaLida(String deviceId) {
+    final s = pcPorId(deviceId);
+    if (s == null || s.naoLidas == 0) return;
+    s.naoLidas = 0;
+    notifyListeners();
+  }
+
+  /// Valida o texto do professor; null = ok.
+  String? _validarTextoChat(String texto) {
+    final t = texto.trim();
+    if (t.isEmpty) return 'Escreva a mensagem.';
+    if (contarCodePoints(t) > kMaxChatTexto) {
+      return 'Mensagem muito longa (máx. $kMaxChatTexto letras).';
+    }
+    return null;
+  }
+
+  /// "Conversar": manda [texto] ao aluno do PC. PC antigo recebe a mensagem
+  /// como aviso (show_message) e o balão diz que ele não consegue responder.
+  /// null = enviada (o balão mostra a entrega).
+  Future<String?> enviarChat(String deviceId, String texto) async {
+    final erro = _validarTextoChat(texto);
+    if (erro != null) return erro;
+    final professor = professorQueTravou(deviceId);
+    if (professor != null) return 'Está na aula de $professor.';
+    final r = await _enviarChatPara(deviceId, texto.trim(), paraTurma: false);
+    return r;
+  }
+
+  /// "Mensagem para a turma": um chat_message para cada PC da turma (cada
+  /// aluno responde na própria conversa). A faixa acompanha a entrega.
+  Future<String?> enviarMensagemParaTurma(String texto) async {
+    final erro = _validarTextoChat(texto);
+    if (erro != null) return erro;
+    final sem = motivoSemTurma;
+    if (sem != null) return sem;
+    if (!(_transport?.conectado ?? false)) return kTextoSemInternet;
+    final e = Entrega(
+      tipo: TipoEntrega.comando,
+      enviadoEm: DateTime.now(),
+      tipoComando: MessageType.chatMessage,
+    );
+    _novaEntrega(e);
+    await Future.wait([
+      for (final id in _alvoTurma())
+        _enviarChatPara(id, texto.trim(), paraTurma: true, entrega: e),
+    ]);
+    return null;
+  }
+
+  Future<String?> _enviarChatPara(
+    String deviceId,
+    String texto, {
+    required bool paraTurma,
+    Entrega? entrega,
+  }) async {
+    final transport = _transport;
+    final s = transport?.registry.byId(deviceId);
+    if (transport == null || s == null) return 'Ainda conectando — tente de novo.';
+    // Sem rede a escrita ficaria presa na fila do SDK e o balão mentiria.
+    if (!transport.conectado) return kTextoSemInternet;
+    final antigo = !suportaTurma(s.versaoExt);
+    final mid = novoId();
+    final cmd = antigo
+        ? buildShowMessage('Mensagem do professor', texto, popup: true, de: deviceName)
+        : buildChatMessage(texto: texto, de: deviceName, mid: mid);
+    final cmdId = cmd['id'] as String;
+    final online = isOnline(s);
+    final item = ChatItem(
+      id: mid,
+      autor: AutorChat.professor,
+      texto: texto,
+      ts: agoraServidorMs(),
+      cmdId: cmdId,
+      estado: online ? EstadoBalao.enviando : EstadoBalao.aguardando,
+      paraTurma: paraTurma,
+      versaoAntiga: antigo,
+    );
+    _anexarChat(s, item);
+    // O aviso para PC antigo é comando que ele entende: entra na contagem
+    // normal (o balão já diz que o aluno não responde).
+    entrega?.adicionar(deviceId, cmdId: cmdId, online: online, suportaTurma: true);
+    if (online) {
+      _semRespostaTimers.add(
+        Timer(kEntregaTimeout, () {
+          if (item.estado == EstadoBalao.enviando) {
+            item.estado = EstadoBalao.semResposta;
+            notifyListeners();
+          }
+        }),
+      );
+      _semRespostaTimers.removeWhere((t) => !t.isActive);
+    }
+    notifyListeners();
+    try {
+      await transport.sendCommand(deviceId, cmd);
+      return null;
+    } catch (e) {
+      debugPrint('[CdA] chat para $deviceId falhou: $e');
+      item.estado = EstadoBalao.erro;
+      item.codigoErro = kErroEnvioLocal;
+      notifyListeners();
+      return kTextoSemInternet;
+    }
+  }
+
+  /// Ack (ou `aplicado.acks`) de um comando de chat: atualiza o balão.
+  bool _atualizarBalao(String deviceId, String cmdId, bool ok, String? error) {
+    final s = pcPorId(deviceId);
+    if (s == null) return false;
+    for (final item in s.chat.reversed) {
+      if (item.cmdId != cmdId) continue;
+      final EstadoBalao novo;
+      String? codigo;
+      if (ok) {
+        novo = EstadoBalao.entregue;
+      } else if (error == 'sem_sessao') {
+        novo = EstadoBalao.ninguemLogado;
+      } else {
+        novo = EstadoBalao.erro;
+        codigo = error ?? 'executor_falhou';
+      }
+      if (item.estado == novo && item.codigoErro == codigo) return false;
+      item.estado = novo;
+      item.codigoErro = codigo;
+      return true;
+    }
+    return false;
+  }
+
+  void _anexarChat(PcSession s, ChatItem item) {
+    if (item.autor == AutorChat.aluno &&
+        s.chat.any((c) => c.autor == AutorChat.aluno && c.id == item.id)) {
+      return;
+    }
+    var i = s.chat.length;
+    while (i > 0 && s.chat[i - 1].ts > item.ts) {
+      i--;
+    }
+    s.chat.insert(i, item);
+    if (s.chat.length > kChatHistoricoThread) {
+      s.chat.removeRange(0, s.chat.length - kChatHistoricoThread);
+    }
+  }
+
+  // ---- up/ (aluno -> professor) ----------------------------------------------------
+
+  int _upInicioMs = 0;
+  final Map<String, int> _silenciadosAte = {};
+
+  DestinoUp _destinoDoUp(String deviceId) {
+    final locks = _aulaLocks;
+    if (workspaceAtivo && (locks == null || !locks.carregado)) {
+      // Ainda não se sabe de quem é o PC: espera (nem lê, nem apaga).
+      return DestinoUp.ignorar;
+    }
+    return destinoDoUp(
+      modoEscola: workspaceAtivo,
+      reservadoPorOutro: locks?.travadoPorOutro(deviceId) ?? false,
+      reservadoPorMim: locks?.travadoPorMim(deviceId) ?? false,
+    );
+  }
+
+  bool _maoVisivel(PcSession s, int agoraMs) {
+    final em = s.maoEm;
+    return em != null && agoraMs - em < kMaoVisivel.inMilliseconds;
+  }
+
+  void _aoUp(String deviceId, UpMessage msg, int ms, DestinoUp destino) {
+    final s = pcPorId(deviceId);
+    if (s == null) return;
+    final nome = nomeDoPc(deviceId);
+    final notifs = notificacoes;
+    // Só toca o celular para o que chegou ao vivo, e só para quem é dono.
+    final notificar = notifs != null &&
+        destino == DestinoUp.mostrarENotificar &&
+        ms >= _upInicioMs;
+    switch (msg.type) {
+      case UpType.chat:
+        if (s.chat.any((c) => c.autor == AutorChat.aluno && c.id == msg.mid)) break;
+        _anexarChat(
+          s,
+          ChatItem(id: msg.mid, autor: AutorChat.aluno, texto: msg.texto!, ts: ms),
+        );
+        s.naoLidas++;
+        if (notificar) {
+          unawaited(notifs.notificarRecado(
+            k: 'chat',
+            deviceId: deviceId,
+            ts: ms,
+            titulo: nome,
+            corpo: msg.texto!,
+          ),);
+        }
+      case UpType.unblockRequest:
+        PedidoLiberacao? existente;
+        for (final p in s.pedidos) {
+          if (p.site == msg.site) existente = p;
+        }
+        if (existente != null) {
+          existente.juntar(
+            mid: msg.mid,
+            url: msg.url ?? '',
+            motivo: msg.motivo ?? '',
+            bloqueio: msg.bloqueio ?? 'regra',
+            ts: ms,
+          );
+        } else {
+          s.pedidos.add(
+            PedidoLiberacao(
+              deviceId: deviceId,
+              mid: msg.mid,
+              site: msg.site!,
+              url: msg.url ?? '',
+              motivo: msg.motivo ?? '',
+              bloqueio: msg.bloqueio ?? 'regra',
+              ts: ms,
+            ),
+          );
+        }
+        if (notificar) {
+          unawaited(notifs.notificarRecado(
+            k: 'pedido',
+            deviceId: deviceId,
+            ts: ms,
+            titulo: 'Pedido de liberação',
+            corpo: '$nome: ${msg.site}',
+          ),);
+        }
+      case UpType.raiseHand:
+        final jaLevantada = _maoVisivel(s, agoraServidorMs());
+        s.maoMids.add(msg.mid);
+        if (s.maoEm == null || ms > s.maoEm!) s.maoEm = ms;
+        // Notifica só na transição para levantada.
+        if (notificar && !jaLevantada && _maoVisivel(s, agoraServidorMs())) {
+          unawaited(notifs.notificarRecado(
+            k: 'mao',
+            deviceId: deviceId,
+            ts: ms,
+            titulo: 'Mão levantada',
+            corpo: nome,
+          ),);
+        }
+    }
+    _scheduleNotify();
+  }
+
+  void _aoUpRemovido(String deviceId, String mid) {
+    final s = pcPorId(deviceId);
+    if (s == null) return;
+    // Outro aparelho resolveu (ou o PC podou): sai de Recados. Chat fica na
+    // conversa (a poda do PC não apaga o que o professor já viu).
+    for (final p in s.pedidos.toList()) {
+      if (p.mids.remove(mid) && p.mids.isEmpty) s.pedidos.remove(p);
+    }
+    if (s.maoMids.remove(mid) && s.maoMids.isEmpty) s.maoEm = null;
+    _scheduleNotify();
+  }
+
+  void _aoUpSilenciado(String deviceId) {
+    _silenciadosAte[deviceId] =
+        agoraServidorMs() + const Duration(minutes: 10).inMilliseconds;
+    _scheduleNotify();
+  }
+
+  // ---- Recados ---------------------------------------------------------------------
+
+  /// Pedidos de liberação pendentes, do mais antigo para o mais novo.
+  List<PedidoLiberacao> get pedidosPendentes {
+    final l = [for (final s in _pcsDosRecados) ...s.pedidos]
+      ..sort((a, b) => a.ts.compareTo(b.ts));
+    return l;
+  }
+
+  /// PCs com a mão levantada há menos de 10 min (some sozinha da tela).
+  List<PcSession> get maosLevantadas {
+    final agora = agoraServidorMs();
+    return _pcsDosRecados.where((s) => _maoVisivel(s, agora)).toList()
+      ..sort((a, b) => a.maoEm!.compareTo(b.maoEm!));
+  }
+
+  /// PCs com conversa, a mais recente primeiro.
+  List<PcSession> get conversas {
+    final l = _pcsDosRecados.where((s) => s.chat.isNotEmpty).toList()
+      ..sort((a, b) => b.chat.last.ts.compareTo(a.chat.last.ts));
+    return l;
+  }
+
+  /// PCs silenciados agora por excesso de mensagens (linha em Recados).
+  List<String> get pcsSilenciados {
+    final agora = agoraServidorMs();
+    return [
+      for (final e in _silenciadosAte.entries)
+        if (e.value > agora && !_travadoPorOutro(e.key)) e.key,
+    ];
+  }
+
+  /// Badge do ícone Recados: pedidos + mãos + conversas com não lidas.
+  int get recadosCount =>
+      pedidosPendentes.length +
+      maosLevantadas.length +
+      conversas.where((s) => s.naoLidas > 0).length;
+
+  /// Regras que "Liberar" tiraria deste PC (fora da prova). Mais de uma =
+  /// confirmar "Liberar para {nome}: {p1}, {p2}?".
+  List<String> padroesParaLiberar(PedidoLiberacao pedido) {
+    final jaLiberados = liberacoesDe(pedido.deviceId);
+    return padroesQueCasam(regras, urlParaCasar(pedido.url, pedido.site))
+        .where((p) => !jaLiberados.contains(p))
+        .toList();
+  }
+
+  /// O PC está em prova agora (estado gravado e dentro do prazo)?
+  bool provaNoPc(String deviceId) =>
+      pcPorId(deviceId)?.prova?.vigente(agoraServidorMs()) ?? false;
+
+  /// "Liberar": fora da prova tira as regras que casam a URL pedida (cada
+  /// uma vira liberação deste PC); em prova acrescenta o site ao `allow`
+  /// deste PC. Depois responde ao aluno e apaga o pedido. null = ok.
+  Future<String?> liberarPedido(PedidoLiberacao pedido, {List<String>? padroes}) async {
+    final deviceId = pedido.deviceId;
+    final professor = professorQueTravou(deviceId);
+    if (professor != null) return 'Está na aula de $professor.';
+    final transport = _transport;
+    final session = _session;
+    if (transport == null || session == null) return 'Ainda conectando — tente de novo.';
+    if (!transport.conectado) return kTextoSemInternet;
+    int? rulesRev;
+    int? examRev;
+    if (provaNoPc(deviceId)) {
+      await session.liberarNaProva(deviceId, pedido.site);
+      final rev = _proximoRev();
+      final erro = await _gravarEstados({deviceId: _setExamPara(deviceId, on: true, rev: rev)});
+      if (erro != null) return erro;
+      examRev = rev;
+    } else {
+      final lista = padroes ?? padroesParaLiberar(pedido);
+      if (lista.isNotEmpty) {
+        for (final p in lista) {
+          await session.liberar(deviceId, p);
+        }
+        try {
+          await _distribuirRegrasPara(deviceId, rev: (r) => rulesRev = r)
+              .timeout(const Duration(seconds: 15));
+        } catch (e) {
+          debugPrint('[CdA] liberar pedido: $e');
+          return kTextoSemInternet;
+        }
+      }
+    }
+    final erro = await _responderPedido(
+      deviceId,
+      buildUnblockResult(
+        mid: pedido.mid,
+        site: pedido.site,
+        approved: true,
+        rulesRev: rulesRev,
+        examRev: examRev,
+      ),
+    );
+    if (erro != null) return erro;
+    await _resolverPedido(pedido);
+    return null;
+  }
+
+  /// Manda o unblock_result. Falha vira texto (nunca exceção na tela); o
+  /// pedido só sai de Recados se a resposta foi gravada.
+  Future<String?> _responderPedido(String deviceId, Map<String, dynamic> cmd) async {
+    try {
+      await _transport!.sendCommand(deviceId, cmd).timeout(const Duration(seconds: 15));
+      return null;
+    } on FirebaseException catch (e) {
+      debugPrint('[CdA] resposta do pedido recusada: ${e.code} ${e.message}');
+      return textoErroDeEscrita(e.code);
+    } catch (e) {
+      debugPrint('[CdA] resposta do pedido falhou: $e');
+      return kTextoSemInternet;
+    }
+  }
+
+  /// "Recusar": responde ao aluno (com o motivo, se houver) e apaga o pedido.
+  Future<String?> recusarPedido(PedidoLiberacao pedido, {String? motivo}) async {
+    final deviceId = pedido.deviceId;
+    final professor = professorQueTravou(deviceId);
+    if (professor != null) return 'Está na aula de $professor.';
+    final transport = _transport;
+    if (transport == null) return 'Ainda conectando — tente de novo.';
+    if (!transport.conectado) return kTextoSemInternet;
+    final erro = await _responderPedido(
+      deviceId,
+      buildUnblockResult(
+        mid: pedido.mid,
+        site: pedido.site,
+        approved: false,
+        motivo: motivo,
+      ),
+    );
+    if (erro != null) return erro;
+    await _resolverPedido(pedido);
+    return null;
+  }
+
+  Future<void> _resolverPedido(PedidoLiberacao pedido) async {
+    final s = pcPorId(pedido.deviceId);
+    s?.pedidos.remove(pedido);
+    notifyListeners();
+    for (final mid in pedido.mids) {
+      await _transport
+          ?.apagarUpDoMid(pedido.deviceId, mid)
+          .catchError((Object e) => debugPrint('[CdA] apagar pedido: $e'));
+    }
+  }
+
+  /// "Baixar" a mão (ou abrir a conversa): apaga o raise_hand do up/.
+  Future<void> baixarMao(String deviceId) async {
+    final s = pcPorId(deviceId);
+    // PC na aula de outro professor: o up/ dele não é meu para apagar.
+    if (s == null || _travadoPorOutro(deviceId)) return;
+    final mids = s.maoMids.toList();
+    s.maoMids.clear();
+    s.maoEm = null;
+    notifyListeners();
+    for (final mid in mids) {
+      await _transport
+          ?.apagarUpDoMid(deviceId, mid)
+          .catchError((Object e) => debugPrint('[CdA] baixar mão: $e'));
+    }
+  }
+
+  /// Fim de aula: esquece conversa e recados dos PCs do alvo e apaga o up/
+  /// deles (sem rede, o PC poda sozinho em 2 h).
+  Future<void> _limparRecadosDe(List<String> alvo) async {
+    final transport = _transport;
+    for (final id in alvo) {
+      final s = pcPorId(id);
+      if (s != null) {
+        s.chat.clear();
+        s.naoLidas = 0;
+        s.pedidos.clear();
+        s.maoMids.clear();
+        s.maoEm = null;
+      }
+      _silenciadosAte.remove(id);
+    }
+    notifyListeners();
+    if (transport == null || !transport.conectado) return;
+    await Future.wait([
+      for (final id in alvo)
+        transport.apagarTodoUp(id).catchError((Object e) {
+          debugPrint('[CdA] apagar up de $id: $e');
+        }),
+    ]).timeout(const Duration(seconds: 15), onTimeout: () => const []);
+  }
+
+  // ---- "Olhos em mim" (trava) ------------------------------------------------------
+
+  /// O PC está com a tela travada (state/lock decifrado ligado e no prazo)?
+  bool telaTravada(String deviceId) =>
+      pcPorId(deviceId)?.trava?.vigente(agoraServidorMs()) ?? false;
+
+  /// Tela travada sem professor com reserva viva (só na escola): qualquer
+  /// MEMBRO pode destravar ("Travada sem professor · Destravar").
+  bool travadaSemProfessor(String deviceId) =>
+      workspaceAtivo &&
+      telaTravada(deviceId) &&
+      (_aulaLocks?.carregado ?? false) &&
+      _aulaLocks?.travaVivaDe(deviceId) == null;
+
+  /// "Olhos em mim" ligado (botão vira "Destravar").
+  bool get travaLigada =>
+      (_session?.trava.on ?? false) || _alvoTurma().any(telaTravada);
+
+  /// Quando a trava foi ligada (faixa "desde 10:42").
+  DateTime? get travaDesde {
+    final d = _session?.trava.desde ?? 0;
+    return d > 0 ? DateTime.fromMillisecondsSinceEpoch(d) : null;
+  }
+
+  Map<String, dynamic> _setLockLigado({int? rev}) {
+    final t = _session?.trava ?? TravaDaAula.desligada;
+    return buildSetLock(
+      rev: rev ?? _proximoRev(),
+      on: true,
+      texto: t.texto,
+      mute: t.mute,
+      ate: agoraServidorMs() + kTravaAte.inMilliseconds,
+    );
+  }
+
+  Map<String, dynamic> _setLockDesligado(String deviceId, int rev) {
+    final atual = pcPorId(deviceId)?.trava;
+    return buildSetLock(
+      rev: rev,
+      on: false,
+      texto: atual?.texto ?? kTravaTextoPadrao,
+      mute: false,
+      ate: agoraServidorMs(),
+    );
+  }
+
+  /// Trava as telas da turma (ou só [apenas], "Escolher computadores").
+  /// null = gravado (a faixa confirma PC a PC pelo relatório).
+  Future<String?> travarTurma({
+    required String texto,
+    bool mute = true,
+    Iterable<String>? apenas,
+  }) async {
+    final sem = motivoSemTurma;
+    if (sem != null) return sem;
+    final escolhidos = apenas?.toSet();
+    final alvos = _alvoTurma().where((id) => escolhidos == null || escolhidos.contains(id)).toList();
+    if (alvos.isEmpty) return 'Escolha pelo menos um computador.';
+    final t = cortarCodePoints(texto.trim(), kMaxTravaTexto);
+    final textoFinal = t.isEmpty ? kTravaTextoPadrao : t;
+    final rev = _proximoRev();
+    final ate = agoraServidorMs() + kTravaAte.inMilliseconds;
+    final cmds = {
+      for (final id in alvos)
+        id: buildSetLock(rev: rev, on: true, texto: textoFinal, mute: mute, ate: ate),
+    };
+    final erro = await _gravarEstados(cmds);
+    if (erro != null) return erro;
+    final e = Entrega(
+      tipo: TipoEntrega.trava,
+      enviadoEm: DateTime.now(),
+      alvoOn: true,
+      revEnviado: rev,
+    );
+    for (final id in alvos) {
+      final s = pcPorId(id);
+      if (s == null) continue;
+      e.adicionar(id, online: isOnline(s), suportaTurma: suportaTurma(s.versaoExt), comandoNovo: true);
+    }
+    _novaEntregaDeEstado(e);
+    final desde = (_session?.trava.on ?? false) && (_session?.trava.desde ?? 0) > 0
+        ? _session!.trava.desde
+        : DateTime.now().millisecondsSinceEpoch;
+    await _session?.definirTrava(
+      TravaDaAula(on: true, rev: rev, texto: textoFinal, mute: mute, desde: desde),
+    );
+    notifyListeners();
+    return null;
+  }
+
+  /// "Destravar": `on:false` a todo PC com a tela travada (menos os da aula
+  /// de outro professor), com ou sem aluno.
+  Future<String?> destravarTurma() async {
+    final alvos = [
+      for (final s in pcs)
+        if ((s.trava?.on ?? false) && !_travadoPorOutro(s.deviceId)) s.deviceId,
+    ];
+    return _destravar(alvos);
+  }
+
+  /// Destrava um PC só (inclusive "Travada sem professor").
+  Future<String?> destravarPc(String deviceId) async {
+    final professor = professorQueTravou(deviceId);
+    if (professor != null) return 'Está na aula de $professor.';
+    return _destravar([deviceId], soEste: true);
+  }
+
+  Future<String?> _destravar(List<String> alvos, {bool soEste = false}) async {
+    if (alvos.isEmpty) {
+      if (!soEste) await _session?.definirTrava(TravaDaAula.desligada);
+      notifyListeners();
+      return null;
+    }
+    final rev = _proximoRev();
+    final erro = await _gravarEstados({for (final id in alvos) id: _setLockDesligado(id, rev)});
+    if (erro != null) return erro;
+    final e = Entrega(
+      tipo: TipoEntrega.trava,
+      enviadoEm: DateTime.now(),
+      alvoOn: false,
+      revEnviado: rev,
+    );
+    for (final id in alvos) {
+      final s = pcPorId(id);
+      if (s == null) continue;
+      e.adicionar(id, online: isOnline(s), suportaTurma: suportaTurma(s.versaoExt), comandoNovo: true);
+    }
+    _novaEntregaDeEstado(e);
+    if (!soEste || !_alvoTurma().any((id) => id != alvos.first && telaTravada(id))) {
+      await _session?.definirTrava(TravaDaAula.desligada);
+    }
+    notifyListeners();
+    return null;
+  }
+
+  // ---- Modo prova ------------------------------------------------------------------
+
+  /// Sites permitidos na prova (lista da escola, store `prova`).
+  List<String> get sitesProva => _provaStore?.padroes ?? const [];
+
+  Future<bool> adicionarSiteProva(String pattern) async {
+    final ok = await _provaStore?.adicionar(pattern) ?? false;
+    if (ok) await _depoisDeEditarProva();
+    return ok;
+  }
+
+  Future<int> adicionarSitesProvaEmLote(String texto) async {
+    final n = await _provaStore?.adicionarEmLote(texto) ?? 0;
+    if (n > 0) await _depoisDeEditarProva();
+    return n;
+  }
+
+  Future<void> removerSiteProva(int indice) async {
+    await _provaStore?.removerEm(indice);
+    await _depoisDeEditarProva();
+  }
+
+  Future<void> _depoisDeEditarProva() async {
+    _schoolSync?.push('prova');
+    // Editar com a prova ligada redistribui state/exam aos PCs da prova.
+    await _redistribuirProva();
+    notifyListeners();
+  }
+
+  /// Modo prova ligado (botão "Prova ligada").
+  bool get provaLigada => (_session?.prova.on ?? false) || _alvoTurma().any(provaNoPc);
+
+  /// PCs da turma que não entrariam em modo prova (versão antiga): o
+  /// professor vê o aviso antes de ligar (§8.4).
+  List<PcSession> get pcsSemModoProva => [
+        for (final id in _alvoTurma())
+          if (pcPorId(id) case final s? when !suportaTurma(s.versaoExt)) s,
+      ];
+
+  Map<String, dynamic> _setExamPara(String deviceId, {required bool on, required int rev}) {
+    final allow = <String>[
+      ...sitesProva,
+      ...(_session?.provaLiberacoesDe(deviceId) ?? const <String>{}),
+    ];
+    final inicio = _home?.config.url ?? '';
+    return buildSetExam(
+      rev: rev,
+      on: on,
+      allow: allow,
+      inicio: inicio.isEmpty ? null : inicio,
+      ate: agoraServidorMs() + kProvaAte.inMilliseconds,
+    );
+  }
+
+  /// Liga o modo prova na turma toda (1 toque). null = gravado.
+  Future<String?> ligarProva() async {
+    final sem = motivoSemTurma;
+    if (sem != null) return sem;
+    final alvos = _alvoTurma();
+    final rev = _proximoRev();
+    final erro = await _gravarEstados({
+      for (final id in alvos) id: _setExamPara(id, on: true, rev: rev),
+    });
+    if (erro != null) return erro;
+    final e = Entrega(
+      tipo: TipoEntrega.prova,
+      enviadoEm: DateTime.now(),
+      alvoOn: true,
+      revEnviado: rev,
+    );
+    for (final id in alvos) {
+      final s = pcPorId(id);
+      if (s == null) continue;
+      e.adicionar(id, online: isOnline(s), suportaTurma: suportaTurma(s.versaoExt), comandoNovo: true);
+    }
+    _novaEntregaDeEstado(e);
+    await _session?.definirProva(ProvaDaAula(on: true, rev: rev));
+    notifyListeners();
+    return null;
+  }
+
+  /// Desliga o modo prova (todo PC com a prova ligada, menos os da aula de
+  /// outro professor). null = gravado.
+  Future<String?> desligarProva() async {
+    final alvos = [
+      for (final s in pcs)
+        if ((s.prova?.on ?? false) && !_travadoPorOutro(s.deviceId)) s.deviceId,
+    ];
+    if (alvos.isNotEmpty) {
+      final rev = _proximoRev();
+      final erro = await _gravarEstados({
+        for (final id in alvos) id: _setExamPara(id, on: false, rev: rev),
+      });
+      if (erro != null) return erro;
+      final e = Entrega(
+        tipo: TipoEntrega.prova,
+        enviadoEm: DateTime.now(),
+        alvoOn: false,
+        revEnviado: rev,
+      );
+      for (final id in alvos) {
+        final s = pcPorId(id);
+        if (s == null) continue;
+        e.adicionar(id, online: isOnline(s), suportaTurma: suportaTurma(s.versaoExt), comandoNovo: true);
+      }
+      _novaEntregaDeEstado(e);
+    }
+    await _session?.definirProva(ProvaDaAula.desligada);
+    notifyListeners();
+    return null;
+  }
+
+  /// Lista da prova mudou (aqui ou noutro celular): regrava state/exam nos
+  /// PCs da turma que estão em prova.
+  Future<void> _redistribuirProva() async {
+    if (!(_session?.prova.on ?? false)) return;
+    final alvos = _alvoTurma().where(provaNoPc).toList();
+    if (alvos.isEmpty) return;
+    final rev = _proximoRev();
+    final erro = await _gravarEstados({
+      for (final id in alvos) id: _setExamPara(id, on: true, rev: rev),
+    });
+    if (erro != null) debugPrint('[CdA] redistribuir prova: $erro');
+  }
+
+  // ---- Renovação, herança e desligamento ------------------------------------------
+
+  /// A cada 5 min: renova `ate` de trava (+20 min) e prova (+2 h) nos PCs da
+  /// turma que ainda estão com o estado vigente. Professor que some deixa a
+  /// turma travada no máximo 20 min.
+  Future<void> _renovarTurma() async {
+    final session = _session;
+    if (session == null || _transport == null) return;
+    final alvo = _alvoTurma();
+    if (session.trava.on) {
+      final ids = alvo.where(telaTravada).toList();
+      if (ids.isEmpty && (_entregaTrava?.resolvida ?? true)) {
+        await session.definirTrava(TravaDaAula.desligada); // venceu sozinha
+      } else if (ids.isNotEmpty) {
+        final rev = _proximoRev();
+        final erro = await _gravarEstados({for (final id in ids) id: _setLockLigado(rev: rev)});
+        if (erro != null) debugPrint('[CdA] renovar trava: $erro');
+      }
+    }
+    if (session.prova.on) {
+      final ids = alvo.where(provaNoPc).toList();
+      if (ids.isEmpty && (_entregaProva?.resolvida ?? true)) {
+        await session.definirProva(ProvaDaAula.desligada);
+      } else if (ids.isNotEmpty) {
+        final rev = _proximoRev();
+        final erro = await _gravarEstados({
+          for (final id in ids) id: _setExamPara(id, on: true, rev: rev),
+        });
+        if (erro != null) debugPrint('[CdA] renovar prova: $erro');
+      }
+    }
+    notifyListeners();
+  }
+
+  /// PC que entra na aula depois herda a trava e a prova vigentes.
+  Future<void> _herdarEstadoDaTurma(String deviceId) async {
+    final session = _session;
+    // A reserva acabou de ser feita (o stream de /school/aulas ainda pode não
+    // ter chegado): basta a aula ativa e o vínculo.
+    if (session == null ||
+        !session.ativa ||
+        session.alunoDe(deviceId) == null ||
+        deviceId == _pcProfessorId) {
+      return;
+    }
+    final cmds = <String, Map<String, dynamic>>{};
+    if (session.trava.on) cmds['lock'] = _setLockLigado();
+    if (session.prova.on) cmds['exam'] = _setExamPara(deviceId, on: true, rev: _proximoRev());
+    for (final cmd in cmds.values) {
+      final erro = await _gravarEstados({deviceId: cmd});
+      if (erro != null) debugPrint('[CdA] herdar estado em $deviceId: $erro');
+    }
+  }
+
+  /// PC saiu da aula: desliga trava e prova nele, se ligadas.
+  Future<void> _desligarEstadoNoPc(String deviceId) async {
+    final s = pcPorId(deviceId);
+    if (s == null || _travadoPorOutro(deviceId)) return;
+    final rev = _proximoRev();
+    if (s.trava?.on ?? false) {
+      final erro = await _gravarEstados({deviceId: _setLockDesligado(deviceId, rev)});
+      if (erro != null) debugPrint('[CdA] destravar $deviceId: $erro');
+    }
+    if (s.prova?.on ?? false) {
+      final erro = await _gravarEstados({deviceId: _setExamPara(deviceId, on: false, rev: rev)});
+      if (erro != null) debugPrint('[CdA] tirar $deviceId da prova: $erro');
+    }
+  }
+
+  /// "Encerrar aula": `on:false` de trava e prova a todo PC com o estado
+  /// ligado (inclusive sem aluno vinculado), menos os de outro professor.
+  Future<void> _desligarTravaEProvaDeTodos() async {
+    final travados = [
+      for (final s in pcs)
+        if ((s.trava?.on ?? false) && !_travadoPorOutro(s.deviceId)) s.deviceId,
+    ];
+    final emProva = [
+      for (final s in pcs)
+        if ((s.prova?.on ?? false) && !_travadoPorOutro(s.deviceId)) s.deviceId,
+    ];
+    final transport = _transport;
+    if (transport == null) return;
+    final rev = _proximoRev();
+    // Mesmo sem rede: o SDK guarda e manda ao reconectar (e o prazo de 20 min
+    // / 2 h destrava sozinho se nunca chegar).
+    await Future.wait([
+      for (final id in travados)
+        transport.setStateOne(id, _setLockDesligado(id, rev)).catchError((Object e) {
+          debugPrint('[CdA] encerrar: destravar $id: $e');
+        }),
+      for (final id in emProva)
+        transport.setStateOne(id, _setExamPara(id, on: false, rev: rev)).catchError((Object e) {
+          debugPrint('[CdA] encerrar: prova em $id: $e');
+        }),
+    ]).timeout(const Duration(seconds: 15), onTimeout: () => const []);
+    _entregaTrava = null;
+    _entregaProva = null;
+  }
+
+  // ---- Grade de miniaturas ---------------------------------------------------------
+
+  Timer? _gradeTimer;
+  final Set<String> _gradePcs = {};
+  int? _gradeAbertaEm;
+
+  /// Erro da última renovação da grade (texto pronto), ou null.
+  String? erroGrade;
+
+  bool get gradeAberta => _gradeTimer != null;
+
+  /// Quando a grade abriu (ms do servidor): miniatura mais velha que isto
+  /// conta como "Carregando…".
+  int? get gradeAbertaEm => _gradeAbertaEm;
+
+  Miniatura? miniaturaDe(String deviceId) => pcPorId(deviceId)?.thumb;
+
+  /// Abre a grade: assina /thumbs dos PCs da turma e renova state/monitor a
+  /// cada 10 s (ate = agora + 30 s). null = ok.
+  Future<String?> abrirGrade() async {
+    final sem = motivoSemTurma;
+    if (sem != null) return sem;
+    _gradeAbertaEm = agoraServidorMs();
+    _gradeTimer?.cancel();
+    _gradeTimer = Timer.periodic(kMonitorRenova, (_) => _renovarGrade());
+    return _renovarGrade();
+  }
+
+  Future<String?> _renovarGrade() async {
+    final transport = _transport;
+    if (transport == null || _gradeTimer == null) return null;
+    final alvos = _alvoTurma();
+    for (final id in _gradePcs.difference(alvos.toSet()).toList()) {
+      await _pararMonitorEm(id); // saiu da turma (ou foi reservado por outro)
+    }
+    for (final id in alvos) {
+      transport.assinarThumb(id);
+      _gradePcs.add(id);
+    }
+    final rev = _proximoRev();
+    final ate = agoraServidorMs() + kMonitorAte.inMilliseconds;
+    final erro = await _gravarEstados({
+      for (final id in alvos) id: buildSetMonitor(rev: rev, ate: ate),
+    });
+    if (erro != erroGrade) {
+      erroGrade = erro;
+      notifyListeners();
+    }
+    return erro;
+  }
+
+  Future<void> _pararMonitorEm(String deviceId) async {
+    final transport = _transport;
+    _gradePcs.remove(deviceId);
+    if (transport == null) return;
+    transport.cancelarThumb(deviceId);
+    for (final apagar in [transport.apagarMonitor, transport.apagarThumb]) {
+      try {
+        await apagar(deviceId).timeout(const Duration(seconds: 10));
+      } catch (e) {
+        debugPrint('[CdA] fechar grade em $deviceId: $e');
+      }
+    }
+  }
+
+  /// Fecha a grade (sair da tela, app em segundo plano): para a renovação e
+  /// apaga state/monitor e as miniaturas — o PC para de capturar.
+  Future<void> fecharGrade() async {
+    final tinha = _gradeTimer != null || _gradePcs.isNotEmpty;
+    _gradeTimer?.cancel();
+    _gradeTimer = null;
+    _gradeAbertaEm = null;
+    erroGrade = null;
+    await Future.wait([for (final id in _gradePcs.toList()) _pararMonitorEm(id)]);
+    if (tinha) notifyListeners();
+  }
+
   Future<void> stop() async {
+    await fecharGrade();
     await pararServicoAula();
     await _transport?.stop();
   }
 
   @override
   void dispose() {
+    _gradeTimer?.cancel();
+    _entregaTimer?.cancel();
+    _entregaTravaTimer?.cancel();
+    _entregaProvaTimer?.cancel();
+    for (final t in _semRespostaTimers) {
+      t.cancel();
+    }
     _notifyTimer?.cancel();
     _classViewTimer?.cancel();
     _classViewHeartbeat?.cancel();

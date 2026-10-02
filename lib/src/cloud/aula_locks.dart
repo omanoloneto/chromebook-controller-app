@@ -47,6 +47,10 @@ class AulaLocks {
   /// Notifica mudanças (o controller repassa ao notifyListeners).
   VoidCallback? onChange;
 
+  /// A primeira leitura de /school/aulas já chegou? Antes dela não se sabe
+  /// quem é de quem: o up/ dos PCs espera (nem lê, nem apaga).
+  bool carregado = false;
+
   void start() {
     _sub = _db.ref('school/aulas').onValue.listen((e) async {
       final v = e.snapshot.value;
@@ -80,6 +84,7 @@ class AulaLocks {
       _travas
         ..clear()
         ..addAll(novo);
+      carregado = true;
       onChange?.call();
     });
   }

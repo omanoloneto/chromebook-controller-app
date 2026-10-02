@@ -32,3 +32,26 @@ List<String> alvoDeRegrasRemotas({
       .where((id) => meus.contains(id) && !travadosPorOutros.contains(id))
       .toList();
 }
+
+/// Alvo dos recursos de TURMA (trava, prova, grade, "Mensagem para a turma"):
+/// só com aula ativa; os PCs vinculados a aluno nesta aula, nunca o telão nem
+/// PC reservado por outro professor. Na escola, além disso, só os PCs que
+/// estão reservados por MIM agora (SPEC-turma §1.5).
+List<String> alvoDeTurma({
+  required bool aulaAtiva,
+  required Iterable<String> vinculados,
+  String? pcProfessorId,
+  bool modoEscola = false,
+  Set<String> reservadosPorMim = const {},
+  Set<String> reservadosPorOutros = const {},
+}) {
+  if (!aulaAtiva) return const [];
+  return vinculados
+      .where(
+        (id) =>
+            id != pcProfessorId &&
+            !reservadosPorOutros.contains(id) &&
+            (!modoEscola || reservadosPorMim.contains(id)),
+      )
+      .toList();
+}
