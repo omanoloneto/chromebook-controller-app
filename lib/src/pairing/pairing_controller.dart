@@ -1852,11 +1852,18 @@ class PairingController extends ChangeNotifier {
       enviadoEm: DateTime.now(),
       tipoComando: MessageType.chatMessage,
     );
-    _novaEntrega(e);
-    await Future.wait([
+    // Cada _enviarChatPara põe o PC na entrega (e avisa a tela) antes do
+    // primeiro await: a faixa só passa a ver esta entrega com a turma toda
+    // dentro. Antes, ela via "1 de 1" e, se o primeiro PC estava desligado,
+    // dava o envio por resolvido ("✓ 0 de 1 receberam") e nunca mais
+    // mostrava o resultado de verdade.
+    final envios = [
       for (final id in _alvoTurma())
         _enviarChatPara(id, texto.trim(), paraTurma: true, entrega: e),
-    ]);
+    ];
+    _novaEntrega(e);
+    notifyListeners();
+    await Future.wait(envios);
     return null;
   }
 

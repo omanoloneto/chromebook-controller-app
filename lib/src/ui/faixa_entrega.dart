@@ -8,6 +8,8 @@
 // O professor nunca vê "recebeu ✓" por suposição: só por ack ou `aplicado`.
 // Ver SPEC-turma §6.3, §7.4 e §8.4.
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../cloud/entrega.dart';
@@ -254,11 +256,24 @@ class _FaixaEntregaState extends State<FaixaEntrega> {
         e.resolvida &&
         identical(e, _acompanhando) &&
         _finalMostrado[e] != true) {
-      _finalMostrado[e] = true;
-      _acompanhando = null;
-      _mostrarFinal(e);
+      // Decide depois que a pilha atual termina: um envio pode avisar ainda
+      // sendo montado, um PC por vez (o 1º desligado não é "tudo resolvido").
+      scheduleMicrotask(() => _talvezFinal(e));
     }
     setState(() {});
+  }
+
+  void _talvezFinal(Entrega e) {
+    if (!mounted ||
+        !identical(_minha, e) ||
+        !e.resolvida ||
+        !identical(e, _acompanhando) ||
+        _finalMostrado[e] == true) {
+      return;
+    }
+    _finalMostrado[e] = true;
+    _acompanhando = null;
+    _mostrarFinal(e);
   }
 
   void _mostrarFinal(Entrega e) {

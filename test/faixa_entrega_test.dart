@@ -223,6 +223,37 @@ void main() {
       await _esperarSnackSumir(tester);
     });
 
+    testWidgets(
+        'envio avisado ainda sendo montado (1º PC desligado) não vira '
+        'SnackBar antes da hora', (tester) async {
+      final p = FakePairing()
+        ..pc('a', nome: 'Ana', online: false)
+        ..pc('b', nome: 'Bruno');
+      addTearDown(p.dispose);
+      await tester.pumpWidget(_app(p, FaixaEntrega(pairing: p)));
+      // Como o "Mensagem para a turma": um PC por vez, avisando a cada um.
+      final e = Entrega(tipo: TipoEntrega.comando, enviadoEm: _t0);
+      p.entregaFake = e;
+      e.adicionar('a', cmdId: 'c-a', online: false, suportaTurma: true);
+      p.avisar(); // "1 de 1 desligado": parece resolvido
+      e.adicionar('b', cmdId: 'c-b', online: true, suportaTurma: true);
+      p.avisar();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(SnackBar), findsNothing);
+      expect(find.text('Enviando… 0 de 2'), findsOneWidget);
+
+      e.aoAck('b', 'c-b', ok: true);
+      p.avisar();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(
+        find.text('✓ 1 de 2 receberam · 1 desligado (recebem quando ligarem)'),
+        findsOneWidget,
+      );
+      await _esperarSnackSumir(tester);
+    });
+
     testWidgets('envio para um PC desligado avisa na tela dele',
         (tester) async {
       final p = FakePairing()..pc('a', nome: 'Ana', online: false);
