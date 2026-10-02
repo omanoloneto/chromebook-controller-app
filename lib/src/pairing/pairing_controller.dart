@@ -159,11 +159,6 @@ class PairingController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Mensagem individual: agora é a conversa (chat). Mantido para a tela
-  /// antiga até ela trocar "Enviar mensagem" por "Conversar". Null = ok.
-  Future<String?> enviarMensagem(String deviceId, String texto) =>
-      enviarChat(deviceId, texto);
-
   /// Abre uma URL só no PC do professor (ex.: link do histórico de um aluno).
   void abrirNoPcProfessor(String url) {
     final id = _pcProfessorId;

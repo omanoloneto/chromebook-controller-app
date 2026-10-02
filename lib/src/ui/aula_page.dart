@@ -1,23 +1,44 @@
 // Aba Aula: a tela de trabalho do professor — lista de PCs em destaque e a
-// sessão de aula; "abrir um site" fica na barra do topo. Nada aqui usa cor hardcoded
-// (ver theme.dart / CoresAula).
+// sessão de aula; "abrir um site" e os Recados ficam na barra do topo. Com
+// aula ativa, a linha de ações da turma ("Olhos em mim", "Prova",
+// "Mensagem", "Telas") e as faixas de confirmação ficam embaixo do banner.
+// Nada aqui usa cor hardcoded (ver theme.dart / CoresAula).
 
 import 'package:flutter/material.dart';
 
+import '../cloud/entrega.dart';
 import '../cloud/session_registry.dart';
 import '../pairing/pairing_controller.dart';
+import 'chat_page.dart';
 import 'device_page.dart';
+import 'faixa_entrega.dart';
+import 'grade_telas.dart';
 import 'home_sections.dart';
+import 'prova_controles.dart';
+import 'recados_page.dart';
 import 'scan_page.dart';
 import 'theme.dart';
+import 'trava_sheet.dart';
 
 class AulaPage extends StatefulWidget {
-  const AulaPage({super.key, required this.pairing, required this.onIrParaSites});
+  const AulaPage({
+    super.key,
+    required this.pairing,
+    required this.onIrParaSites,
+    this.onIrParaSitesDaProva,
+    this.visivel = true,
+  });
 
   final PairingController pairing;
 
   /// Navega para a aba Sites (editar favoritos/regras).
   final VoidCallback onIrParaSites;
+
+  /// Navega para a lista de sites permitidos na prova (aba Sites).
+  final VoidCallback? onIrParaSitesDaProva;
+
+  /// A aba Aula está na frente (a grade de telas só roda assim).
+  final bool visivel;
 
   @override
   State<AulaPage> createState() => _AulaPageState();
@@ -28,6 +49,9 @@ class _AulaPageState extends State<AulaPage> {
 
   /// Lista: offline colapsado atrás de "Ver todos" quando há online.
   bool _mostrarTodos = false;
+
+  /// "Telas": a grade de miniaturas no lugar da lista.
+  bool _grade = false;
 
   @override
   void initState() {
@@ -42,7 +66,10 @@ class _AulaPageState extends State<AulaPage> {
   }
 
   void _onChange() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    // Aula encerrada (aqui ou noutra tela): a grade fecha junto.
+    if (_grade && !_pairing.aulaAtiva) _grade = false;
+    setState(() {});
   }
 
   void _snack(String texto) {
@@ -140,13 +167,16 @@ class _AulaPageState extends State<AulaPage> {
     final n = _pairing.pcsAlvoCount; // só os vinculados
     final ok = await _confirmar(
       titulo: 'Encerrar aula',
-      mensagem: 'Fecha o NAVEGADOR (todas as janelas) em $n PC(s) com aluno '
-          'e limpa os vínculos de alunos desta aula.',
+      mensagem: 'Fecha o NAVEGADOR (todas as janelas) em $n PC(s) com aluno, '
+          'destrava as telas, desliga o modo prova e limpa os vínculos, as '
+          'conversas e os recados desta aula.',
       acao: 'Encerrar',
     );
     if (ok) {
+      setState(() => _grade = false);
       await _pairing.encerrarAula();
-      _snack('Aula encerrada — navegador fechado em $n PC(s).');
+      // A faixa acompanha o fechamento do navegador PC a PC.
+      _snack('Aula encerrada.');
     }
   }
 
@@ -290,11 +320,13 @@ class _AulaPageState extends State<AulaPage> {
               ),
             ListTile(
               leading: const Icon(Icons.chat_bubble_outline),
-              title: const Text('Enviar mensagem'),
-              enabled: on,
+              title: const Text('Conversar'),
+              subtitle:
+                  travadoPor == null ? null : Text('Está na aula de $travadoPor'),
+              enabled: travadoPor == null,
               onTap: () {
                 Navigator.pop(ctx);
-                mostrarDialogoMensagem(context, _pairing, s.deviceId, nome);
+                abrirConversa(context, _pairing, s.deviceId);
               },
             ),
             ListTile(
@@ -333,6 +365,7 @@ class _AulaPageState extends State<AulaPage> {
         title: const Text('Controle de Aula'),
         actions: [
           _chipOnline(online),
+          _botaoRecados(),
           IconButton(
             icon: const Icon(Icons.open_in_browser),
             tooltip: 'Abrir um site na turma',
@@ -345,6 +378,21 @@ class _AulaPageState extends State<AulaPage> {
           : _pairing.erroDeConexao != null
               ? _erroView()
               : _conteudo(pcs),
+    );
+  }
+
+  // Recados: pedidos + mãos + conversas com não lidas (o badge da aba Aula na
+  // barra de baixo continua só de alertas de site).
+  Widget _botaoRecados() {
+    final n = _pairing.iniciando ? 0 : _pairing.recadosCount;
+    return IconButton(
+      tooltip: n == 0 ? 'Recados' : 'Recados ($n)',
+      onPressed: () => abrirRecados(context, _pairing),
+      icon: Badge.count(
+        count: n,
+        isLabelVisible: n > 0,
+        child: const Icon(Icons.inbox_outlined),
+      ),
     );
   }
 
@@ -433,12 +481,79 @@ class _AulaPageState extends State<AulaPage> {
     );
   }
 
+  // ---- Linha de ações da turma ("Olhos em mim", "Prova", "Mensagem", "Telas") --
+
+  void _irParaSitesDaProva() =>
+      (widget.onIrParaSitesDaProva ?? widget.onIrParaSites)();
+
+  void _alternarGrade() {
+    if (!_grade) {
+      final sem = _pairing.motivoSemTurma;
+      if (sem != null) {
+        _snack(sem);
+        return;
+      }
+    }
+    setState(() => _grade = !_grade);
+  }
+
+  Widget _linhaDeAcoes() {
+    final trava = _pairing.travaLigada;
+    final prova = _pairing.provaLigada;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Row(
+        children: [
+          BotaoDaTurma(
+            icone: trava ? Icons.lock_open : Icons.visibility_outlined,
+            rotulo: trava ? 'Destravar' : 'Olhos em mim',
+            dica: trava ? 'Destravar as telas da turma' : 'Travar as telas da turma',
+            ligado: trava,
+            onPressed: () => trava
+                ? destravarTurma(context, _pairing)
+                : travarComSheet(context, _pairing),
+          ),
+          const SizedBox(width: 8),
+          BotaoDaTurma(
+            icone: prova ? Icons.fact_check : Icons.fact_check_outlined,
+            rotulo: prova ? 'Prova ligada' : 'Prova',
+            dica: prova ? 'Desligar o modo prova' : 'Modo prova: só sites permitidos',
+            ligado: prova,
+            onPressed: () => alternarProva(
+              context,
+              _pairing,
+              onEditarSites: _irParaSitesDaProva,
+            ),
+          ),
+          const SizedBox(width: 8),
+          BotaoDaTurma(
+            icone: Icons.forum_outlined,
+            rotulo: 'Mensagem',
+            dica: 'Mensagem para a turma',
+            onPressed: () => mostrarSheetMensagemTurma(context, _pairing),
+          ),
+          const SizedBox(width: 8),
+          BotaoDaTurma(
+            icone: _grade ? Icons.view_list_outlined : Icons.grid_view,
+            rotulo: _grade ? 'Lista' : 'Telas',
+            dica: _grade ? 'Voltar para a lista' : 'Ver as telas ao vivo',
+            ligado: _grade,
+            onPressed: _alternarGrade,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _conteudo(List<PcSession> pcs) {
+    final aula = _pairing.aulaAtiva;
     return Column(
       children: [
-        if (_pairing.aulaAtiva)
-          _bannerAula()
-        else
+        if (aula) ...[
+          _bannerAula(),
+          _linhaDeAcoes(),
+          const Divider(height: 0.5),
+        ] else
           Material(
             color: Theme.of(context).colorScheme.surfaceContainerHighest,
             child: ListTile(
@@ -451,8 +566,19 @@ class _AulaPageState extends State<AulaPage> {
               ),
             ),
           ),
+        FaixaEstadoTurma(pairing: _pairing, tipo: TipoEntrega.trava),
+        FaixaEstadoTurma(pairing: _pairing, tipo: TipoEntrega.prova),
+        FaixaEntrega(pairing: _pairing),
         Expanded(
-          child: pcs.isEmpty ? _vazio() : _listaPcs(pcs),
+          child: aula && _grade
+              ? GradeTelas(
+                  pairing: _pairing,
+                  visivel: widget.visivel,
+                  onAbrirPc: _abrirDevicePage,
+                )
+              : pcs.isEmpty
+                  ? _vazio()
+                  : _listaPcs(pcs),
         ),
       ],
     );
@@ -626,6 +752,38 @@ class _AulaPageState extends State<AulaPage> {
       ),
     );
 
+    final textoSubtitulo = Text(
+      subtitulo,
+      maxLines: alerta != null ? 3 : 2,
+      overflow: TextOverflow.ellipsis,
+      style: alerta != null ? TextStyle(color: c.alertaFg) : null,
+    );
+
+    // Situação do aluno à vista: tela travada, mão levantada, mensagens novas
+    // (mão e mensagens só dos PCs que não estão na aula de outro professor).
+    final meuRecado =
+        !ehProfessor && _pairing.professorQueTravou(s.deviceId) == null;
+    final naoLidas = meuRecado ? _pairing.naoLidasDe(s.deviceId) : 0;
+    final chips = <Widget>[
+      if (!ehProfessor) ...chipsDeTrava(context, _pairing, s.deviceId),
+      if (meuRecado && _pairing.maoLevantada(s.deviceId))
+        ChipDoPc(
+          icone: Icons.back_hand,
+          texto: 'Mão levantada',
+          fundo: c.atencao.withValues(alpha: 0.16),
+          frente: c.atencao,
+          onTap: () => abrirConversa(context, _pairing, s.deviceId),
+        ),
+      if (naoLidas > 0)
+        ChipDoPc(
+          icone: Icons.chat_bubble,
+          texto: naoLidas == 1 ? '1 mensagem nova' : '$naoLidas mensagens novas',
+          fundo: scheme.secondaryContainer,
+          frente: scheme.onSecondaryContainer,
+          onTap: () => abrirConversa(context, _pairing, s.deviceId),
+        ),
+    ];
+
     // Escolher/Trocar aluno sempre à vista durante a aula (menos no telão e
     // em PC preso na aula de outro professor).
     final mostrarVincular = !ehProfessor &&
@@ -643,13 +801,17 @@ class _AulaPageState extends State<AulaPage> {
             .titleMedium
             ?.copyWith(fontWeight: FontWeight.w600),
       ),
-      subtitle: Text(
-        subtitulo,
-        maxLines: alerta != null ? 3 : 2,
-        overflow: TextOverflow.ellipsis,
-        style: alerta != null ? TextStyle(color: c.alertaFg) : null,
-      ),
-      isThreeLine: on && ativa != null,
+      subtitle: chips.isEmpty
+          ? textoSubtitulo
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                textoSubtitulo,
+                const SizedBox(height: 6),
+                Wrap(spacing: 6, runSpacing: 4, children: chips),
+              ],
+            ),
+      isThreeLine: (on && ativa != null) || chips.isNotEmpty,
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -676,6 +838,61 @@ class _AulaPageState extends State<AulaPage> {
       onTap: () => _abrirDevicePage(s.deviceId),
       onLongPress: () => _menuPc(s, nome),
       child: on ? conteudo : Opacity(opacity: 0.55, child: conteudo),
+    );
+  }
+}
+
+/// Botão da linha de ações da turma: ícone sobre o rótulo, todos do mesmo
+/// tamanho. Ligado ("Destravar", "Prova ligada", "Lista") = preenchido.
+class BotaoDaTurma extends StatelessWidget {
+  const BotaoDaTurma({
+    super.key,
+    required this.icone,
+    required this.rotulo,
+    required this.dica,
+    required this.onPressed,
+    this.ligado = false,
+  });
+
+  final IconData icone;
+  final String rotulo;
+  final String dica;
+  final VoidCallback onPressed;
+  final bool ligado;
+
+  @override
+  Widget build(BuildContext context) {
+    final conteudo = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icone, size: 24),
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            rotulo,
+            maxLines: 1,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    );
+    final estilo = ButtonStyle(
+      padding: const WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+      ),
+      minimumSize: const WidgetStatePropertyAll(Size(0, 64)),
+      shape: WidgetStatePropertyAll(
+        RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+    return Expanded(
+      child: Tooltip(
+        message: dica,
+        child: ligado
+            ? FilledButton(onPressed: onPressed, style: estilo, child: conteudo)
+            : FilledButton.tonal(onPressed: onPressed, style: estilo, child: conteudo),
+      ),
     );
   }
 }
