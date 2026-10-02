@@ -32,6 +32,7 @@ class FakePairing extends PairingController {
   List<String> silenciados = [];
   bool provaLigadaFake = false;
   bool travaLigadaFake = false;
+  bool aulaAtivaFake = true;
 
   // Entregas (faixa).
   Entrega? entregaFake;
@@ -108,6 +109,8 @@ class FakePairing extends PairingController {
   bool get provaLigada => provaLigadaFake;
   @override
   bool get travaLigada => travaLigadaFake;
+  @override
+  bool get aulaAtiva => aulaAtivaFake;
   @override
   DateTime? get travaDesde => null;
 

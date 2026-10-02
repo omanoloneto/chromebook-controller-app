@@ -123,6 +123,7 @@ void main() {
         (tester) async {
       final p = _turma()..travados.addAll(['a', 'c']);
       p.semProfessor.add('c');
+      p.travaLigadaFake = true; // a aula está travada: o botão a cobre
       addTearDown(p.dispose);
       await tester.pumpWidget(
         MaterialApp(
@@ -145,6 +146,34 @@ void main() {
       await tester.tap(find.text('Destravar'));
       await tester.pump();
       expect(p.destravados, ['c']);
+    });
+    testWidgets(
+        'tela travada fora do alcance do "Destravar" da aula ganha o botão; '
+        'PC de outro professor não', (tester) async {
+      final p = _turma()..travados.addAll(['a', 'c']);
+      p.outrosProfessores['c'] = 'Prof. Carlos';
+      p.aulaAtivaFake = false; // sem aula neste celular: sem botão da aula
+      addTearDown(p.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildTheme(Brightness.light),
+          home: Scaffold(
+            body: Builder(
+              builder: (ctx) => Column(
+                children: [
+                  Row(children: chipsDeTrava(ctx, p, 'a')),
+                  Row(children: chipsDeTrava(ctx, p, 'c')),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Tela travada'), findsNWidgets(2));
+      expect(find.text('Destravar'), findsOneWidget);
+      await tester.tap(find.text('Destravar'));
+      await tester.pump();
+      expect(p.destravados, ['a']);
     });
   });
 

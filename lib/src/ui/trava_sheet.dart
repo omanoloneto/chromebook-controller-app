@@ -404,7 +404,10 @@ class ChipDoPc extends StatelessWidget {
 
 /// Chips de trava de um PC: "Tela travada", ou "Travada sem professor" com o
 /// botão "Destravar" (qualquer professor da escola pode destravar). Vazio se
-/// a tela não está travada.
+/// a tela não está travada. O "Destravar" também aparece na tela travada que
+/// o botão "Destravar" da aula não alcança (sem aula ativa neste celular, ou
+/// com a aula destravada): sem ele, o PC esperaria o prazo (até 20 min). PC
+/// na aula de outro professor nunca ganha o botão (SPEC-turma §1.5).
 List<Widget> chipsDeTrava(
   BuildContext context,
   PairingController pairing,
@@ -413,6 +416,19 @@ List<Widget> chipsDeTrava(
   if (!pairing.telaTravada(deviceId)) return const [];
   final scheme = Theme.of(context).colorScheme;
   final c = cores(context);
+  final destravar = ChipDoPc(
+    icone: Icons.lock_open,
+    texto: 'Destravar',
+    fundo: scheme.primary,
+    frente: scheme.onPrimary,
+    onTap: () async {
+      final messenger = ScaffoldMessenger.of(context);
+      final erro = await pairing.destravarPc(deviceId);
+      messenger
+        ..hideCurrentSnackBar()
+        ..showSnackBar(SnackBar(content: Text(erro ?? 'Destravando…')));
+    },
+  );
   if (pairing.travadaSemProfessor(deviceId)) {
     return [
       ChipDoPc(
@@ -421,21 +437,11 @@ List<Widget> chipsDeTrava(
         fundo: c.atencao.withValues(alpha: 0.16),
         frente: c.atencao,
       ),
-      ChipDoPc(
-        icone: Icons.lock_open,
-        texto: 'Destravar',
-        fundo: scheme.primary,
-        frente: scheme.onPrimary,
-        onTap: () async {
-          final messenger = ScaffoldMessenger.of(context);
-          final erro = await pairing.destravarPc(deviceId);
-          messenger
-            ..hideCurrentSnackBar()
-            ..showSnackBar(SnackBar(content: Text(erro ?? 'Destravando…')));
-        },
-      ),
+      destravar,
     ];
   }
+  final semBotaoDaAula = !(pairing.aulaAtiva && pairing.travaLigada) &&
+      pairing.professorQueTravou(deviceId) == null;
   return [
     ChipDoPc(
       icone: Icons.lock,
@@ -443,5 +449,6 @@ List<Widget> chipsDeTrava(
       fundo: scheme.primaryContainer,
       frente: scheme.onPrimaryContainer,
     ),
+    if (semBotaoDaAula) destravar,
   ];
 }
