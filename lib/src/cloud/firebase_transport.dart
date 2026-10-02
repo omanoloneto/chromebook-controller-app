@@ -5,6 +5,7 @@
 // (snapshot). Ver docs/protocolo.md.
 
 import 'dart:async';
+import 'dart:collection';
 import 'dart:convert';
 
 import 'package:firebase_core/firebase_core.dart' show FirebaseException;
@@ -108,9 +109,9 @@ class FirebaseTransport {
   /// Teto, silêncio, idade e dedup do up/.
   final UpRouter upRouter = UpRouter();
 
-  // Itens do up/ de PC reservado por outro: guardados sem ler, para o caso de
-  // o PC ficar livre (ou meu) depois.
-  final Map<String, Map<String, String>> _upIgnorados = {};
+  // Itens do up/ de PC reservado por outro: guardados sem ler (só os 20 mais
+  // novos, como em Recados), para o caso de o PC ficar livre (ou meu) depois.
+  final Map<String, SplayTreeMap<String, String>> _upIgnorados = {};
 
   // Processamento em série por PC e canal: o guard (sid,seq) exige ordem, e
   // decifrar é assíncrono.
@@ -474,9 +475,33 @@ class FirebaseTransport {
   Future<void> _onUp(String deviceId, String key, Object? env) async {
     final destino = _destino(deviceId);
     if (destino == DestinoUp.ignorar) {
-      if (env is String) (_upIgnorados[deviceId] ??= {})[key] = env;
+      if (env is String) _guardarIgnorado(deviceId, key, env);
       return;
     }
+    // O que ficou guardado enquanto o PC era de outro professor vem ANTES
+    // deste item: o upGuard (sid,seq) exige a ordem de chegada (a reserva
+    // pode vencer pelo relógio, sem nenhum evento em /school/aulas).
+    await _drenarIgnorados(deviceId, destino);
+    await _lerUp(deviceId, key, env, destino);
+  }
+
+  void _guardarIgnorado(String deviceId, String key, String env) {
+    final itens = _upIgnorados[deviceId] ??= SplayTreeMap<String, String>();
+    itens[key] = env;
+    while (itens.length > kUpMaxEntradas) {
+      itens.remove(itens.firstKey());
+    }
+  }
+
+  Future<void> _drenarIgnorados(String deviceId, DestinoUp destino) async {
+    final itens = _upIgnorados.remove(deviceId);
+    if (itens == null) return;
+    for (final e in itens.entries) {
+      await _lerUp(deviceId, e.key, e.value, destino);
+    }
+  }
+
+  Future<void> _lerUp(String deviceId, String key, Object? env, DestinoUp destino) async {
     final agora = nowServer().millisecondsSinceEpoch;
     final chegada = upRouter.aoChegar(deviceId, key, agora);
     for (final velha in chegada.apagar) {
@@ -507,16 +532,16 @@ class FirebaseTransport {
     if (mid != null) onUpRemovido?.call(deviceId, mid);
   }
 
-  /// A reserva de aula mudou: itens guardados de PC que deixou de ser de
-  /// outro professor passam pelo caminho normal.
+  /// A reserva de aula mudou (ou pode ter vencido): itens guardados de PC que
+  /// deixou de ser de outro professor passam pelo caminho normal, na fila do
+  /// PC (depois do que já estava na fila, na ordem do push id).
   void reavaliarUpIgnorados() {
     for (final deviceId in _upIgnorados.keys.toList()) {
-      if (_destino(deviceId) == DestinoUp.ignorar) continue;
-      final itens = _upIgnorados.remove(deviceId) ?? const {};
-      final chaves = itens.keys.toList()..sort();
-      for (final k in chaves) {
-        _emSerie('$deviceId|up', () => _onUp(deviceId, k, itens[k]));
-      }
+      _emSerie('$deviceId|up', () async {
+        final destino = _destino(deviceId);
+        if (destino == DestinoUp.ignorar) return;
+        await _drenarIgnorados(deviceId, destino);
+      });
     }
   }
 

@@ -359,6 +359,10 @@ class PairingController extends ChangeNotifier {
       _lockHeartbeat ??= Timer.periodic(kRenovacao, (_) {
         if (aulaAtiva) _aulaLocks?.heartbeat();
         unawaited(_renovarTurma());
+        // Reserva de outro professor vence pelo relógio (15 min sem
+        // heartbeat), sem evento em /school/aulas: o up/ guardado do PC que
+        // ficou livre é lido aqui.
+        _transport?.reavaliarUpIgnorados();
       });
 
       // Heartbeat da visão da turma: mantém o "atualizado há Xs" do telão
