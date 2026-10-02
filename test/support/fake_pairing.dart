@@ -243,9 +243,17 @@ class FakePairing extends PairingController {
   }
 
   // ---- Grade -------------------------------------------------------------
+  bool gradeAbertaFake = false;
+
+  @override
+  bool get gradeAberta => gradeAbertaFake;
+
+  // Como o controller: sem turma, recusa (e não abre).
   @override
   Future<String?> abrirGrade() async {
     abrirGradeChamadas++;
+    if (semTurma != null) return semTurma;
+    gradeAbertaFake = true;
     abertaEm ??= agora - 60000;
     return null;
   }
@@ -253,6 +261,7 @@ class FakePairing extends PairingController {
   @override
   Future<void> fecharGrade() async {
     fecharGradeChamadas++;
+    gradeAbertaFake = false;
   }
 
   final List<String> fotosDeTela = [];

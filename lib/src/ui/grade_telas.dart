@@ -133,7 +133,14 @@ class _GradeTelasState extends State<GradeTelas>
   }
 
   void _onChange() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    // A grade está na frente, mas o pedido de abrir foi recusado (a turma
+    // estava vazia naquele instante): abre quando a turma aparecer, senão os
+    // quadros ficariam em "Carregando…" para sempre.
+    if (_rodando && !_p.gradeAberta && _p.motivoSemTurma == null) {
+      unawaited(_p.abrirGrade());
+    }
+    setState(() {});
   }
 
   // Liga a grade só quando ela está mesmo na frente; desliga (apagando

@@ -264,6 +264,29 @@ void main() {
       );
     });
 
+    testWidgets('abrir recusado (turma vazia) abre quando a turma aparece',
+        (tester) async {
+      final p = FakePairing()
+        ..semTurma = 'Nenhum computador com aluno nesta aula ainda.';
+      addTearDown(p.dispose);
+      await tester.pumpWidget(app(p));
+      await tester.pump();
+      expect((p.abrirGradeChamadas, p.gradeAberta), (1, false));
+
+      p
+        ..semTurma = null
+        ..pc('a', nome: 'Ana');
+      p.avisar();
+      await tester.pump();
+      expect((p.abrirGradeChamadas, p.gradeAberta), (2, true));
+      // Aberta: outras mudanças não pedem de novo.
+      p.avisar();
+      await tester.pump();
+      expect(p.abrirGradeChamadas, 2);
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      expect(p.gradeAberta, isFalse);
+    });
+
     testWidgets('sem aula: o motivo no lugar da grade', (tester) async {
       final p = FakePairing()
         ..semTurma = 'Comece uma aula para usar com a turma.';
