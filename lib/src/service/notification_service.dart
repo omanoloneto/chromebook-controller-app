@@ -1,5 +1,7 @@
 // Notificações de evento (alerta/bloqueio) COM SOM — canal separado do canal
-// silencioso 'servidor_aula' do foreground service.
+// silencioso 'servidor_aula' do foreground service. Recados dos alunos (chat,
+// pedido de liberação, mão levantada) vão num canal próprio, privado na tela
+// de bloqueio (texto de aluno é dado de menor).
 //
 // ⚠️ No Android 8+, som/importância congelam na criação do canal (1ª
 // notificação). Para mudar no futuro: canal novo ('alertas_aula_v2') +
@@ -13,8 +15,13 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 /// Janela anti-spam por (tipo, deviceId, domínio).
 const Duration kJanelaNotificacao = Duration(minutes: 2);
 
-/// Destino do toque numa notificação: o PC e o momento do evento.
-typedef ToqueNotificacao = ({String deviceId, int ts});
+/// Destino do toque numa notificação: o PC, o momento do evento e o tipo do
+/// recado ([k] = 'chat' | 'pedido' | 'mao'; null = alerta de site, o payload
+/// antigo `{d, ts}`). Chat e mão abrem a conversa; pedido abre Recados.
+typedef ToqueNotificacao = ({String deviceId, int ts, String? k});
+
+/// Tipos de recado aceitos no payload (`k`).
+const Set<String> kTiposDeRecado = {'chat', 'pedido', 'mao'};
 
 class NotificationService {
   NotificationService({DateTime Function()? relogio})
@@ -38,10 +45,11 @@ class NotificationService {
     return t;
   }
 
-  static String montarPayload(String deviceId, int ts) =>
-      jsonEncode({'d': deviceId, 'ts': ts});
+  static String montarPayload(String deviceId, int ts, {String? k}) =>
+      jsonEncode({'d': deviceId, 'ts': ts, if (k != null) 'k': k});
 
-  /// null = payload ausente ou de outro formato.
+  /// null = payload ausente ou de outro formato. `k` desconhecido = null
+  /// (vira o toque de alerta, que abre a tela do PC).
   static ToqueNotificacao? lerPayload(String? payload) {
     if (payload == null || payload.isEmpty) return null;
     try {
@@ -50,7 +58,12 @@ class NotificationService {
       final d = m['d'];
       final ts = m['ts'];
       if (d is! String || d.isEmpty || ts is! num) return null;
-      return (deviceId: d, ts: ts.toInt());
+      final k = m['k'];
+      return (
+        deviceId: d,
+        ts: ts.toInt(),
+        k: k is String && kTiposDeRecado.contains(k) ? k : null,
+      );
     } catch (_) {
       return null;
     }
@@ -121,6 +134,43 @@ class NotificationService {
       titulo: '🚫 Tentativa de site bloqueado',
       corpo: '$pc tentou acessar $dominio.',
     );
+  }
+
+  /// Recado de aluno: [k] = 'chat' (título = nome, corpo = texto), 'pedido'
+  /// ("Pedido de liberação" / "{nome}: {site}") ou 'mao' ("Mão levantada" /
+  /// "{nome}"). Sem throttle (o PC já limita); o card de cada PC é
+  /// substituído pelo mais novo e só toca de novo depois de dispensado.
+  Future<bool> notificarRecado({
+    required String k,
+    required String deviceId,
+    required int ts,
+    required String titulo,
+    required String corpo,
+  }) async {
+    if (!kTiposDeRecado.contains(k)) return false;
+    if (!_pronto) return true;
+    const detalhes = NotificationDetails(
+      android: AndroidNotificationDetails(
+        'recados_alunos',
+        'Recados dos alunos',
+        channelDescription:
+            'Mensagens, pedidos de liberação e mãos levantadas dos alunos.',
+        importance: Importance.high,
+        priority: Priority.high,
+        category: AndroidNotificationCategory.message,
+        // Tela de bloqueio: o Android esconde o texto (dado de aluno).
+        visibility: NotificationVisibility.private,
+        onlyAlertOnce: true,
+      ),
+    );
+    await _plugin.show(
+      id: _idEstavel('recado|$k|$deviceId'),
+      title: titulo,
+      body: corpo,
+      notificationDetails: detalhes,
+      payload: montarPayload(deviceId, ts, k: k),
+    );
+    return true;
   }
 
   /// Visível para teste: aplica o throttle e registra o disparo.
