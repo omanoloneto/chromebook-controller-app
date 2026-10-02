@@ -1665,6 +1665,10 @@ class PairingController extends ChangeNotifier {
   /// Último envio de turma (ou para um PC). Envio novo substitui o anterior.
   Entrega? get entrega => _entrega;
 
+  /// deviceId quando o último envio foi para UM PC (a faixa aparece na tela
+  /// dele); null = envio da turma (faixa da aba Aula).
+  String? get entregaUmPc => _entregaUmPc;
+
   /// Texto da faixa do último envio ("Enviando… 3 de 20", "✓ Todos
   /// receberam (20)", "Ana recebeu ✓"…), ou null.
   String? get textoDaEntrega {
