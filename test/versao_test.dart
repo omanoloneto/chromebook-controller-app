@@ -58,6 +58,23 @@ Version: 1.10.0
     expect(versaoMaisNovaNoIndice('lixo'), isNull);
   });
 
+  test('suportaTurma: Celita >= 0.13.0, ChromeOS >= 0.7.0, nulo = antigo', () {
+    expect(suportaTurma(null), isFalse);
+    expect(suportaTurma(''), isFalse);
+    expect(suportaTurma('   '), isFalse);
+    expect(suportaTurma('celita-'), isFalse);
+    expect(suportaTurma('celita-0.12.9'), isFalse);
+    expect(suportaTurma('celita-0.13.0'), isTrue);
+    expect(suportaTurma('celita-0.14.2'), isTrue);
+    expect(suportaTurma('celita-1.0.0'), isTrue);
+    expect(suportaTurma('0.6.0'), isFalse);
+    expect(suportaTurma('0.6.9'), isFalse);
+    expect(suportaTurma('0.7.0'), isTrue);
+    expect(suportaTurma('0.10.0'), isTrue, reason: 'comparação numérica');
+    // Celita 0.7.x NÃO é ChromeOS 0.7: o prefixo decide a régua.
+    expect(suportaTurma('celita-0.7.0'), isFalse);
+  });
+
   test('SessionRegistry.bind preserva a versão já lida', () {
     final reg = SessionRegistry();
     final chave = List<int>.generate(32, (i) => i);

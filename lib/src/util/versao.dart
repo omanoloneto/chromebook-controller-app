@@ -24,6 +24,25 @@ int compararVersoes(String a, String b) {
   return 0;
 }
 
+/// Versões mínimas dos recursos de turma (chat, pedidos, trava, prova, grade,
+/// confirmação positiva) — docs/protocolo.md §8 "Recursos de turma".
+const String kTurmaMinimoCelita = '0.13.0';
+const String kTurmaMinimoExtensao = '0.7.0';
+
+/// O PC entende os recursos de turma? `ext` = meta/ext: "celita-<versão do
+/// pacote>" no Celita OS, a versão da extensão no ChromeOS. Nula ou vazia =
+/// não sabemos = trata como antigo.
+bool suportaTurma(String? ext) {
+  final v = ext?.trim() ?? '';
+  if (v.isEmpty) return false;
+  if (v.startsWith('celita-')) {
+    final pacote = v.substring('celita-'.length);
+    if (pacote.isEmpty) return false;
+    return compararVersoes(pacote, kTurmaMinimoCelita) >= 0;
+  }
+  return compararVersoes(v, kTurmaMinimoExtensao) >= 0;
+}
+
 /// PC com Celita mais velho que a versão publicada. Agente que não publica a
 /// versão do sistema (meta/os) é de antes da 1.24.0, então está velho.
 bool celitaDesatualizado(String? os, String? ext, String? maisNova) {
