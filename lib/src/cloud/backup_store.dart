@@ -23,6 +23,7 @@ const List<String> kArquivosDeBackup = [
   'device_names.json',
   'unit_numbers.json',
   'domain_rules.json',
+  'sites_prova.json',
   'favorites.json',
   'turmas.json',
   'aula.json',
