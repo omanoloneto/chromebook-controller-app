@@ -73,6 +73,9 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   bool _enviando = false;
   bool _appNaFrente = true;
 
+  // A conversa já foi "aberta" no controller (não lidas zeradas, mão baixada).
+  bool _aberta = false;
+
   @override
   void initState() {
     super.initState();
@@ -82,9 +85,15 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     _p.addListener(_onChange);
     _ctrl.addListener(() => setState(() {}));
     // Abrir zera as não lidas e baixa a mão (apaga o raise_hand do up/).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(_p.abrirConversa(_id));
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _abrirSeCarregado());
+  }
+
+  // Aberta por uma notificação com o app recém-aberto, o PC ainda pode estar
+  // carregando: a conversa só é "aberta" (e a mão baixada) quando ele chega.
+  void _abrirSeCarregado() {
+    if (!mounted || _aberta || _p.pcPorId(_id) == null) return;
+    _aberta = true;
+    unawaited(_p.abrirConversa(_id));
   }
 
   @override
@@ -105,7 +114,11 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   void _onChange() {
     if (!mounted) return;
     setState(() {});
-    _marcarLida();
+    if (!_aberta) {
+      scheduleMicrotask(_abrirSeCarregado);
+    } else {
+      _marcarLida();
+    }
   }
 
   // Mensagem que chega com a conversa aberta (e o app na frente) já é lida.
@@ -230,7 +243,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
             ),
           Expanded(
             child: itens.isEmpty
-                ? _vazio(nome, antigo)
+                ? _vazio(nome, antigo, deOutro: professor != null)
                 : _lista(itens, s.versaoExt),
           ),
           const Divider(height: 0.5),
@@ -301,7 +314,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _vazio(String nome, bool antigo) {
+  Widget _vazio(String nome, bool antigo, {bool deOutro = false}) {
     final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
@@ -315,15 +328,19 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
               'Nenhuma mensagem ainda.',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: 4),
-            Text(
-              antigo
-                  ? 'Escreva para $nome. A mensagem aparece na tela do computador.'
-                  : 'Escreva para $nome. A conversa abre num cantinho da tela '
-                      'do computador, e o aluno pode responder.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: scheme.onSurfaceVariant),
-            ),
+            // PC na aula de outro professor não tem campo: nada de "Escreva".
+            if (!deOutro) ...[
+              const SizedBox(height: 4),
+              Text(
+                antigo
+                    ? 'Escreva para $nome. A mensagem aparece na tela do '
+                        'computador.'
+                    : 'Escreva para $nome. A conversa abre num cantinho da '
+                        'tela do computador, e o aluno pode responder.',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: scheme.onSurfaceVariant),
+              ),
+            ],
           ],
         ),
       ),

@@ -212,6 +212,36 @@ void main() {
     expect(find.text('Este computador está na aula de Rita.'), findsOneWidget);
     expect(find.byType(TextField), findsNothing);
     expect(find.text('Baixar'), findsNothing);
+    // Sem campo, a conversa vazia não manda escrever.
+    expect(find.text('Nenhuma mensagem ainda.'), findsOneWidget);
+    expect(find.textContaining('Escreva para'), findsNothing);
+  });
+
+  testWidgets(
+      'aberta por notificação antes de o PC carregar: abre (zera e baixa a '
+      'mão) quando ele chega', (tester) async {
+    final p = FakePairing();
+    addTearDown(p.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(Brightness.light),
+        home: ChatPage(pairing: p, deviceId: 'a'),
+      ),
+    );
+    await tester.pump();
+    expect(p.conversasAbertas, isEmpty);
+
+    p.pc('a', nome: 'Ana Souza')
+      ..naoLidas = 1
+      ..maoEm = kAgoraTeste - 60000;
+    p.avisar();
+    await tester.pump();
+    expect(p.conversasAbertas, ['a']);
+    expect(p.mapa['a']!.naoLidas, 0);
+    // Uma vez só.
+    p.avisar();
+    await tester.pump();
+    expect(p.conversasAbertas, ['a']);
   });
 
   testWidgets('PC com versão antiga avisa que o aluno não responde',
