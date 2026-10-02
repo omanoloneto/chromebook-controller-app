@@ -1,5 +1,5 @@
-// Aba Sites: Favoritos, Regras e a Página inicial dos alunos (tabs). FAB
-// contextual.
+// Aba Sites: Favoritos, Regras, a Página inicial dos alunos e os sites
+// permitidos no modo prova (tabs). FAB contextual.
 // As Views são burras; os dialogs de criar/editar vivem aqui.
 
 import 'package:flutter/material.dart';
@@ -9,12 +9,19 @@ import '../pairing/pairing_controller.dart';
 import '../pairing/home_store.dart';
 import 'favorites_page.dart';
 import 'home_page_view.dart';
+import 'prova_controles.dart';
 import 'rules_page.dart';
 
+/// Abas da tela Sites (o "Editar sites" do modo prova pede a [kAbaProva]).
+const int kAbaProva = 3;
+
 class SitesPage extends StatefulWidget {
-  const SitesPage({super.key, required this.pairing});
+  const SitesPage({super.key, required this.pairing, this.abaPedida});
 
   final PairingController pairing;
+
+  /// Outra tela pede uma aba (ex.: [kAbaProva] pelo "Editar sites").
+  final ValueNotifier<int?>? abaPedida;
 
   @override
   State<SitesPage> createState() => _SitesPageState();
@@ -22,20 +29,31 @@ class SitesPage extends StatefulWidget {
 
 class _SitesPageState extends State<SitesPage>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 3, vsync: this);
+  late final TabController _tabs = TabController(length: 4, vsync: this);
 
   @override
   void initState() {
     super.initState();
     widget.pairing.addListener(_onChange);
     _tabs.addListener(_onChange); // troca o FAB junto com a aba
+    widget.abaPedida?.addListener(_irParaAbaPedida);
+    _irParaAbaPedida();
   }
 
   @override
   void dispose() {
     widget.pairing.removeListener(_onChange);
+    widget.abaPedida?.removeListener(_irParaAbaPedida);
     _tabs.dispose();
     super.dispose();
+  }
+
+  void _irParaAbaPedida() {
+    final pedida = widget.abaPedida;
+    final aba = pedida?.value;
+    if (pedida == null || aba == null || aba < 0 || aba >= _tabs.length) return;
+    _tabs.animateTo(aba);
+    pedida.value = null;
   }
 
   void _onChange() {
@@ -295,6 +313,11 @@ class _SitesPageState extends State<SitesPage>
   ({IconData icone, String texto, VoidCallback acao})? _fab() => switch (_tabs.index) {
     0 => (icone: Icons.add, texto: 'Novo favorito', acao: _dialogoFavorito),
     1 => (icone: Icons.add, texto: 'Nova regra', acao: _dialogoRegra),
+    kAbaProva => (
+        icone: Icons.add,
+        texto: 'Novo site',
+        acao: () => dialogoNovoSiteProva(context, widget.pairing),
+      ),
     _ => (icone: Icons.add, texto: 'Novo atalho', acao: _dialogoAtalho),
   };
 
@@ -310,6 +333,7 @@ class _SitesPageState extends State<SitesPage>
             Tab(icon: Icon(Icons.star_outline), text: 'Favoritos'),
             Tab(icon: Icon(Icons.shield_outlined), text: 'Regras'),
             Tab(icon: Icon(Icons.home_outlined), text: 'Página inicial'),
+            Tab(icon: Icon(Icons.fact_check_outlined), text: 'Prova'),
           ],
           isScrollable: true,
           tabAlignment: TabAlignment.center,
@@ -336,6 +360,7 @@ class _SitesPageState extends State<SitesPage>
             onEditarTitulo: _dialogoTitulo,
             onEditarUrl: _dialogoUrl,
           ),
+          ProvaSitesView(pairing: widget.pairing),
         ],
       ),
     );
