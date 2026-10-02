@@ -109,6 +109,35 @@ void main() {
     expect(find.text('jogos.com'), findsNothing);
   });
 
+  testWidgets('toque duplo em Recusar ou Liberar abre um diálogo só',
+      (tester) async {
+    final p = await _abrir(tester, (p) {
+      p.mapa['a']!.pedidos.add(_pedido('a', 'youtube.com'));
+      p.padroes = ['youtube.com', '*.googlevideo.com'];
+    });
+    await tester.tap(find.text('Recusar'));
+    await tester.tap(find.text('Recusar'));
+    await tester.pumpAndSettle();
+    expect(find.text('Recusar o pedido?'), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(p.recusados, isEmpty);
+
+    await tester.tap(find.text('Liberar'));
+    await tester.tap(find.text('Liberar'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Liberar para Ana'), findsOneWidget);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+    expect(p.liberados, isEmpty);
+    // Cancelado: os botões voltam.
+    expect(
+      tester.widget<TextButton>(find.widgetWithText(TextButton, 'Recusar'))
+          .onPressed,
+      isNotNull,
+    );
+  });
+
   testWidgets('Recusar sem motivo manda null; Cancelar não recusa',
       (tester) async {
     final p = await _abrir(tester, (p) {

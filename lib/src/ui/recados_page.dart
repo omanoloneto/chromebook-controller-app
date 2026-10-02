@@ -48,8 +48,12 @@ class _RecadosPageState extends State<RecadosPage> {
   // Mão some sozinha depois de 10 min; o silêncio vence em 10 min.
   Timer? _relogio;
 
-  // Pedidos com Liberar/Recusar em andamento (sem toque duplo).
+  // Pedidos com Liberar/Recusar em andamento, da pergunta à resposta (sem
+  // toque duplo): os botões ficam desligados.
   final Set<PedidoLiberacao> _ocupados = Set.identity();
+
+  // Destes, os que já estão gravando a resposta (mostram o progresso).
+  final Set<PedidoLiberacao> _enviando = Set.identity();
 
   @override
   void initState() {
@@ -76,6 +80,17 @@ class _RecadosPageState extends State<RecadosPage> {
   }
 
   Future<void> _liberar(PedidoLiberacao pedido) async {
+    if (_ocupados.contains(pedido)) return;
+    // Ocupado já na pergunta: o toque duplo não abre dois diálogos.
+    setState(() => _ocupados.add(pedido));
+    final erro = await _liberarComPergunta(pedido);
+    if (!mounted) return;
+    setState(() => _ocupados.remove(pedido));
+    if (erro != null) _snack(erro);
+  }
+
+  /// null = cancelou ou liberou (já avisado); senão o texto do erro.
+  Future<String?> _liberarComPergunta(PedidoLiberacao pedido) async {
     final nome = _p.nomeDoPc(pedido.deviceId);
     List<String>? padroes;
     if (!_p.provaNoPc(pedido.deviceId)) {
@@ -102,27 +117,32 @@ class _RecadosPageState extends State<RecadosPage> {
             ],
           ),
         );
-        if (ok != true || !mounted) return;
+        if (ok != true || !mounted) return null;
       }
     }
-    setState(() => _ocupados.add(pedido));
+    setState(() => _enviando.add(pedido));
     final erro = await _p.liberarPedido(pedido, padroes: padroes);
-    if (!mounted) return;
-    setState(() => _ocupados.remove(pedido));
-    _snack(erro ?? '${pedido.site} liberado para $nome.');
+    _enviando.remove(pedido);
+    if (erro == null && mounted) _snack('${pedido.site} liberado para $nome.');
+    return erro;
   }
 
   Future<void> _recusar(PedidoLiberacao pedido) async {
-    final motivo = await mostrarDialogoRecusar(context);
-    if (motivo == null || !mounted) return;
+    if (_ocupados.contains(pedido)) return;
     setState(() => _ocupados.add(pedido));
-    final erro = await _p.recusarPedido(
-      pedido,
-      motivo: motivo.trim().isEmpty ? null : motivo.trim(),
-    );
+    final motivo = await mostrarDialogoRecusar(context);
+    String? erro;
+    if (motivo != null && mounted) {
+      setState(() => _enviando.add(pedido));
+      erro = await _p.recusarPedido(
+        pedido,
+        motivo: motivo.trim().isEmpty ? null : motivo.trim(),
+      );
+      _enviando.remove(pedido);
+    }
     if (!mounted) return;
     setState(() => _ocupados.remove(pedido));
-    _snack(erro ?? 'Pedido recusado.');
+    if (motivo != null) _snack(erro ?? 'Pedido recusado.');
   }
 
   @override
@@ -184,6 +204,7 @@ class _RecadosPageState extends State<RecadosPage> {
     final scheme = Theme.of(context).colorScheme;
     final texto = Theme.of(context).textTheme;
     final ocupado = _ocupados.contains(p);
+    final enviando = _enviando.contains(p);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: DecoratedBox(
@@ -216,28 +237,35 @@ class _RecadosPageState extends State<RecadosPage> {
                 ),
               ],
               const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (ocupado)
-                    const Padding(
-                      padding: EdgeInsets.only(right: 12),
-                      child: SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
+              // Wrap: em tela estreita ou letra grande, os botões descem de
+              // linha em vez de transbordar.
+              SizedBox(
+                width: double.infinity,
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    if (enviando)
+                      const Padding(
+                        padding: EdgeInsets.only(right: 4),
+                        child: SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
                       ),
+                    TextButton(
+                      onPressed: ocupado ? null : () => _recusar(p),
+                      child: const Text('Recusar'),
                     ),
-                  TextButton(
-                    onPressed: ocupado ? null : () => _recusar(p),
-                    child: const Text('Recusar'),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.tonalIcon(
-                    onPressed: ocupado ? null : () => _liberar(p),
-                    icon: const Icon(Icons.lock_open, size: 18),
-                    label: const Text('Liberar'),
-                  ),
-                ],
+                    FilledButton.tonalIcon(
+                      onPressed: ocupado ? null : () => _liberar(p),
+                      icon: const Icon(Icons.lock_open, size: 18),
+                      label: const Text('Liberar'),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

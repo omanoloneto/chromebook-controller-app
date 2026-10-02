@@ -107,6 +107,9 @@ class _DialogoVersaoAntigaProvaState extends State<DialogoVersaoAntigaProva> {
   // null = ainda não pediu; senão quantos aceitaram o pedido.
   int? _atualizando;
 
+  // Pedido em andamento: o toque duplo não manda `atualizar` duas vezes.
+  bool _pedindo = false;
+
   @override
   Widget build(BuildContext context) {
     final p = widget.pairing;
@@ -133,13 +136,16 @@ class _DialogoVersaoAntigaProvaState extends State<DialogoVersaoAntigaProva> {
               const SizedBox(height: 16),
               if (_atualizando == null)
                 OutlinedButton.icon(
-                  onPressed: () async {
-                    var n = 0;
-                    for (final s in celita) {
-                      if (await p.atualizarPc(s.deviceId) == null) n++;
-                    }
-                    if (mounted) setState(() => _atualizando = n);
-                  },
+                  onPressed: _pedindo
+                      ? null
+                      : () async {
+                          setState(() => _pedindo = true);
+                          var n = 0;
+                          for (final s in celita) {
+                            if (await p.atualizarPc(s.deviceId) == null) n++;
+                          }
+                          if (mounted) setState(() => _atualizando = n);
+                        },
                   icon: const Icon(Icons.system_update_alt),
                   label: const Text('Atualizar agora'),
                 )

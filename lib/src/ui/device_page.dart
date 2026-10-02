@@ -758,7 +758,11 @@ class _DevicePageState extends State<DevicePage> {
         actions: [
           if (!ehProfessor && travadoPor == null)
             IconButton(
-              tooltip: naoLidas == 0 ? 'Conversar' : 'Conversar ($naoLidas novas)',
+              tooltip: switch (naoLidas) {
+                0 => 'Conversar',
+                1 => 'Conversar (1 nova)',
+                _ => 'Conversar ($naoLidas novas)',
+              },
               onPressed: () =>
                   abrirConversa(context, widget.pairing, widget.deviceId),
               icon: Badge.count(
