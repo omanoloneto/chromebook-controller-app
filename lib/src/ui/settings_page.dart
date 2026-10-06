@@ -4,7 +4,9 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../cloud/archive_store.dart';
 import '../pairing/pairing_controller.dart';
+import 'exportar_historico.dart';
 import 'scan_page.dart';
 import 'school_members_page.dart';
 import 'settings_controller.dart';
@@ -323,6 +325,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               );
             },
+          ),
+          ListTile(
+            leading: const Icon(Icons.ios_share),
+            title: const Text('Exportar histórico de todos os PCs'),
+            subtitle: Text(
+              widget.pairing.workspaceAtivo
+                  ? 'Planilha com os sites visitados, de 1 a $kArchiveDays dias'
+                  : 'O histórico guardado existe só nos PCs da escola.',
+            ),
+            enabled: widget.pairing.workspaceAtivo,
+            onTap: () => exportarHistorico(context, widget.pairing),
           ),
           _secao('Aparência'),
           Padding(

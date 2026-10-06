@@ -24,9 +24,14 @@ const int kArchiveDays = 15;
 /// Teto de download de uma foto (o agente manda < 400 KiB).
 const int kMaxPhotoBytes = 1024 * 1024;
 
+/// Um instante na hora da escola (UTC−3): os campos do DateTime são os do
+/// relógio de São Paulo, qualquer que seja o fuso do celular.
+DateTime schoolTime(int tsMs) =>
+    DateTime.fromMillisecondsSinceEpoch(tsMs - _kOffsetEscolaMs, isUtc: true);
+
 /// Dia (AAAA-MM-DD) de um instante, em UTC−3.
 String dayOf(int tsMs) {
-  final d = DateTime.fromMillisecondsSinceEpoch(tsMs - _kOffsetEscolaMs, isUtc: true);
+  final d = schoolTime(tsMs);
   String two(int n) => n.toString().padLeft(2, '0');
   return '${d.year.toString().padLeft(4, '0')}-${two(d.month)}-${two(d.day)}';
 }

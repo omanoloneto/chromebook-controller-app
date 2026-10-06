@@ -9,6 +9,7 @@ import '../pairing/pairing_controller.dart';
 import '../secure/crypto.dart';
 import '../util/versao.dart';
 import 'device_page.dart';
+import 'exportar_historico.dart';
 import 'theme.dart';
 
 const _diasDaSemana = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
@@ -154,9 +155,32 @@ class _ArchivePageState extends State<ArchivePage> {
     final s = widget.pairing.pcPorId(widget.deviceId);
     final nome = s != null ? widget.pairing.nomeDe(s) : 'PC';
     return Scaffold(
-      appBar: AppBar(title: Text('Histórico — $nome')),
+      appBar: AppBar(
+        title: Text('Histórico — $nome'),
+        actions: [
+          if (_temArquivo)
+            IconButton(
+              icon: const Icon(Icons.ios_share),
+              tooltip: 'Exportar planilha',
+              onPressed: () => exportarHistorico(
+                context,
+                widget.pairing,
+                deviceId: widget.deviceId,
+              ),
+            ),
+        ],
+      ),
       body: _corpo(nome),
     );
+  }
+
+  /// PC do Celita OS na escola: só ele tem o arquivo de 15 dias.
+  bool get _temArquivo {
+    final s = widget.pairing.pcPorId(widget.deviceId);
+    return s != null &&
+        _store != null &&
+        temCelita(s.versaoExt) &&
+        widget.pairing.workspaceAtivo;
   }
 
   Widget _mensagem(String texto) => Center(

@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 import '../cloud/session_registry.dart';
@@ -363,12 +364,13 @@ Future<void> mostrarImagemDoPc(
 
 /// Spinner enquanto [tarefa] roda. Fecha só a própria rota: o voltar do
 /// Android ou o toque numa notificação podem tê-lo tirado antes, e um pop às
-/// cegas fecharia a tela de baixo.
+/// cegas fecharia a tela de baixo. Com [progresso], o texto acompanha ele.
 Future<T> esperarComSpinner<T>(
   BuildContext context,
   String texto,
-  Future<T> tarefa,
-) async {
+  Future<T> tarefa, {
+  ValueListenable<String>? progresso,
+}) async {
   final navigator = Navigator.of(context);
   final rota = DialogRoute<void>(
     context: context,
@@ -378,7 +380,14 @@ Future<T> esperarComSpinner<T>(
         children: [
           const CircularProgressIndicator(),
           const SizedBox(width: 16),
-          Expanded(child: Text(texto)),
+          Expanded(
+            child: progresso == null
+                ? Text(texto)
+                : ValueListenableBuilder<String>(
+                    valueListenable: progresso,
+                    builder: (context, valor, child) => Text(valor),
+                  ),
+          ),
         ],
       ),
     ),
