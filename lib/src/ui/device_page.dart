@@ -15,6 +15,7 @@ import '../util/versao.dart';
 import 'archive_page.dart';
 import 'chat_page.dart';
 import 'faixa_entrega.dart';
+import 'media_page.dart';
 import 'theme.dart';
 import 'trava_sheet.dart';
 
@@ -655,6 +656,15 @@ class _DevicePageState extends State<DevicePage> {
         ),
       );
 
+  void _verMidia() => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => MediaPage(
+            pairing: widget.pairing,
+            deviceId: widget.deviceId,
+          ),
+        ),
+      );
+
   /// Item de menu "Abrir no meu celular" — abre a URL no navegador do próprio
   /// celular do professor (sempre disponível; não depende de PC marcado).
   PopupMenuItem<String> _itemMenuCelular() {
@@ -828,6 +838,7 @@ class _DevicePageState extends State<DevicePage> {
                 );
               }
               if (v == 'historico') _verHistorico();
+              if (v == 'midia') _verMidia();
               if (v == 'atualizar') _atualizar(nome);
               if (v == 'professor') _alternarPcProfessor(nome);
               if (v == 'esquecer') _confirmarEsquecer(nome);
@@ -878,6 +889,17 @@ class _DevicePageState extends State<DevicePage> {
                 child: ListTile(
                   leading: const Icon(Icons.history),
                   title: const Text('Ver histórico'),
+                  subtitle: temCelita(s.versaoExt)
+                      ? null
+                      : const Text('só nos PCs com Celita OS'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'midia',
+                child: ListTile(
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text('Fotos e vídeos da Câmera'),
                   subtitle: temCelita(s.versaoExt)
                       ? null
                       : const Text('só nos PCs com Celita OS'),
@@ -1199,6 +1221,12 @@ class _DevicePageState extends State<DevicePage> {
             onPressed: _verHistorico,
             icon: const Icon(Icons.history),
             label: const Text('Ver histórico (15 dias)'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _verMidia,
+            icon: const Icon(Icons.photo_library_outlined),
+            label: const Text('Fotos e vídeos da Câmera'),
           ),
           if (!temCelita(s.versaoExt))
             Padding(

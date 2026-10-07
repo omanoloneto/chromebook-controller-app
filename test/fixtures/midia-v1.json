@@ -1,0 +1,24 @@
+{
+ "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+ "env": "AAAAAAAAAAAAAAAAdZ7D/I8dr5980dlQOhaz9LsnPzIKrUJC6fqRuee+PxUqGoD7QrvSTV+OH7qx7EVs3W4xiVtLZNM50lpJaExsioYCWyir8wYhfu22qDYWeKtrOAepDZhyYQWWOnPPceGA+Tw+Mw5zzsp2FxJVoR6YPEDIPATKUDPoozAdy1MdCrFJhqa62xk/STBEuoI0wvUYG29hXbnfopTjax09TFwakEoH6Ad8hKvm9+GT7Q090+QG2mbx2/jq5VWwKyTRZmMfA9rDebkxqBkB2G7NRiB+kTIHcfYijjzpaUOXHjzypQH57y5s4+IFV0C+gA==",
+ "mid": "AbCdEfGhIjKlMnOp",
+ "r": "RRRRRRRRRRRRRRRRRRRRRR",
+ "partes": [
+  "00000000000000000000000061d0d4fe19065e51723b3205310d7c5d84cd9764",
+  "0101010101010101010101011ab68b510791fad8cb5862c5ee78c82324516ecc9d"
+ ],
+ "objeto": {
+  "v": 1,
+  "type": "midia",
+  "mid": "AbCdEfGhIjKlMnOp",
+  "tipo": "video",
+  "nome": "Vídeo 2026-10-07 10.01.00.mp4",
+  "conta": "aluno",
+  "ts": 1791378060000,
+  "bytes": 7,
+  "guardado": true,
+  "expira": 1792674060000,
+  "duracao": 3.5,
+  "thumb": "/9j/AA=="
+ }
+}

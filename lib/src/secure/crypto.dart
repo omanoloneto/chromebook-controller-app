@@ -78,6 +78,31 @@ class SessionCrypto {
     return jsonDecode(utf8.decode(plaintext)) as Map<String, dynamic>;
   }
 
+  /// Parte de um envio midia-v1: nonce(12) || AES-GCM(dados) com [aad] (o
+  /// envio e a posição). Parte trocada ou fora de ordem não abre.
+  Future<List<int>> openPart(List<int> data, List<int> aad) async {
+    if (data.length < 12 + 16) {
+      throw const FormatException('parte_curta');
+    }
+    final box = SecretBox(
+      data.sublist(12, data.length - 16),
+      nonce: data.sublist(0, 12),
+      mac: Mac(data.sublist(data.length - 16)),
+    );
+    return _algo.decrypt(box, secretKey: await _secretKey(), aad: aad);
+  }
+
+  /// Só para teste: o agente do Celita é quem sela as partes.
+  Future<Uint8List> sealPart(List<int> data, List<int> aad, {List<int>? nonce}) async {
+    final box = await _algo.encrypt(
+      data,
+      secretKey: await _secretKey(),
+      nonce: nonce ?? _algo.newNonce(),
+      aad: aad,
+    );
+    return Uint8List.fromList([...box.nonce, ...box.cipherText, ...box.mac.bytes]);
+  }
+
   /// Objeto foto-v1 (binário): nonce(12) || AES-GCM(utf8(header) || 0x0A || jpeg).
   /// Só o agente do Celita gera fotos; aqui serve para teste.
   Future<Uint8List> sealPhoto(

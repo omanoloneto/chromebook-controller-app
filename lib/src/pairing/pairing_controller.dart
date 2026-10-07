@@ -21,6 +21,7 @@ import '../cloud/entrega.dart';
 import '../cloud/firebase_transport.dart';
 import '../cloud/history_store.dart';
 import '../cloud/login_handoff.dart';
+import '../cloud/media_store.dart';
 import '../cloud/qr_payload.dart';
 import '../cloud/school_keys.dart';
 import '../cloud/school_members.dart';
@@ -724,6 +725,47 @@ class PairingController extends ChangeNotifier {
   /// Agora (ms) no relógio do servidor: é por ele que se escolhe o dia.
   int agoraServidorMs() =>
       (_transport?.nowServer() ?? DateTime.now()).millisecondsSinceEpoch;
+
+  /// Fotos e vídeos da Câmera de um PC do Celita OS, com a chave dele.
+  MediaStore? midiaDe(String deviceId) {
+    final s = pcPorId(deviceId);
+    if (s == null) return null;
+    return MediaStore(deviceId: deviceId, crypto: s.crypto);
+  }
+
+  final Map<String, Completer<Ack>> _acksDeMidia = {};
+
+  /// Manda um comando de mídia e espera a resposta do PC: null = ok; senão o
+  /// motivo, em português, para a tela.
+  Future<String?> _comandoDeMidia(String deviceId, Map<String, dynamic> cmd) async {
+    final transport = _transport;
+    final s = transport?.registry.byId(deviceId);
+    if (transport == null || s == null) return 'Ainda conectando — tente de novo.';
+    if (!isOnline(s)) return 'O PC está desligado. Ligue-o para continuar.';
+    final id = cmd['id'] as String;
+    final resposta = Completer<Ack>();
+    _acksDeMidia[id] = resposta;
+    try {
+      await transport.sendCommand(deviceId, cmd);
+      final ack = await resposta.future.timeout(const Duration(seconds: 30));
+      if (ack.ok) return null;
+      return switch (ack.error) {
+        'nao_encontrada' => 'Este arquivo não está mais no PC.',
+        'tipo_desconhecido' => 'Atualize o Celita OS deste PC para usar isso.',
+        _ => 'O PC não conseguiu atender agora. Tente de novo.',
+      };
+    } on TimeoutException {
+      return 'O PC não respondeu. Confira se ele está ligado e na internet.';
+    } finally {
+      _acksDeMidia.remove(id);
+    }
+  }
+
+  Future<String?> pedirEnvioDeMidia(String deviceId, String mid) =>
+      _comandoDeMidia(deviceId, buildEnviarMidia(mid));
+
+  Future<String?> apagarMidias(String deviceId, List<String> mids) =>
+      _comandoDeMidia(deviceId, buildApagarMidia(mids));
 
   /// Arquivo de 15 dias de um PC (histórico + fotos), com a chave dele.
   ArchiveStore? arquivoDe(String deviceId) {
@@ -1774,6 +1816,7 @@ class PairingController extends ChangeNotifier {
 
   // Ack e `aplicado`: corrigem a faixa e os balões (ack tardio sempre corrige).
   void _aoAck(String deviceId, Ack ack) {
+    _acksDeMidia.remove(ack.id)?.complete(ack);
     var mudou = _entrega?.aoAck(deviceId, ack.id, ok: ack.ok, error: ack.error) ?? false;
     mudou = _atualizarBalao(deviceId, ack.id, ack.ok, ack.error) || mudou;
     if (mudou) _scheduleNotify();

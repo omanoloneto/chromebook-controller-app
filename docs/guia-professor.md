@@ -62,6 +62,12 @@ nos avisos e nas travas de aula ("Em aula com Fulano").
 - **Programas abertos** — na tela do PC, abaixo das abas, aparecem os
   programas fora do navegador (também só no Celita OS), e a conta que está
   aberta na máquina.
+- **Fotos e vídeos da Câmera** — na tela do PC, **Fotos e vídeos da Câmera**
+  mostra o que foi tirado no app Câmera do Celita, das contas de professor e
+  dos alunos (o do aluno sai da pasta dele ao sair da conta e fica guardado no
+  PC por 15 dias). Toque para **baixar** para a galeria do celular (álbum
+  "Controle de Aula") ou **apagar do PC**; segure para selecionar vários. Baixar
+  e apagar precisam do PC ligado.
 - **Exportar o histórico** — numa planilha (abre no Excel e no Planilhas
   Google), dos últimos 1 a 15 dias: de um PC, pelo botão de compartilhar na
   tela **Ver histórico** dele, ou de todos, em **Ajustes → Exportar histórico

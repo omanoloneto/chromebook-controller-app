@@ -75,6 +75,8 @@ class MessageType {
   static const String screenSnapshot = 'screen_snapshot'; // agente -> app: tela cifrada
   static const String liberarIas = 'liberar_ias'; // app -> agente Celita: IAs até o logout
   static const String atualizar = 'atualizar'; // app -> agente Celita: atualizar o sistema agora
+  static const String enviarMidia = 'enviar_midia'; // app -> agente Celita: subir uma foto/vídeo da Câmera
+  static const String apagarMidia = 'apagar_midia'; // app -> agente Celita: apagar fotos/vídeos do PC
   // Recursos de turma (app >= 0.20.0, ext >= 0.7.0, Celita >= 0.13.0):
   static const String chatMessage = 'chat_message'; // cmd: chat professor -> aluno
   static const String unblockResult = 'unblock_result'; // cmd: resposta a um pedido
@@ -329,6 +331,27 @@ Map<String, dynamic> buildAtualizar() {
     'type': MessageType.atualizar,
     'id': _nextId(),
     'payload': const <String, dynamic>{},
+  };
+}
+
+/// Monta o comando `enviar_midia` — o PC sobe uma foto ou vídeo da Câmera em
+/// partes cifradas e informa o progresso em /envios. Só o agente do Celita.
+Map<String, dynamic> buildEnviarMidia(String mid) {
+  return {
+    'v': kProtocolVersion,
+    'type': MessageType.enviarMidia,
+    'id': _nextId(),
+    'payload': {'mid': mid},
+  };
+}
+
+/// Monta o comando `apagar_midia` — apaga do PC as fotos e vídeos da Câmera.
+Map<String, dynamic> buildApagarMidia(List<String> mids) {
+  return {
+    'v': kProtocolVersion,
+    'type': MessageType.apagarMidia,
+    'id': _nextId(),
+    'payload': {'mids': mids},
   };
 }
 
