@@ -75,6 +75,7 @@ class MessageType {
   static const String screenSnapshot = 'screen_snapshot'; // agente -> app: tela cifrada
   static const String liberarIas = 'liberar_ias'; // app -> agente Celita: IAs até o logout
   static const String atualizar = 'atualizar'; // app -> agente Celita: atualizar o sistema agora
+  static const String energia = 'energia'; // app -> agente Celita: encerrar a sessão, reiniciar ou desligar
   static const String enviarMidia = 'enviar_midia'; // app -> agente Celita: subir uma foto/vídeo da Câmera
   static const String apagarMidia = 'apagar_midia'; // app -> agente Celita: apagar fotos/vídeos do PC
   // Recursos de turma (app >= 0.20.0, ext >= 0.7.0, Celita >= 0.13.0):
@@ -101,6 +102,7 @@ const Set<String> kComandosSoCelita = {
   MessageType.captureScreen,
   MessageType.liberarIas,
   MessageType.atualizar,
+  MessageType.energia,
 };
 
 String _nextId() => novoId();
@@ -331,6 +333,23 @@ Map<String, dynamic> buildAtualizar() {
     'type': MessageType.atualizar,
     'id': _nextId(),
     'payload': const <String, dynamic>{},
+  };
+}
+
+/// `payload.acao` do comando `energia` (o nome é o valor do protocolo), do
+/// mais leve ao mais forte: é a ordem dos menus.
+enum AcaoEnergia { encerrar, reiniciar, desligar }
+
+/// Monta o comando `energia` — o PC encerra a sessão, reinicia ou desliga na
+/// hora, sem contagem (instalando atualização, termina antes). Só o agente do
+/// Celita OS atende; `encerrar` sem ninguém na conta vem `sem_sessao`, e
+/// pedido com mais de 2 min vem `expirado`.
+Map<String, dynamic> buildEnergia(AcaoEnergia acao) {
+  return {
+    'v': kProtocolVersion,
+    'type': MessageType.energia,
+    'id': _nextId(),
+    'payload': {'acao': acao.name},
   };
 }
 

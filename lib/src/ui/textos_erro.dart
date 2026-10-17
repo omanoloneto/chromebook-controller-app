@@ -33,6 +33,8 @@ String textoErro(String? codigo, {String? tipoComando, String? ext}) {
       return 'O endereço do site não é válido.';
     case 'payload_invalido':
       return 'O pedido chegou incompleto. Tente de novo.';
+    case 'expirado':
+      return 'O pedido chegou atrasado e não foi feito. Tente de novo.';
     case 'tipo_desconhecido':
       if (tipoComando != null &&
           kComandosSoCelita.contains(tipoComando) &&

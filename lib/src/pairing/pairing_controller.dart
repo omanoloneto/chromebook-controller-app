@@ -1040,6 +1040,61 @@ class PairingController extends ChangeNotifier {
     return n;
   }
 
+  // ---- Energia (encerrar a sessão, reiniciar, desligar) ----------------------------
+  // Só o agente do Celita OS atende, e age na hora: não há contagem no PC.
+
+  /// Alvo do "Desligar os computadores" da aula: os PCs ligados com Celita OS
+  /// dentre os da aula (sem aula, os da home).
+  List<String> get pcsParaEnergia => [
+        for (final id in aulaAtiva ? pcsDaTurma : _devicesAlvo())
+          if (pcPorId(id) case final s? when isOnline(s) && temCelita(s.versaoExt)) id,
+      ];
+
+  /// Texto quando o "Desligar os computadores" não tem alvo (null = tem).
+  String? get motivoSemEnergia {
+    if (pcsParaEnergia.isNotEmpty) return null;
+    if (!aulaAtiva) return 'Nenhum computador com Celita OS ligado agora.';
+    return motivoSemTurma ?? 'Nenhum computador com Celita OS ligado nesta aula.';
+  }
+
+  /// Encerra a sessão, reinicia ou desliga um PC. null = pedido enviado (a
+  /// faixa da tela do PC mostra o ack).
+  Future<String?> energiaNoPc(String deviceId, AcaoEnergia acao) async {
+    final s = pcPorId(deviceId);
+    if (s == null) return 'Ainda conectando — tente de novo.';
+    final professor = professorQueTravou(deviceId);
+    if (professor != null) return 'Está na aula de $professor.';
+    if (!isOnline(s)) return 'O PC está desligado.';
+    if (!temCelita(s.versaoExt)) {
+      return 'Só os PCs com Celita OS desligam, reiniciam ou encerram a sessão pelo app.';
+    }
+    return enviarEnergia([deviceId], acao, umPc: true);
+  }
+
+  /// O mesmo para [pcsParaEnergia]; devolve para quantos foi.
+  Future<({int enviados, String? erro})> energiaNaTurma(AcaoEnergia acao) async {
+    final alvos = pcsParaEnergia;
+    if (alvos.isEmpty) return (enviados: 0, erro: motivoSemEnergia);
+    final erro = await enviarEnergia(alvos, acao);
+    return (enviados: erro == null ? alvos.length : 0, erro: erro);
+  }
+
+  /// Grava o pedido para [alvos]; a faixa acompanha o ack de cada um.
+  @visibleForTesting
+  Future<String?> enviarEnergia(
+    List<String> alvos,
+    AcaoEnergia acao, {
+    bool umPc = false,
+  }) async {
+    final transport = _transport;
+    if (transport == null) return 'Ainda conectando — tente de novo.';
+    // Sem rede o SDK guardaria o pedido até ela voltar, e o PC o recusaria por
+    // atraso (`expirado`): melhor avisar já.
+    if (!transport.conectado) return kTextoSemInternet;
+    await _enviarComEntrega(alvos, (_) => buildEnergia(acao), umPc: umPc);
+    return null;
+  }
+
   /// Salva o nome do aluno para este PC (vazio remove).
   Future<void> renomear(String deviceId, String nome) async {
     await _names?.setName(deviceId, nome);

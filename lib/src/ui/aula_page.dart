@@ -11,6 +11,7 @@ import '../cloud/session_registry.dart';
 import '../pairing/pairing_controller.dart';
 import 'chat_page.dart';
 import 'device_page.dart';
+import 'energia_controles.dart';
 import 'faixa_entrega.dart';
 import 'fotos_de_entrada_page.dart';
 import 'grade_telas.dart';
@@ -456,7 +457,8 @@ class _AulaPageState extends State<AulaPage> {
     );
   }
 
-  // Banner da aula ativa (turma + progresso dos vínculos + encerrar).
+  // Banner da aula ativa (turma + progresso dos vínculos + desligar os
+  // computadores + encerrar).
   Widget _bannerAula() {
     final scheme = Theme.of(context).colorScheme;
     return Material(
@@ -476,8 +478,15 @@ class _AulaPageState extends State<AulaPage> {
                   fontWeight: FontWeight.w600,
                   color: scheme.onPrimaryContainer,
                 ),
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
+            ),
+            IconButton(
+              onPressed: () => mostrarSheetEnergia(context, _pairing),
+              icon: const Icon(Icons.power_settings_new),
+              tooltip: 'Desligar, reiniciar ou encerrar a sessão',
+              color: scheme.primary,
             ),
             TextButton.icon(
               onPressed: _encerrarAula,

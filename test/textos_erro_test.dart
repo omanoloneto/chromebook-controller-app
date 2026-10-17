@@ -11,6 +11,7 @@ void main() {
       'sem_sessao': 'Ninguém está logado neste computador agora.',
       'url_invalida': 'O endereço do site não é válido.',
       'payload_invalido': 'O pedido chegou incompleto. Tente de novo.',
+      'expirado': 'O pedido chegou atrasado e não foi feito. Tente de novo.',
       'so_chromeos': 'Isso só funciona em Chromebook.',
       'blob_invalido': 'A imagem enviada está corrompida.',
       'imagem_grande': 'A imagem é grande demais.',
@@ -47,7 +48,12 @@ void main() {
   });
 
   test('tipo_desconhecido: comando só do Celita num Chromebook', () {
-    for (final tipo in [MessageType.captureScreen, MessageType.liberarIas, MessageType.atualizar]) {
+    for (final tipo in [
+      MessageType.captureScreen,
+      MessageType.liberarIas,
+      MessageType.atualizar,
+      MessageType.energia,
+    ]) {
       expect(
         textoErro('tipo_desconhecido', tipoComando: tipo, ext: '0.6.0'),
         'Isso só funciona nos computadores com Celita OS.',
@@ -68,6 +74,27 @@ void main() {
     expect(
       textoErro('tipo_desconhecido', tipoComando: MessageType.atualizar, ext: 'celita-0.10.0'),
       antiga,
+    );
+    // Agente de antes do `energia`.
+    expect(
+      textoErro('tipo_desconhecido', tipoComando: MessageType.energia, ext: 'celita-0.20.0'),
+      antiga,
+    );
+  });
+
+  test('energia: sem ninguém na conta, pedido incompleto ou atrasado', () {
+    expect(
+      textoErro('sem_sessao', tipoComando: MessageType.energia, ext: 'celita-0.20.0'),
+      'Ninguém está logado neste computador agora.',
+    );
+    expect(
+      textoErro('payload_invalido', tipoComando: MessageType.energia, ext: 'celita-0.20.0'),
+      'O pedido chegou incompleto. Tente de novo.',
+    );
+    // O agente recusa `energia` com mais de 2 min.
+    expect(
+      textoErro('expirado', tipoComando: MessageType.energia, ext: 'celita-0.20.0'),
+      'O pedido chegou atrasado e não foi feito. Tente de novo.',
     );
   });
 

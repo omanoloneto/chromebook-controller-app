@@ -9,11 +9,13 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 import '../cloud/session_registry.dart';
+import '../commands/command.dart';
 import '../pairing/pairing_controller.dart';
 import '../util/abrir_no_celular.dart';
 import '../util/versao.dart';
 import 'archive_page.dart';
 import 'chat_page.dart';
+import 'energia_controles.dart';
 import 'faixa_entrega.dart';
 import 'fotos_de_entrada_page.dart';
 import 'media_page.dart';
@@ -776,6 +778,11 @@ class _DevicePageState extends State<DevicePage> {
             : 'Celita OS ${s.versaoOs}';
 
     final travadoPor = widget.pairing.professorQueTravou(widget.deviceId);
+    final energiaIndisponivel = !celita
+        ? 'só nos PCs com Celita OS'
+        : travadoPor == null
+            ? null
+            : 'Está na aula de $travadoPor';
     final naoLidas = widget.pairing.naoLidasDe(widget.deviceId);
     final chips = ehProfessor
         ? const <Widget>[]
@@ -851,6 +858,15 @@ class _DevicePageState extends State<DevicePage> {
               if (v == 'entradas') _verEntradas();
               if (v == 'midia') _verMidia();
               if (v == 'atualizar') _atualizar(nome);
+              if (AcaoEnergia.values.asNameMap()[v] case final acao?) {
+                confirmarEnergiaNoPc(
+                  context,
+                  widget.pairing,
+                  widget.deviceId,
+                  nome,
+                  acao,
+                );
+              }
               if (v == 'professor') _alternarPcProfessor(nome);
               if (v == 'esquecer') _confirmarEsquecer(nome);
             },
@@ -944,6 +960,19 @@ class _DevicePageState extends State<DevicePage> {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
+              for (final acao in AcaoEnergia.values)
+                PopupMenuItem(
+                  value: acao.name,
+                  enabled: on && energiaIndisponivel == null,
+                  child: ListTile(
+                    leading: Icon(acao.icone),
+                    title: Text(acao.rotulo),
+                    subtitle: energiaIndisponivel == null
+                        ? null
+                        : Text(energiaIndisponivel),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
               PopupMenuItem(
                 value: 'professor',
                 child: ListTile(

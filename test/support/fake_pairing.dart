@@ -273,6 +273,21 @@ class FakePairing extends PairingController {
     gradeAbertaFake = false;
   }
 
+  // ---- Energia: só a gravação é de mentira (bloqueios e alvo são os reais) --
+  final List<({List<String> alvos, AcaoEnergia acao, bool umPc})> energias = [];
+  String? erroDaEnergia;
+
+  @override
+  Future<String?> enviarEnergia(
+    List<String> alvos,
+    AcaoEnergia acao, {
+    bool umPc = false,
+  }) async {
+    if (erroDaEnergia != null) return erroDaEnergia;
+    energias.add((alvos: alvos, acao: acao, umPc: umPc));
+    return null;
+  }
+
   final List<String> fotosDeTela = [];
 
   @override
