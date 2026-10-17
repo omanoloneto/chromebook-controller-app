@@ -1,0 +1,16 @@
+{
+  "name": "controle-de-aula-functions",
+  "private": true,
+  "description": "Push dos recados dos alunos para o celular do professor (avisarRecado).",
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^14.5.0",
+    "firebase-functions": "^7.4.0"
+  }
+}

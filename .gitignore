@@ -33,3 +33,6 @@ ios/.symlinks/
 .DS_Store
 Thumbs.db
 *.log
+
+# Cloud Functions
+firebase/functions/node_modules/
