@@ -73,6 +73,12 @@ nos avisos e nas travas de aula ("Em aula com Fulano").
   tela **Ver histórico** dele, ou de todos, em **Ajustes → Exportar histórico
   de todos os PCs**. A planilha sai sem criptografia: guarde-a com cuidado.
 
+- **Mensagens dos alunos** — no Celita OS o aluno fala com você pelo ícone
+  **Falar com o professor** da Área de Trabalho ou pelo notebook com o número
+  da unidade, ao lado do relógio. Mensagem, pedido de liberação e mão
+  levantada chegam como notificação no celular na hora, **mesmo com o app
+  fechado**. Na escola, só toca para quem está com o PC na aula.
+
 - Um PC só participa de **uma aula por vez**: se um colega já vinculou um
   aluno naquele PC, o app avisa "Em aula com {professor}".
 - A **ficha do aluno** (aba Turmas → aluno) guarda as aulas e os sites

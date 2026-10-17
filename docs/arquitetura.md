@@ -53,6 +53,12 @@ cifrados. Celular e Chromebooks podem estar em **redes diferentes**.
 - **Foreground service** (`connectedDevice`): conexão RTDB viva com a tela
   apagada; notificação mostra "N PC(s) conectados". Sem a permissão de
   notificação o serviço roda igual.
+- **Push dos recados** (app fechado ou morto pelo sistema): a Cloud Function
+  `avisarRecado` (`firebase/functions`, gatilho em `devices/{id}/up/{push}`)
+  manda o envelope do up/ por FCM aos tokens de `/fcm/{uid}`; o isolate de
+  segundo plano (`lib/src/service/push_service.dart`) decifra com a chave do
+  professor e mostra a mesma notificação do caminho ao vivo (mesmo id: sem
+  card duplo). Deploy: `cd firebase && firebase deploy --only functions`.
 
 ## Pontos de atenção
 

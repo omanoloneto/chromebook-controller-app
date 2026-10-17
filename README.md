@@ -86,6 +86,9 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Encerrar aula**: fecha o navegador de todos os PCs e limpa os vínculos
 - [x] **Desbloquear site para 1 PC** durante a aula (menu do PC / tela de detalhe)
 - [x] **Notificações com som**: site de alerta acessado ou bloqueado tentado
+- [x] **Push dos recados dos alunos** (chat, pedido de liberação, mão
+      levantada) com o app fechado: Cloud Function `avisarRecado`
+      (`firebase/functions`) + FCM, envelope cifrado ponta a ponta
 - [x] **PC do professor**: fora dos broadcasts/bloqueios; recebe links do
       histórico dos alunos e os avisos (notificação no Chromebook)
 - [x] **Ficha do aluno**: aulas que participou (data) + acessos por aula —
