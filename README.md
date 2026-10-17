@@ -86,6 +86,9 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Encerrar aula**: fecha o navegador de todos os PCs e limpa os vínculos
 - [x] **Desbloquear site para 1 PC** durante a aula (menu do PC / tela de detalhe)
 - [x] **Notificações com som**: site de alerta acessado ou bloqueado tentado
+- [x] **Fotos de início de sessão** de todos os PCs da escola (ou de um),
+      por dia: salvar na galeria ou abrir o histórico só daquela entrada na
+      conta (índice marcado com `l`, Celita OS ≥ 1.30)
 - [x] **Push dos recados dos alunos** (chat, pedido de liberação, mão
       levantada) com o app fechado: Cloud Function `avisarRecado`
       (`firebase/functions`) + FCM, envelope cifrado ponta a ponta

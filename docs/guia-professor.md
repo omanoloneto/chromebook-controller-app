@@ -73,6 +73,12 @@ nos avisos e nas travas de aula ("Em aula com Fulano").
   tela **Ver histórico** dele, ou de todos, em **Ajustes → Exportar histórico
   de todos os PCs**. A planilha sai sem criptografia: guarde-a com cuidado.
 
+- **Fotos de início de sessão** — a foto que o PC tira quando alguém entra
+  numa conta, de todos os PCs, por dia: o ícone de câmera no alto da aba
+  **Aula** (ou, na tela do PC, **Fotos de início de sessão**, só daquele PC).
+  Toque numa foto para **salvar no celular** (álbum "Controle de Aula") ou
+  **ver o histórico** só daquela entrada na conta. Valem as fotos dos PCs com
+  Celita OS 1.30 ou mais novo.
 - **Mensagens dos alunos** — no Celita OS o aluno fala com você pelo ícone
   **Falar com o professor** da Área de Trabalho ou pelo notebook com o número
   da unidade, ao lado do relógio. Mensagem, pedido de liberação e mão
