@@ -39,6 +39,7 @@ import '../secure/key_store.dart';
 import '../secure/school_crypto.dart';
 import '../service/foreground_service.dart';
 import '../service/notification_service.dart';
+import '../service/push_service.dart';
 import '../ui/textos_erro.dart';
 import '../util/ids.dart';
 import '../util/versao.dart';
@@ -99,6 +100,8 @@ class PairingController extends ChangeNotifier {
 
   /// Injetado pelo root (main.dart) antes do start().
   NotificationService? notificacoes;
+  // Recados com o app fechado (FCM); null em testes.
+  PushService? push;
 
   /// Workspace da escola (uid do fundador). Setado pelo root a partir das
   /// prefs ANTES do start(); mudanças (criar/entrar) são persistidas pelo
@@ -287,6 +290,7 @@ class PairingController extends ChangeNotifier {
         return;
       }
       naoLiberadoNaEscola = false;
+      unawaited(push?.registrar(user.uid));
 
       final transport = FirebaseTransport(
         teacher: teacher,

@@ -1,0 +1,74 @@
+{
+ "_comentario": "Envelopes do up/ selados pelo agente do Celita (controle_de_aula.crypto.seal); dados = o que a Cloud Function avisarRecado manda; o app decifra com a chave do professor.",
+ "professor": "ICEiIyQlJicoKSorLC0uLzAxMjM0NTY3ODk6Ozw9Pj8:NYBy1jZYgNGu6jKa35EhODhR7SGijjt16WXQ0s0WYlQ",
+ "agoraMs": 1790650800000,
+ "recados": [
+  {
+   "dados": {
+    "t": "up",
+    "d": "pc-unidade-12",
+    "k": "-P2f5gj7AbCdEfGhIjKl",
+    "e": "AAECAwQFBgcICQoLV226eJCTsubOb9Vth41J94YThqE7igCbXLw+rjtfRAfftNxfcRGbnPSosm+c/ameqd41kH5YJwoLgn1C0LTdH9sj03pzU9BEAYVkm31nR1WBeabzG6n9/QyBKGLC1Fv9TckOId+wZ0WdDR59kIzdGHi4f2Ief7TlAN7cukSrBelN4CCqMK9fKo+EhOz+j7G7Hd7DiCkRg8A/ex+dEfNe",
+    "p": "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw",
+    "l": "Unidade 12"
+   },
+   "esperado": {
+    "k": "chat",
+    "titulo": "Unidade 12",
+    "corpo": "Professor, travou aqui 😅"
+   }
+  },
+  {
+   "dados": {
+    "t": "up",
+    "d": "pc-unidade-12",
+    "k": "-P2f5gj7AbCdEfGhIjKl",
+    "e": "AAECAwQFBgcICQoLV226eJCTsubOb9Vth41J94YThqE7igCbXLw+rTtfRAfftNxfcRGbnPSosm+c/ameqd41kH5YJwoLgn1C0LTLGdg7njU6YctFUsojqUgEKjatUYOQYMr+/g+CKwKstGneducjAvnQfxKdCRp8iIyeRnjSdi8Lc7PzTZbS7VmyDe9H8Wmqb7VEbV03Phyunu4N7OWbREPJpH8G/jCb9myyCFYj5J6mBIZjMq6CjZBOeqfXPy0rfLSgEvACBpXGr3MXqp5b2+2sho7xHiOzZRUy0jQOXhYxprJJSwZahbz2bw+Ac+E3lGj3Tr+N5dY/dJE=",
+    "p": "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw",
+    "l": "Unidade 12"
+   },
+   "esperado": {
+    "k": "pedido",
+    "titulo": "Pedido de liberação",
+    "corpo": "Unidade 12: wikipedia.org"
+   }
+  },
+  {
+   "dados": {
+    "t": "up",
+    "d": "pc-unidade-12",
+    "k": "-P2f5gj7AbCdEfGhIjKl",
+    "e": "AAECAwQFBgcICQoLV226eJCTsubOb9Vth41J94YThqE7igCbXLw+rDtfRAfftNxfcRGbnPSosm+c/ameqd41kH5YJwoLgn1C0LTMFtMklAk5X9dEAZNkt1VCJC7ie6TxGav//w6DKgOttWjfd4dNYsvzJFLQGB8n3piCX46Nvnm2npm/M6PYyTPGIQY=",
+    "p": "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw",
+    "l": "Unidade 12"
+   },
+   "esperado": {
+    "k": "mao",
+    "titulo": "Mão levantada",
+    "corpo": "Unidade 12"
+   }
+  },
+  {
+   "dados": {
+    "t": "up",
+    "d": "pc-unidade-12",
+    "k": "-P2eSVk-AbCdEfGhIjKl",
+    "e": "AAECAwQFBgcICQoLV226eJCTsubOb9Vth41J94YThqE7igCbXLw+qztfRAfftNxfcRGbnPSosm+c/ameqd41kH5YJwoLgn1C0LTdH9sj03pzU9BEAYVknnhiQlCEfKP2Hqz4+AmELWLC1Fv9TckOId+wZ0WdDR59kIzdGHieaGEQdeXrEnxw9Ri0iaSAYOptKyGMRYs=",
+    "p": "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw",
+    "l": "Unidade 12"
+   },
+   "esperado": null
+  },
+  {
+   "dados": {
+    "t": "up",
+    "d": "pc-unidade-12",
+    "k": "-P2f5gj7AbCdEfGhIjKl",
+    "e": "AAECAwQFBgcICQoL+3uWpTQ1J7S/3ybSi+yqDPpp3Eq+86qXebsOLkHTTtpDeuW/BiW5DntLuLkxmLAAHCVjdVCpJch5XmpbVFCfKPhZcKylNVL6+xZxrLfjoe8u5GeUT/cD9L+6p/DOqSDigEYk8UcuEBZCxndjc7dF9f9sO5cs51cKjda+DxmmYzGytMwdNPVTfoqyDS5sWWY=",
+    "p": "B6N8vBQgk8i3VdwbEOhstCY3StFqqFPtC9_AsrhtHHw",
+    "l": "Unidade 12"
+   },
+   "esperado": null
+  }
+ ]
+}

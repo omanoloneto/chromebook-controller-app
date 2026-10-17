@@ -69,8 +69,9 @@ class NotificationService {
     }
   }
 
-  /// Chamar 1x no main(), após ensureInitialized/Firebase.
-  Future<void> init() async {
+  /// Chamar 1x no main(), após ensureInitialized/Firebase. No isolate do
+  /// push ([pedirPermissao] = false) não há tela para pedir permissão.
+  Future<void> init({bool pedirPermissao = true}) async {
     if (_pronto) return;
     await _plugin.initialize(
       settings: const InitializationSettings(
@@ -89,7 +90,7 @@ class NotificationService {
     // (ex.: usuário negou lá e reativou depois nas configurações do app).
     final android = _plugin.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
-    if (await android?.areNotificationsEnabled() == false) {
+    if (pedirPermissao && await android?.areNotificationsEnabled() == false) {
       await android?.requestNotificationsPermission();
     }
     _pronto = true;

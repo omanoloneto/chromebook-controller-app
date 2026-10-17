@@ -33,6 +33,8 @@ dependencies:
   google_sign_in: ^7.2.0
   share_plus: ^13.3.1
   gal: ^2.3.3
+  # Push dos recados dos alunos com o app fechado (Cloud Function avisarRecado).
+  firebase_messaging: ^16.7.0
 
 dev_dependencies:
   flutter_test:

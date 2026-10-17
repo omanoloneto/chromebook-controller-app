@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
@@ -12,6 +13,7 @@ import 'src/pairing/pairing_controller.dart';
 import 'src/pairing/prefs_store.dart';
 import 'src/service/foreground_service.dart';
 import 'src/service/notification_service.dart';
+import 'src/service/push_service.dart';
 import 'src/ui/app_shell.dart';
 import 'src/ui/chat_page.dart';
 import 'src/ui/device_page.dart';
@@ -23,6 +25,7 @@ import 'src/ui/theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  FirebaseMessaging.onBackgroundMessage(aoPushEmSegundoPlano);
   prepararServicoAula();
   // Prefs ANTES do runApp: sem flash de tema errado na abertura.
   final prefs = await PrefsStore.load();
@@ -53,6 +56,7 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
   void initState() {
     super.initState();
     _pairing.notificacoes = _notificacoes;
+    if (widget.autoStart) _pairing.push = PushService();
     _pairing.notificarSites = _settings.notificarSites;
     _pairing.schoolUid = widget.prefs.schoolUid;
     _pairing.prefs = widget.prefs;
