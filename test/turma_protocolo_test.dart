@@ -107,7 +107,7 @@ void main() {
     });
 
     test('os tipos reservados saíram', () {
-      // lock_screen / unlock_screen / focus_mode foram aposentados (§9).
+      // lock_screen / unlock_screen / focus_mode foram aposentados (§10).
       const tipos = [
         MessageType.chatMessage,
         MessageType.unblockResult,
