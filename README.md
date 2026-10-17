@@ -89,6 +89,9 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Fotos de início de sessão** de todos os PCs da escola (ou de um),
       por dia: salvar na galeria ou abrir o histórico só daquela entrada na
       conta (índice marcado com `l`, Celita OS ≥ 1.30)
+- [x] **Desligar, reiniciar ou encerrar a sessão** de um PC (menu do PC) ou
+      dos PCs da aula (ícone de energia no alto da aba Aula), na hora, nos PCs
+      com Celita OS ≥ 1.30
 - [x] **Push dos recados dos alunos** (chat, pedido de liberação, mão
       levantada) com o app fechado: Cloud Function `avisarRecado`
       (`firebase/functions`) + FCM, envelope cifrado ponta a ponta
