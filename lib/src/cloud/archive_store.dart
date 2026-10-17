@@ -162,19 +162,23 @@ final RegExp _uidRe = RegExp(r'^[A-Za-z0-9_-]{1,128}$');
 final RegExp _randomRe = RegExp(r'^[A-Za-z0-9_-]{22}$');
 final RegExp _ts13Re = RegExp(r'^[0-9]{13}$');
 
-/// Entrada do índice `archive/{id}/fotos/{dia}/{ts13} = {u, r}`.
+/// Entrada do índice `archive/{id}/fotos/{dia}/{ts13} = {u, r, l?}`.
 class PhotoRef {
   const PhotoRef({
     required this.day,
     required this.ts,
     required this.uid,
     required this.random,
+    this.entrada = false,
   });
 
   final String day;
   final int ts;
   final String uid;
   final String random;
+
+  /// Foto de quando alguém entrou na conta (`l`, Celita OS >= 1.30).
+  final bool entrada;
 
   String get path => 'fotos/$uid/$day/${ts13(ts)}_$random.bin';
 
@@ -185,9 +189,16 @@ class PhotoRef {
     final r = value['r'];
     if (u is! String || !_uidRe.hasMatch(u)) return null;
     if (r is! String || !_randomRe.hasMatch(r)) return null;
-    return PhotoRef(day: day, ts: int.parse(key), uid: u, random: r);
+    return PhotoRef(day: day, ts: int.parse(key), uid: u, random: r, entrada: value['l'] == true);
   }
 }
+
+/// As fotos de entrada na conta de um dia do índice, da mais nova para a mais
+/// velha; entradas inválidas ficam de fora.
+List<PhotoRef> fotosDeEntrada(String day, Map<Object?, Object?> indice) => [
+      for (final e in indice.entries)
+        if (PhotoRef.parse(day, e.key, e.value) case final ref? when ref.entrada) ref,
+    ]..sort((a, b) => b.ts.compareTo(a.ts));
 
 /// Consultas por chave no índice de fotos de um PC (abstraídas para teste).
 abstract class PhotoIndex {
@@ -273,13 +284,17 @@ class ArchiveStore implements PhotoIndex {
     required this.crypto,
     FirebaseDatabase? database,
     FirebaseStorage? storage,
-  })  : _db = database ?? FirebaseDatabase.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+  })  : _database = database,
+        _storageOverride = storage;
 
   final String deviceId;
   final SessionCrypto crypto;
-  final FirebaseDatabase _db;
-  final FirebaseStorage _storage;
+  // Só na primeira consulta: os testes de tela trocam as consultas e não têm
+  // Firebase.
+  final FirebaseDatabase? _database;
+  final FirebaseStorage? _storageOverride;
+  FirebaseDatabase get _db => _database ?? FirebaseDatabase.instance;
+  FirebaseStorage get _storage => _storageOverride ?? FirebaseStorage.instance;
 
   DatabaseReference _photos(String day) =>
       _db.ref('archive/$deviceId/fotos/$day');
@@ -322,6 +337,12 @@ class ArchiveStore implements PhotoIndex {
         .limitToFirst(1)
         .get();
     return _first(day, snap);
+  }
+
+  /// Fotos de entrada na conta de um dia. Lança em erro de leitura.
+  Future<List<PhotoRef>> loginPhotos(String day) async {
+    final snap = await _photos(day).get();
+    return fotosDeEntrada(day, {for (final c in snap.children) c.key: c.value});
   }
 
   /// Baixa e abre uma foto. Lança [PhotoException].

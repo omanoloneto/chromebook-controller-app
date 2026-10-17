@@ -4,6 +4,7 @@
 
 import 'dart:typed_data';
 
+import 'package:controle_de_aula/src/cloud/archive_store.dart';
 import 'package:controle_de_aula/src/cloud/conversa.dart';
 import 'package:controle_de_aula/src/cloud/entrega.dart';
 import 'package:controle_de_aula/src/cloud/session_registry.dart';
@@ -75,6 +76,11 @@ class FakePairing extends PairingController {
   }
 
   void avisar() => notifyListeners();
+
+  /// Arquivo de 15 dias de mentira por PC (galeria e histórico).
+  final Map<String, ArchiveStore> arquivos = {};
+  @override
+  ArchiveStore? arquivoDe(String deviceId) => arquivos[deviceId];
 
   @override
   List<PcSession> get pcs => mapa.values.toList();

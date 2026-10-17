@@ -43,8 +43,10 @@ void main() {
     final dados = Map<String, dynamic>.from(recados.first['dados'] as Map);
     final recado = await abrir(dados, nome: (deviceId, _) => deviceId == 'pc-unidade-12' ? 'Ana Souza' : '?');
     expect(recado!.titulo, 'Ana Souza');
-    final pedido = await abrir(Map<String, dynamic>.from(recados[1]['dados'] as Map),
-        nome: (_, __) => 'Ana Souza');
+    final pedido = await abrir(
+      Map<String, dynamic>.from(recados[1]['dados'] as Map),
+      nome: (_, __) => 'Ana Souza',
+    );
     expect(pedido!.corpo, 'Ana Souza: wikipedia.org');
   });
 

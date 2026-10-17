@@ -12,6 +12,7 @@ import '../pairing/pairing_controller.dart';
 import 'chat_page.dart';
 import 'device_page.dart';
 import 'faixa_entrega.dart';
+import 'fotos_de_entrada_page.dart';
 import 'grade_telas.dart';
 import 'home_sections.dart';
 import 'prova_controles.dart';
@@ -365,6 +366,14 @@ class _AulaPageState extends State<AulaPage> {
         title: const Text('Controle de Aula'),
         actions: [
           _chipOnline(online),
+          if (_pairing.workspaceAtivo)
+            IconButton(
+              icon: const Icon(Icons.photo_camera_front_outlined),
+              tooltip: 'Fotos de início de sessão',
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => FotosDeEntradaPage(pairing: _pairing)),
+              ),
+            ),
           _botaoRecados(),
           IconButton(
             icon: const Icon(Icons.open_in_browser),

@@ -15,6 +15,7 @@ import '../util/versao.dart';
 import 'archive_page.dart';
 import 'chat_page.dart';
 import 'faixa_entrega.dart';
+import 'fotos_de_entrada_page.dart';
 import 'media_page.dart';
 import 'theme.dart';
 import 'trava_sheet.dart';
@@ -656,6 +657,15 @@ class _DevicePageState extends State<DevicePage> {
         ),
       );
 
+  void _verEntradas() => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => FotosDeEntradaPage(
+            pairing: widget.pairing,
+            deviceId: widget.deviceId,
+          ),
+        ),
+      );
+
   void _verMidia() => Navigator.of(context).push(
         MaterialPageRoute(
           builder: (_) => MediaPage(
@@ -838,6 +848,7 @@ class _DevicePageState extends State<DevicePage> {
                 );
               }
               if (v == 'historico') _verHistorico();
+              if (v == 'entradas') _verEntradas();
               if (v == 'midia') _verMidia();
               if (v == 'atualizar') _atualizar(nome);
               if (v == 'professor') _alternarPcProfessor(nome);
@@ -889,6 +900,17 @@ class _DevicePageState extends State<DevicePage> {
                 child: ListTile(
                   leading: const Icon(Icons.history),
                   title: const Text('Ver histórico'),
+                  subtitle: temCelita(s.versaoExt)
+                      ? null
+                      : const Text('só nos PCs com Celita OS'),
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: 'entradas',
+                child: ListTile(
+                  leading: const Icon(Icons.photo_camera_front_outlined),
+                  title: const Text('Fotos de início de sessão'),
                   subtitle: temCelita(s.versaoExt)
                       ? null
                       : const Text('só nos PCs com Celita OS'),
@@ -1221,6 +1243,12 @@ class _DevicePageState extends State<DevicePage> {
             onPressed: _verHistorico,
             icon: const Icon(Icons.history),
             label: const Text('Ver histórico (15 dias)'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _verEntradas,
+            icon: const Icon(Icons.photo_camera_front_outlined),
+            label: const Text('Fotos de início de sessão'),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(

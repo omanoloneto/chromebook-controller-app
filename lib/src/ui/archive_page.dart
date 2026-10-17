@@ -46,6 +46,19 @@ String distanciaDaFoto(int fotoTs, int siteTs) {
   return '$tempo ${diff > 0 ? 'depois' : 'antes'} deste site';
 }
 
+/// Texto para o professor quando a foto do arquivo não abre.
+String mensagemDaFoto(Object erro) => erro is PhotoException
+    ? switch (erro.failure) {
+        PhotoFailure.deleted => 'Esta foto já foi apagada (as fotos ficam guardadas 15 dias).',
+        PhotoFailure.unreadable => 'Não dá para abrir esta foto.',
+        PhotoFailure.download =>
+          'Não deu para baixar a foto. Confira a internet do celular e tente de novo.',
+      }
+    : 'Não deu para baixar a foto. Confira a internet do celular e tente de novo.';
+
+/// Uma entrada numa conta do PC: o histórico pode abrir só nela.
+typedef EntradaNaConta = ({int login, String user});
+
 /// "Foto das HH:MM — <motivo> · conta <user>" + a distância até o site.
 String legendaDaFoto(ArchivedPhoto foto, int siteTs) {
   final motivo = _motivo(foto.motivo);
@@ -59,10 +72,22 @@ String legendaDaFoto(ArchivedPhoto foto, int siteTs) {
 }
 
 class ArchivePage extends StatefulWidget {
-  const ArchivePage({super.key, required this.pairing, required this.deviceId});
+  const ArchivePage({
+    super.key,
+    required this.pairing,
+    required this.deviceId,
+    this.dia,
+    this.entrada,
+  });
 
   final PairingController pairing;
   final String deviceId;
+
+  /// Dia que abre (AAAA-MM-DD); null = hoje.
+  final String? dia;
+
+  /// Mostra só esta entrada na conta, até o professor pedir o dia todo.
+  final EntradaNaConta? entrada;
 
   @override
   State<ArchivePage> createState() => _ArchivePageState();
@@ -71,7 +96,8 @@ class ArchivePage extends StatefulWidget {
 class _ArchivePageState extends State<ArchivePage> {
   late final List<String> _dias = recentDays(widget.pairing.agoraServidorMs());
   late final ArchiveStore? _store = widget.pairing.arquivoDe(widget.deviceId);
-  late String _dia = _dias.first;
+  late String _dia = _dias.contains(widget.dia) ? widget.dia! : _dias.first;
+  late EntradaNaConta? _so = _dias.contains(widget.dia) ? widget.entrada : null;
   Future<ArchivedDay>? _carga;
 
   @override
@@ -100,6 +126,7 @@ class _ArchivePageState extends State<ArchivePage> {
   void _escolherDia(String dia) {
     if (dia == _dia) return;
     _dia = dia;
+    _so = null;
     _carregar();
   }
 
@@ -126,16 +153,8 @@ class _ArchivePageState extends State<ArchivePage> {
         store.photoFor(dia, sessao, evento),
       );
       if (escolhida == null) erro = 'Nenhuma foto deste horário.';
-    } on PhotoException catch (e) {
-      erro = switch (e.failure) {
-        PhotoFailure.deleted =>
-          'Esta foto já foi apagada (as fotos ficam guardadas 15 dias).',
-        PhotoFailure.unreadable => 'Não dá para abrir esta foto.',
-        PhotoFailure.download =>
-          'Não deu para baixar a foto. Confira a internet do celular e tente de novo.',
-      };
-    } catch (_) {
-      erro = 'Não deu para baixar a foto. Confira a internet do celular e tente de novo.';
+    } catch (e) {
+      erro = mensagemDaFoto(e);
     }
     if (!mounted || !continuaNaFrente(context)) return;
     if (escolhida == null) {
@@ -277,24 +296,47 @@ class _ArchivePageState extends State<ArchivePage> {
   Widget _lista(ArchivedDay dia, String nome) {
     final tema = Theme.of(context);
     final apagado = tema.colorScheme.onSurfaceVariant;
+    final so = _so;
+    final sessoes = so == null
+        ? dia.sessions
+        : [
+            for (final s in dia.sessions)
+              if (s.login == so.login && s.user == so.user) s,
+          ];
+    final vazio = sessoes.every((s) => s.events.isEmpty);
     return ListView(
       children: [
+        if (so != null)
+          Material(
+            color: tema.colorScheme.surfaceContainerHighest,
+            child: ListTile(
+              dense: true,
+              leading: const Icon(Icons.filter_alt_outlined),
+              title: Text('Só a entrada da conta ${so.user} às ${_hora(so.login)}'),
+              trailing: TextButton(
+                onPressed: () => setState(() => _so = null),
+                child: const Text('Ver o dia todo'),
+              ),
+            ),
+          ),
         if (dia.unreadable > 0)
           ListTile(
             dense: true,
             leading: Icon(Icons.info_outline, color: apagado),
             title: const Text('Parte do histórico deste dia não pôde ser aberta.'),
           ),
-        if (dia.isEmpty)
+        if (vazio)
           Padding(
             padding: const EdgeInsets.all(24),
             child: Text(
-              'Nenhum site visitado neste dia.',
+              so == null
+                  ? 'Nenhum site visitado neste dia.'
+                  : 'Nenhum site visitado nesta entrada na conta.',
               textAlign: TextAlign.center,
               style: TextStyle(color: apagado),
             ),
           ),
-        for (final sessao in dia.sessions)
+        for (final sessao in sessoes)
           if (sessao.events.isNotEmpty) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
