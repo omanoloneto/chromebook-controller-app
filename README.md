@@ -78,7 +78,7 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Renomear PCs** / **esquecer PC**
 - [x] **Fechar abas/sites** (na turma toda, num PC ou uma aba específica)
 - [x] **Regras de sites**: bloquear (vale nos Chromebooks) ou alertar (cartão vermelho)
-- [x] **Favoritos** ilimitados (chips na home, reordenáveis)
+- [x] **Favoritos** ilimitados (no "Abrir site", reordenáveis)
 - [x] ***Foreground service*** (conexão viva com a tela apagada)
 - [x] **Papel de parede** da escola (galeria → todos os PCs, telão incluído; ChromeOS e Celita OS)
 - [x] **Turmas e alunos** (cadastro local) + vínculo aluno↔PC por aula
@@ -86,13 +86,13 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
       (número digitado ou atalho das ligadas e livres); troca, falta e aluno novo
 - [x] **Fechar todas as abas** (turma toda ou um PC)
 - [x] **Encerrar aula**: fecha o navegador de todos os PCs e limpa os vínculos
-- [x] **Desbloquear site para 1 PC** durante a aula (menu do PC / tela de detalhe)
+- [x] **Liberar sites para 1 PC** durante a aula (ações do computador)
 - [x] **Notificações com som**: site de alerta acessado ou bloqueado tentado
 - [x] **Fotos de início de sessão** de todos os PCs da escola (ou de um),
       por dia: salvar na galeria ou abrir o histórico só daquela entrada na
       conta (índice marcado com `l`, Celita OS ≥ 1.30)
-- [x] **Desligar, reiniciar ou encerrar a sessão** de um PC (menu do PC) ou
-      dos PCs da aula (ícone de energia no alto da aba Aula), na hora, nos PCs
+- [x] **Sair da conta, reiniciar ou desligar** um PC (ações do computador)
+      ou os PCs da aula (botão Desligar nas ações da aula), na hora, nos PCs
       com Celita OS ≥ 1.30
 - [x] **Push dos recados dos alunos** (chat, pedido de liberação, mão
       levantada) com o app fechado: Cloud Function `avisarRecado`

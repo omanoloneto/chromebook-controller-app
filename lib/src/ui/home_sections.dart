@@ -1,5 +1,5 @@
-// Seções da home (aba Aula): telão → minha aula → aulas de colegas →
-// disponíveis → offline. Puro (sem widgets/Firebase) — home_sections_test.
+// Seções da home (aba Aula): telão → na aula → aulas de colegas →
+// disponíveis → desligados. Puro (sem widgets/Firebase) — home_sections_test.
 
 import '../util/natural_sort.dart';
 
@@ -19,7 +19,7 @@ class SecaoHome {
   final String? titulo;
   final List<String> ids;
 
-  /// Só a seção Offline: escondida atrás de "Ver todos (+N offline)".
+  /// Só a seção Desligados: escondida atrás de "Mostrar N desligados".
   final bool colapsavel;
 }
 
@@ -46,26 +46,19 @@ List<SecaoHome> secoesDaHome(List<PcHome> pcs) {
     ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
   final secoes = <SecaoHome>[
-    if (telao.isNotEmpty) SecaoHome(titulo: null, ids: ordenar(telao)),
-    if (minha.isNotEmpty)
-      SecaoHome(
-        titulo: () {
-          final turma = pcs.firstWhere((p) => p.aula?.minha ?? false).aula!.turma;
-          return turma == null || turma.isEmpty
-              ? 'Minha aula'
-              : 'Minha aula — $turma';
-        }(),
-        ids: ordenar(minha),
-      ),
+    if (telao.isNotEmpty)
+      SecaoHome(titulo: 'Computador do Professor', ids: ordenar(telao)),
+    // A turma já está no alto da tela.
+    if (minha.isNotEmpty) SecaoHome(titulo: 'Na aula', ids: ordenar(minha)),
     for (final prof in professores)
       SecaoHome(titulo: 'Aula de $prof', ids: ordenar(porProfessor[prof]!)),
     if (disponiveis.isNotEmpty)
       SecaoHome(titulo: 'Disponíveis', ids: ordenar(disponiveis)),
     if (offline.isNotEmpty)
-      SecaoHome(titulo: 'Offline', ids: ordenar(offline), colapsavel: true),
+      SecaoHome(titulo: 'Desligados', ids: ordenar(offline), colapsavel: true),
   ];
 
-  // Uma seção só (fora o telão) = lista flat sem header (zero ruído).
+  // Uma seção só = lista sem título (zero ruído).
   final comConteudo = secoes.where((s) => s.titulo != null).toList();
   if (comConteudo.length <= 1) {
     return [

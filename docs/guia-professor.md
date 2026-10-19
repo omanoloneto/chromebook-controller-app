@@ -24,39 +24,50 @@ Na primeira abertura o app oferece **"Entrar no workspace da escola"**:
 2. Pronto — você já vê os PCs, turmas, regras de sites e histórico
    compartilhados pelos professores da escola.
 
-(Se pulou essa tela: **Ajustes → Workspace da escola → Entrar**.)
+(Se pulou essa tela: **Ajustes → Escola → Entrar na escola**.)
 
-Depois, em **Ajustes → Professor**, coloque o seu nome — é ele que aparece
-nos avisos e nas travas de aula ("Em aula com Fulano").
+Depois, em **Ajustes → Conta → Nome do professor**, coloque o seu nome — é
+ele que aparece nos avisos e nas travas de aula ("Em aula com Fulano").
 
 ## 3. Parear um Chromebook novo (uma vez por PC)
 
 1. No Chromebook, clique no ícone azul da extensão **Controle de Aula** —
    aparece um QR.
-2. No app, aba **Aula → botão de escanear** → aponte a câmera pro QR.
+2. No app, aba **Aula → Conectar** (durante a aula: **⋮ → Conectar
+   computador**) → aponte a câmera pro QR.
 3. O PC ganha um número automático ("Unidade 7") e entra na lista de todos
-   os professores. Para mudar o número: menu ⋮ do PC → **Alterar número da
+   os professores. Para mudar o número: toque no PC → **⋮ → Alterar número da
    unidade** (número ocupado = os dois PCs trocam).
 
 ## 4. Dar aula
 
 1. Aba **Turmas**: cadastre a turma e os alunos (compartilhado — se um colega
    já cadastrou, você já vê).
-2. Aba **Aula → Iniciar aula** → escolha a turma. Abre a **Chamada**.
+2. Aba **Aula → Começar uma aula** → toque na turma (ou **Iniciar aula** no
+   cartão da turma, na aba Turmas). Abre a **Chamada**.
 3. Na chamada, toque em cada aluno que veio e diga o **número da unidade**
    em que ele sentou: digite ou toque num dos atalhos das unidades ligadas e
    livres. Aluno já marcado: toque de novo para trocar de unidade ou marcar
    falta. Unidade de outro aluno pede confirmação; o botão de pessoa no alto
-   cadastra um aluno novo. Para quem chega depois, toque na faixa da aula
-   ("Aula: … presentes"). Também dá para vincular pelo botão de cada PC. Só
-   PCs com aluno recebem os comandos da turma.
-4. Comandos: **abrir site na turma**, fechar site, fechar todas as abas,
-   bloquear sites (aba **Sites**), papel de parede, telão ("PC do professor"
-   mostra a **Visão da turma** com o que cada aluno está vendo).
+   cadastra um aluno novo. Para quem chega depois, botão **Chamada** nas ações
+   da aula. Também dá para vincular pelo botão **Aluno** nas ações de cada PC.
+   Só PCs com aluno recebem os comandos da turma.
+4. As ações da turma ficam no alto da aba **Aula**, a um toque: **Chamada**,
+   **Travar**, **Prova**, **Telas** (as telas ao vivo), **Abrir site**,
+   **Mensagem**, **Desligar** e **Encerrar**. Bloquear sites fica na aba
+   **Sites**; o papel de parede, em **Ajustes → Computadores**. O telão ("PC do
+   professor") mostra a **Visão da turma** com o que cada aluno está vendo.
 5. **Encerrar aula**: fecha o navegador dos PCs vinculados, desfaz os
    vínculos e libera os PCs para o próximo professor.
 
 ### Saber quem está no PC e o que ele está fazendo
+
+Toque num PC da lista para abrir a tela dele: as ações do dia a dia ficam no
+alto (**Ver tela**, **Foto**, **Abrir site**, **Conversar**, **Liberar sites**,
+**Fechar abas**, **Aluno** e **Desligar**); embaixo, o que está na tela, as
+abas, os últimos sites e os **Registros**. As raras (renomear, número,
+Computador do Professor, atualizar, desconectar) ficam no **⋮**. Para não sair
+da lista, segure o PC (ou toque no ⋮ da linha): abrem as mesmas ações.
 
 - **Ver quem está no PC (foto)** — tira uma foto pela câmera do PC, para
   identificar quem sentou ali. Aparece também na hora de escolher o aluno
@@ -73,19 +84,21 @@ nos avisos e nas travas de aula ("Em aula com Fulano").
   "Controle de Aula") ou **apagar do PC**; segure para selecionar vários. Baixar
   e apagar precisam do PC ligado.
 - **Exportar o histórico** — numa planilha (abre no Excel e no Planilhas
-  Google), dos últimos 1 a 15 dias: de um PC, pelo botão de compartilhar na
-  tela **Ver histórico** dele, ou de todos, em **Ajustes → Exportar histórico
-  de todos os PCs**. A planilha sai sem criptografia: guarde-a com cuidado.
+  Google), dos últimos 1 a 15 dias: de um PC, pelo botão de compartilhar no
+  **Histórico de navegação** dele (tela do PC → Registros), ou de todos, em
+  **Ajustes → Computadores → Exportar histórico**. A planilha sai sem
+  criptografia: guarde-a com cuidado.
 
 - **Fotos de início de sessão** — a foto que o PC tira quando alguém entra
-  numa conta, de todos os PCs, por dia: o ícone de câmera no alto da aba
-  **Aula** (ou, na tela do PC, **Fotos de início de sessão**, só daquele PC).
+  numa conta, de todos os PCs, por dia: **Fotos de entrada** nas ações da aba
+  **Aula** (durante a aula, **⋮ → Fotos de início de sessão**); na tela do PC,
+  em **Registros**, só daquele PC.
   Toque numa foto para **salvar no celular** (álbum "Controle de Aula") ou
   **ver o histórico** só daquela entrada na conta. Valem as fotos dos PCs com
   Celita OS 1.30 ou mais novo.
-- **Desligar, reiniciar ou encerrar a sessão** — no menu ⋮ da tela do PC, ou
-  para os PCs da aula pelo ícone de energia ao lado de **Encerrar**, no alto da
-  aba **Aula**. Vale na hora, sem aviso no PC: quem estiver usando perde o que
+- **Sair da conta, reiniciar ou desligar** — pelo botão **Desligar** nas
+  ações do PC, ou para os PCs da aula pelo botão **Desligar** nas ações da aba
+  **Aula**. Vale na hora, sem aviso no PC: quem estiver usando perde o que
   não salvou. Se o PC estiver instalando uma atualização, ele termina antes de
   desligar. Só nos PCs com Celita OS 1.30 ou mais novo.
 - **Mensagens dos alunos** — no Celita OS o aluno fala com você pelo ícone

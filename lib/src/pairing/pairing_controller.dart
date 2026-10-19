@@ -1314,6 +1314,9 @@ class PairingController extends ChangeNotifier {
 
   String get turmaDaAula => _session?.turma ?? '';
 
+  /// Quando a aula começou (null = sem aula).
+  DateTime? get inicioDaAula => aulaAtiva ? _session?.inicio : null;
+
   /// Aluno vinculado a um PC nesta aula (null = sem vínculo).
   String? alunoDe(String deviceId) => _session?.alunoDe(deviceId);
 

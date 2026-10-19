@@ -1,5 +1,5 @@
-// Seções da home: telão topo, minha aula (mesmo offline), colegas
-// alfabético, disponíveis vs offline (colapsável), headers só com >=2 seções.
+// Seções da home: telão topo, na aula (mesmo desligado), colegas
+// alfabético, disponíveis vs desligados (colapsável), títulos só com >=2 seções.
 
 import 'package:controle_de_aula/src/ui/home_sections.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,7 +17,7 @@ void main() {
   const leticia = (minha: false, professor: 'Prof. Letícia', turma: '5º A');
   const carlos = (minha: false, professor: 'Prof. Carlos', turma: null);
 
-  test('ordem completa: telão, minha aula, colegas A-Z, disponíveis, offline', () {
+  test('ordem completa: telão, na aula, colegas A-Z, disponíveis, desligados', () {
     final s = secoesDaHome([
       pc('offline1', online: false),
       pc('livre1'),
@@ -27,23 +27,23 @@ void main() {
       pc('car1', aula: carlos),
     ]);
     expect(s.map((x) => x.titulo).toList(), [
-      null, // telão
-      'Minha aula — 8º B',
+      'Computador do Professor',
+      'Na aula',
       'Aula de Prof. Carlos',
       'Aula de Prof. Letícia',
       'Disponíveis',
-      'Offline',
+      'Desligados',
     ]);
     expect(s.first.ids, ['telao']);
     expect(s.last.colapsavel, true);
   });
 
-  test('vinculado na minha aula fica na seção mesmo offline', () {
+  test('vinculado na minha aula fica na seção mesmo desligado', () {
     final s = secoesDaHome([
       pc('meuOff', online: false, aula: minha),
       pc('livre1'),
     ]);
-    expect(s[0].titulo, 'Minha aula — 8º B');
+    expect(s[0].titulo, 'Na aula');
     expect(s[0].ids, ['meuOff']);
     expect(s[1].titulo, 'Disponíveis');
   });
@@ -55,17 +55,22 @@ void main() {
     expect(s.single.ids, ['a', 'b']);
   });
 
-  test('só offline = flat, mas continua colapsável? não — flat sem header', () {
+  test('só desligados = lista sem título', () {
     final s = secoesDaHome([pc('a', online: false)]);
     expect(s.single.titulo, null);
   });
 
-  test('turma vazia vira "Minha aula" seco', () {
+  test('a turma não entra no título (ela está no alto da tela)', () {
     final s = secoesDaHome([
       pc('meu1', aula: (minha: true, professor: 'Eu', turma: '')),
       pc('livre1'),
     ]);
-    expect(s[0].titulo, 'Minha aula');
+    expect(s[0].titulo, 'Na aula');
+  });
+
+  test('telão com mais uma seção ganha título', () {
+    final s = secoesDaHome([pc('telao', telao: true), pc('livre1')]);
+    expect(s.map((x) => x.titulo).toList(), ['Computador do Professor', 'Disponíveis']);
   });
 
   test('ordenação por nome dentro da seção', () {

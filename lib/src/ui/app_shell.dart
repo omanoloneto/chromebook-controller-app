@@ -104,8 +104,12 @@ class _AppShellState extends State<AppShell> {
             visivel: _index == 0,
             onIrParaSites: () => setState(() => _index = 2),
             onIrParaSitesDaProva: _irParaSitesDaProva,
+            onIrParaTurmas: () => setState(() => _index = 1),
           ),
-          StudentsPage(pairing: widget.pairing),
+          StudentsPage(
+            pairing: widget.pairing,
+            onAulaIniciada: () => setState(() => _index = 0),
+          ),
           SitesPage(pairing: widget.pairing, abaPedida: _abaDosSites),
           SettingsPage(pairing: widget.pairing, settings: widget.settings),
         ],

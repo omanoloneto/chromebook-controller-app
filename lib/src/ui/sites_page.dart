@@ -330,10 +330,10 @@ class _SitesPageState extends State<SitesPage>
         bottom: TabBar(
           controller: _tabs,
           tabs: const [
-            Tab(icon: Icon(Icons.star_outline), text: 'Favoritos'),
-            Tab(icon: Icon(Icons.shield_outlined), text: 'Regras'),
-            Tab(icon: Icon(Icons.home_outlined), text: 'Página inicial'),
-            Tab(icon: Icon(Icons.fact_check_outlined), text: 'Prova'),
+            Tab(text: 'Favoritos'),
+            Tab(text: 'Regras'),
+            Tab(text: 'Página inicial'),
+            Tab(text: 'Prova'),
           ],
           isScrollable: true,
           tabAlignment: TabAlignment.center,

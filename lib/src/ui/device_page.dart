@@ -1,6 +1,7 @@
-// Tela de detalhe de um PC: aba ativa, abas abertas, programas abertos e
-// histórico de navegação (dados ficam em memória). Foto da câmera e captura
-// da tela são pedidos avulsos do professor — nunca contínuos.
+// Tela de um computador: as ações do dia a dia no alto, depois o que está na
+// tela, as abas, os programas, os últimos sites e os registros. As raras
+// (renomear, número, telão, atualizar, desconectar) ficam no ⋮. Foto da câmera
+// e captura da tela são pedidos avulsos do professor — nunca contínuos.
 
 import 'dart:async';
 import 'dart:typed_data';
@@ -9,13 +10,13 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 import '../cloud/session_registry.dart';
-import '../commands/command.dart';
 import '../pairing/pairing_controller.dart';
 import '../util/abrir_no_celular.dart';
 import '../util/versao.dart';
+import 'acoes_do_pc.dart';
 import 'archive_page.dart';
 import 'chat_page.dart';
-import 'energia_controles.dart';
+import 'componentes.dart';
 import 'faixa_entrega.dart';
 import 'fotos_de_entrada_page.dart';
 import 'media_page.dart';
@@ -32,9 +33,8 @@ String dominioDe(String url) {
   }
 }
 
-/// Sheet de liberação de sites bloqueados p/ UM PC (usado aqui e no menu ⋮
-/// da aba Aula). Não exige aula: vale até bloquear de novo ou até o próximo
-/// "Encerrar aula".
+/// Sheet de liberação de sites bloqueados num computador (ações dele). Não
+/// exige aula: vale até bloquear de novo ou até o próximo "Encerrar aula".
 Future<void> mostrarSheetLiberarSites(
   BuildContext context,
   PairingController pairing,
@@ -64,7 +64,7 @@ Future<void> mostrarSheetLiberarSites(
             shrinkWrap: true,
             children: [
               ListTile(
-                title: const Text('Desbloquear sites para este PC'),
+                title: const Text('Liberar sites neste computador'),
                 subtitle: Text(
                   pairing.aulaAtiva
                       ? 'Vale até você bloquear de novo ou encerrar a aula.'
@@ -79,8 +79,8 @@ Future<void> mostrarSheetLiberarSites(
                   title: const Text('IAs (Gemini, ChatGPT e outras)'),
                   subtitle: Text(
                     pairing.iasLiberadasEm(deviceId)
-                        ? 'LIBERADAS até o aluno sair da conta'
-                        : 'bloqueadas — liberar vale até o aluno sair da conta',
+                        ? 'Liberadas até o aluno sair da conta'
+                        : 'Bloqueadas — liberar vale até o aluno sair da conta',
                   ),
                   value: pairing.iasLiberadasEm(deviceId),
                   onChanged: (ligar) async {
@@ -93,7 +93,7 @@ Future<void> mostrarSheetLiberarSites(
                 SwitchListTile(
                   title: Text(p),
                   subtitle: Text(
-                    liberados.contains(p) ? 'LIBERADO neste PC' : 'bloqueado',
+                    liberados.contains(p) ? 'Liberado neste computador' : 'Bloqueado',
                   ),
                   value: liberados.contains(p),
                   onChanged: (ligar) async {
@@ -142,8 +142,8 @@ Future<void> mostrarSheetAbrirSite(
       if (n == 0) {
         snack(
           pairing.aulaAtiva
-              ? 'Nenhum PC com aluno nesta aula ainda.'
-              : 'Nenhum PC conectado ainda.',
+              ? 'Nenhum computador com aluno nesta aula ainda.'
+              : 'Nenhum computador conectado ainda.',
         );
         return false;
       }
@@ -176,7 +176,7 @@ Future<void> mostrarSheetAbrirSite(
                 child: Text(
                   turma
                       ? 'Abrir um site na turma'
-                      : 'Abrir um site em ${nomePc ?? 'este PC'}',
+                      : 'Abrir um site em ${nomePc ?? 'este computador'}',
                   style: Theme.of(ctx).textTheme.titleMedium,
                 ),
               ),
@@ -194,7 +194,7 @@ Future<void> mostrarSheetAbrirSite(
                         Icons.send,
                         color: Theme.of(ctx).colorScheme.primary,
                       ),
-                      tooltip: turma ? 'Abrir na turma toda' : 'Abrir neste PC',
+                      tooltip: turma ? 'Abrir na turma toda' : 'Abrir neste computador',
                       onPressed: () {
                         if (abrir(ctrl.text)) Navigator.pop(ctx);
                       },
@@ -258,72 +258,38 @@ Future<void> mostrarSheetAbrirSite(
   );
 }
 
-/// Confirmação de "Esquecer este PC" (usada aqui e no menu ⋮ da aba Aula).
-/// Retorna true se desvinculou.
+/// Confirma e desfaz o vínculo com o computador. Retorna true se desvinculou.
 Future<bool> confirmarEsquecerPc(
   BuildContext context,
   PairingController pairing,
   String deviceId,
   String nome,
 ) async {
-  final ok = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Desconectar este PC'),
-      content: Text(
-        'Desfazer o vínculo com "$nome"?\n\n'
-        'O Chromebook volta a mostrar o código de conexão e some da sua lista.',
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Desconectar'),
-        ),
-      ],
-    ),
+  final ok = await confirmar(
+    context,
+    titulo: 'Desconectar $nome',
+    mensagem: 'O computador volta a mostrar o código de conexão e some da sua '
+        'lista. Para usar de novo, é só ler o QR Code outra vez.',
+    acao: 'Desconectar',
+    destrutiva: true,
   );
-  if (ok == true) {
-    await pairing.esquecerPc(deviceId);
-    return true;
-  }
-  return false;
+  if (!ok) return false;
+  await pairing.esquecerPc(deviceId);
+  return true;
 }
 
-/// Diálogo de renomear (usado aqui e na home via long-press).
+/// Renomeia o computador (o nome que aparece quando não há aluno nele).
 Future<void> mostrarDialogoRenomear(
   BuildContext context,
   PairingController pairing,
   String deviceId,
   String nomeAtual,
 ) async {
-  final ctrl = TextEditingController(text: nomeAtual);
-  final novo = await showDialog<String>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Nome do aluno'),
-      content: TextField(
-        controller: ctrl,
-        autofocus: true,
-        decoration: const InputDecoration(
-          hintText: 'Ex.: Maria (fundo da sala)',
-        ),
-        onSubmitted: (v) => Navigator.pop(ctx, v),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(ctx, ctrl.text),
-          child: const Text('Salvar'),
-        ),
-      ],
-    ),
+  final novo = await pedirTexto(
+    context,
+    titulo: 'Nome do computador',
+    dica: 'Ex.: Unidade 7 (fundo da sala)',
+    inicial: nomeAtual,
   );
   if (novo != null) await pairing.renomear(deviceId, novo);
 }
@@ -352,8 +318,8 @@ Future<void> mostrarImagemDoPc(
         SnackBar(
           content: Text(
             tela
-                ? 'Não veio a tela. Esse PC precisa ter o Celita OS, com o aluno já dentro da conta dele.'
-                : 'Não veio a foto. O PC pode estar desligado, ou a câmera bloqueada pelo administrador.',
+                ? 'Não veio a tela. Esse computador precisa ter o Celita OS, com o aluno já dentro da conta dele.'
+                : 'Não veio a foto. O computador pode estar desligado, ou a câmera bloqueada pelo administrador.',
           ),
         ),
       );
@@ -362,7 +328,7 @@ Future<void> mostrarImagemDoPc(
   await mostrarDialogoImagem(
     context,
     bytes: bytes,
-    titulo: tela ? 'Tela — $nome' : 'Quem está no PC — $nome',
+    titulo: tela ? 'Tela — $nome' : 'Quem está no computador — $nome',
   );
 }
 
@@ -455,50 +421,30 @@ Future<void> mostrarDialogoImagem(
   );
 }
 
-/// Diálogo de alterar o número da unidade (aqui e no menu da aba Aula).
+/// Altera o número da unidade (se for de outro computador, os dois trocam).
 Future<void> mostrarDialogoNumeroUnidade(
   BuildContext context,
   PairingController pairing,
   String deviceId,
 ) async {
   final atual = pairing.numeroDe(deviceId);
-  final ctrl = TextEditingController(text: atual?.toString() ?? '');
-  final texto = await showDialog<String>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      title: const Text('Número da unidade'),
-      content: TextField(
-        controller: ctrl,
-        autofocus: true,
-        keyboardType: TextInputType.number,
-        decoration: const InputDecoration(
-          hintText: 'Ex.: 7',
-          helperText: 'Se o número já for de outro PC, os dois trocam.',
-          helperMaxLines: 2,
-        ),
-        onSubmitted: (v) => Navigator.pop(ctx, v),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx),
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.pop(ctx, ctrl.text),
-          child: const Text('Salvar'),
-        ),
-      ],
-    ),
+  final texto = await pedirTexto(
+    context,
+    titulo: 'Número da unidade',
+    dica: 'Ex.: 7',
+    ajuda: 'Se o número já for de outro computador, os dois trocam.',
+    inicial: atual?.toString() ?? '',
+    numero: true,
   );
   if (texto == null || !context.mounted) return;
-  final numero = int.tryParse(texto.trim());
+  final numero = int.tryParse(texto);
   final erro = numero == null
       ? 'Digite um número de 1 a 9999.'
       : await pairing.alterarNumeroUnidade(deviceId, numero);
   if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(erro ?? 'Agora é a Unidade $numero.')),
-  );
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(erro ?? 'Agora é a Unidade $numero.')));
 }
 
 /// Nome de rota da tela de um PC: o toque numa notificação volta a ela em
@@ -539,15 +485,18 @@ class DevicePage extends StatefulWidget {
 }
 
 class _DevicePageState extends State<DevicePage> {
+  PairingController get _pairing => widget.pairing;
+  String get _id => widget.deviceId;
+
   @override
   void initState() {
     super.initState();
-    widget.pairing.addListener(_onChange);
+    _pairing.addListener(_onChange);
   }
 
   @override
   void dispose() {
-    widget.pairing.removeListener(_onChange);
+    _pairing.removeListener(_onChange);
     super.dispose();
   }
 
@@ -555,204 +504,76 @@ class _DevicePageState extends State<DevicePage> {
     if (mounted) setState(() {});
   }
 
-  String _hora(int ts) {
+  void _snack(String texto) => ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text(texto)));
+
+  static String _hora(int ts) {
     final d = DateTime.fromMillisecondsSinceEpoch(ts);
-    final hh = d.hour.toString().padLeft(2, '0');
-    final mm = d.minute.toString().padLeft(2, '0');
-    return '$hh:$mm';
+    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  }
+
+  static String _atualizadoHa(DateTime? t) {
+    if (t == null) return 'ainda sem dados';
+    final s = DateTime.now().difference(t).inSeconds;
+    return s < 60 ? 'há $s s' : 'há ${s ~/ 60} min';
   }
 
   Future<void> _fecharPorDominio(String url) async {
     final dominio = dominioDe(url);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Fechar site neste PC'),
-        content: Text('Fechar todas as abas de $dominio neste PC?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Fechar'),
-          ),
-        ],
-      ),
+    final ok = await confirmar(
+      context,
+      titulo: 'Fechar $dominio',
+      mensagem: 'Fechar todas as abas de $dominio neste computador?',
+      acao: 'Fechar',
     );
-    if (ok == true && mounted) {
-      widget.pairing.fecharSiteEm(widget.deviceId, dominio);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(SnackBar(content: Text('Fechando $dominio…')));
-    }
+    if (!ok || !mounted) return;
+    _pairing.fecharSiteEm(_id, dominio);
+    _snack('Fechando $dominio…');
   }
 
-  String _atualizadoHa(DateTime? t) {
-    if (t == null) return 'sem dados de abas ainda';
-    final s = DateTime.now().difference(t).inSeconds;
-    if (s < 60) return 'Atualizado há ${s}s';
-    return 'Atualizado há ${s ~/ 60}min';
-  }
-
-  Future<void> _liberarSites() =>
-      mostrarSheetLiberarSites(context, widget.pairing, widget.deviceId);
-
-  void _abrirSite(String nome) => mostrarSheetAbrirSite(
-        context,
-        widget.pairing,
-        deviceId: widget.deviceId,
-        nomePc: nome,
-        onEditarFavoritos: widget.onIrParaSites,
-      );
-
-  Future<void> _atualizar(String nome) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final erro = await widget.pairing.atualizarPc(widget.deviceId);
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            erro ??
-                '$nome vai baixar e instalar a atualização sozinho. A versão '
-                    'nova aparece aqui quando terminar.',
-          ),
-        ),
-      );
-  }
-
-  void _alternarPcProfessor(String nome) {
-    final ehProfessor = widget.pairing.ehPcProfessor(widget.deviceId);
-    widget.pairing.marcarPcProfessor(ehProfessor ? null : widget.deviceId);
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            ehProfessor
-                ? '$nome voltou a ser PC de aluno.'
-                : '$nome agora é o Computador do Professor.',
-          ),
-        ),
-      );
+  void _fecharAba(String url) {
+    _pairing.fecharAbaEm(_id, url);
+    _snack('Fechando a aba…');
   }
 
   void _abrirNoTelao(String url) {
-    widget.pairing.abrirNoPcProfessor(url);
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        const SnackBar(content: Text('Abrindo no Computador do Professor…')),
-      );
+    _pairing.abrirNoPcProfessor(url);
+    _snack('Abrindo no Computador do Professor…');
   }
 
-  void _abrirNoCelular(String url) => abrirNoCelular(context, url);
-
-  void _verHistorico() => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ArchivePage(
-            pairing: widget.pairing,
-            deviceId: widget.deviceId,
-          ),
-        ),
-      );
-
-  void _verEntradas() => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => FotosDeEntradaPage(
-            pairing: widget.pairing,
-            deviceId: widget.deviceId,
-          ),
-        ),
-      );
-
-  void _verMidia() => Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => MediaPage(
-            pairing: widget.pairing,
-            deviceId: widget.deviceId,
-          ),
-        ),
-      );
-
-  /// Item de menu "Abrir no meu celular" — abre a URL no navegador do próprio
-  /// celular do professor (sempre disponível; não depende de PC marcado).
-  PopupMenuItem<String> _itemMenuCelular() {
-    return const PopupMenuItem(
-      value: 'celular',
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(Icons.smartphone),
-        title: Text('Abrir no meu celular'),
-      ),
+  Future<void> _atualizar(String nome) async {
+    final erro = await _pairing.atualizarPc(_id);
+    if (!mounted) return;
+    _snack(
+      erro ??
+          '$nome vai baixar e instalar a atualização sozinho. A versão nova '
+              'aparece aqui quando terminar.',
     );
   }
 
-  /// Item de menu "Abrir no Computador do Professor" (usado na aba ativa, nas
-  /// abas abertas e no histórico). Desabilitado explica o porquê.
-  PopupMenuItem<String> _itemMenuTelao() {
-    return PopupMenuItem(
-      value: 'telao',
-      enabled: widget.pairing.pcProfessorOnline,
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: const Icon(Icons.co_present),
-        title: const Text('Abrir no Computador do Professor'),
-        subtitle: widget.pairing.pcProfessorOnline
-            ? null
-            : Text(
-                widget.pairing.pcProfessorId == null
-                    ? 'nenhum Computador do Professor definido'
-                    : 'O Computador do Professor está offline',
-              ),
-      ),
+  void _alternarPcProfessor(String nome) {
+    final ehProfessor = _pairing.ehPcProfessor(_id);
+    _pairing.marcarPcProfessor(ehProfessor ? null : _id);
+    _snack(
+      ehProfessor
+          ? '$nome voltou a ser computador de aluno.'
+          : '$nome agora é o Computador do Professor.',
     );
   }
 
-  Future<void> _confirmarFecharTudo() async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Fechar todas as abas'),
-        content: const Text(
-          'Fechar TODAS as abas deste PC? Ele fica com uma aba vazia.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Fechar tudo'),
-          ),
-        ],
-      ),
-    );
-    if (ok == true && mounted) {
-      widget.pairing.fecharTodasAsAbasEm(widget.deviceId);
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text('Fechando todas as abas…')));
-    }
-  }
-
-  Future<void> _confirmarEsquecer(String nome) async {
-    final saiu = await confirmarEsquecerPc(
-      context,
-      widget.pairing,
-      widget.deviceId,
-      nome,
-    );
+  Future<void> _desconectar(String nome) async {
+    final saiu = await confirmarEsquecerPc(context, _pairing, _id, nome);
     if (saiu && mounted) Navigator.of(context).pop();
   }
 
+  void _abrirPagina(Widget pagina) =>
+      Navigator.of(context).push(MaterialPageRoute(builder: (_) => pagina));
+
   @override
   Widget build(BuildContext context) {
-    final s = widget.pairing.pcPorId(widget.deviceId);
-    if (s == null && widget.pairing.carregandoPc(widget.deviceId)) {
+    final s = _pairing.pcPorId(_id);
+    if (s == null && _pairing.carregandoPc(_id)) {
       return Scaffold(
         appBar: AppBar(title: const Text('Carregando…')),
         body: const Center(child: CircularProgressIndicator()),
@@ -760,597 +581,479 @@ class _DevicePageState extends State<DevicePage> {
     }
     if (s == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('PC desconectado')),
-        body: const Center(child: Text('Este PC não está mais conectado.')),
+        appBar: AppBar(),
+        body: const EstadoVazio(
+          icone: Icons.link_off,
+          titulo: 'Computador desconectado',
+          texto: 'Este computador não está mais conectado ao app.',
+        ),
       );
     }
-    final nome = widget.pairing.nomeDe(s);
-    final on = widget.pairing.isOnline(s);
-    final ativa = s.abaAtiva;
-    final ehProfessor = widget.pairing.ehPcProfessor(widget.deviceId);
-    final celita = temCelita(s.versaoExt);
-    final desatualizado = widget.pairing.desatualizado(s);
-    final maisNova = widget.pairing.versaoPublicada;
-    final versao = !celita
-        ? versaoCurta(s.versaoExt)
-        : s.versaoOs == null
-            ? null
-            : 'Celita OS ${s.versaoOs}';
-
-    final travadoPor = widget.pairing.professorQueTravou(widget.deviceId);
-    final energiaIndisponivel = !celita
-        ? 'só nos PCs com Celita OS'
-        : travadoPor == null
-            ? null
-            : 'Está na aula de $travadoPor';
-    final naoLidas = widget.pairing.naoLidasDe(widget.deviceId);
-    final chips = ehProfessor
-        ? const <Widget>[]
-        : chipsDeTrava(context, widget.pairing, widget.deviceId);
+    final t = Theme.of(context);
+    final nome = _pairing.nomeDe(s);
+    final on = _pairing.isOnline(s);
+    final telao = _pairing.ehPcProfessor(_id);
+    final meuRecado = !telao && _pairing.professorQueTravou(_id) == null;
+    final naoLidas = meuRecado ? _pairing.naoLidasDe(_id) : 0;
+    void conversar() => abrirConversa(context, _pairing, _id);
+    final sinais = <Widget>[
+      if (!telao) ...chipsDeTrava(context, _pairing, _id),
+      if (meuRecado && _pairing.maoLevantada(_id))
+        Selo('Mão levantada', icone: Icons.back_hand, tom: Tom.atencao, onTap: conversar),
+      if (naoLidas > 0)
+        Selo(
+          naoLidas == 1 ? '1 mensagem nova' : '$naoLidas mensagens novas',
+          icone: Icons.chat_bubble,
+          tom: Tom.primario,
+          onTap: conversar,
+        ),
+    ];
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(nome),
-        actions: [
-          if (!ehProfessor && travadoPor == null)
-            IconButton(
-              tooltip: switch (naoLidas) {
-                0 => 'Conversar',
-                1 => 'Conversar (1 nova)',
-                _ => 'Conversar ($naoLidas novas)',
-              },
-              onPressed: () =>
-                  abrirConversa(context, widget.pairing, widget.deviceId),
-              icon: Badge.count(
-                count: naoLidas,
-                isLabelVisible: naoLidas > 0,
-                child: Icon(
-                  widget.pairing.maoLevantada(widget.deviceId)
-                      ? Icons.back_hand_outlined
-                      : Icons.chat_bubble_outline,
-                ),
-              ),
+        toolbarHeight: 68,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_pairing.nomeDoPc(_id), maxLines: 1, overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 2),
+            Text(
+              situacaoDoPc(_pairing, s),
+              style: t.textTheme.bodySmall,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-          IconButton(
-            icon: const Icon(Icons.edit),
-            tooltip: 'Renomear',
-            onPressed: () => mostrarDialogoRenomear(
-              context,
-              widget.pairing,
-              widget.deviceId,
-              nome,
-            ),
-          ),
-          // Ação destrutiva fora da barra: evita toque acidental.
-          PopupMenuButton<String>(
-            tooltip: 'Mais opções',
-            onSelected: (v) {
-              if (v == 'site') _abrirSite(nome);
-              if (v == 'conversar') {
-                abrirConversa(context, widget.pairing, widget.deviceId);
-              }
-              if (v == 'numero') {
-                mostrarDialogoNumeroUnidade(
-                  context,
-                  widget.pairing,
-                  widget.deviceId,
-                );
-              }
-              if (v == 'foto') {
-                mostrarImagemDoPc(
-                  context,
-                  widget.pairing,
-                  widget.deviceId,
-                  nome,
-                  tela: false,
-                );
-              }
-              if (v == 'tela') {
-                mostrarImagemDoPc(
-                  context,
-                  widget.pairing,
-                  widget.deviceId,
-                  nome,
-                  tela: true,
-                );
-              }
-              if (v == 'historico') _verHistorico();
-              if (v == 'entradas') _verEntradas();
-              if (v == 'midia') _verMidia();
-              if (v == 'atualizar') _atualizar(nome);
-              if (AcaoEnergia.values.asNameMap()[v] case final acao?) {
-                confirmarEnergiaNoPc(
-                  context,
-                  widget.pairing,
-                  widget.deviceId,
-                  nome,
-                  acao,
-                );
-              }
-              if (v == 'professor') _alternarPcProfessor(nome);
-              if (v == 'esquecer') _confirmarEsquecer(nome);
-            },
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'site',
-                enabled: on,
-                child: const ListTile(
-                  leading: Icon(Icons.open_in_browser),
-                  title: Text('Abrir um site neste PC'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'conversar',
-                enabled: travadoPor == null,
-                child: ListTile(
-                  leading: const Icon(Icons.chat_bubble_outline),
-                  title: const Text('Conversar'),
-                  subtitle: travadoPor == null
-                      ? null
-                      : Text('Está na aula de $travadoPor'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'foto',
-                enabled: on,
-                child: const ListTile(
-                  leading: Icon(Icons.photo_camera_outlined),
-                  title: Text('Ver quem está no PC'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'tela',
-                enabled: on,
-                child: const ListTile(
-                  leading: Icon(Icons.screenshot_monitor_outlined),
-                  title: Text('Ver a tela do PC'),
-                  subtitle: Text('só nos PCs com Celita OS'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'historico',
-                child: ListTile(
-                  leading: const Icon(Icons.history),
-                  title: const Text('Ver histórico'),
-                  subtitle: temCelita(s.versaoExt)
-                      ? null
-                      : const Text('só nos PCs com Celita OS'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'entradas',
-                child: ListTile(
-                  leading: const Icon(Icons.photo_camera_front_outlined),
-                  title: const Text('Fotos de início de sessão'),
-                  subtitle: temCelita(s.versaoExt)
-                      ? null
-                      : const Text('só nos PCs com Celita OS'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'midia',
-                child: ListTile(
-                  leading: const Icon(Icons.photo_library_outlined),
-                  title: const Text('Fotos e vídeos da Câmera'),
-                  subtitle: temCelita(s.versaoExt)
-                      ? null
-                      : const Text('só nos PCs com Celita OS'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              PopupMenuItem(
-                value: 'atualizar',
-                enabled: on && celita,
-                child: ListTile(
-                  leading: const Icon(Icons.system_update_alt),
-                  title: const Text('Atualizar o Celita OS agora'),
-                  subtitle: Text(
-                    !celita
-                        ? 'só nos PCs com Celita OS'
-                        : desatualizado
-                            ? 'este PC está desatualizado'
-                            : 'baixa e instala o que houver de novo',
-                  ),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              for (final acao in AcaoEnergia.values)
-                PopupMenuItem(
-                  value: acao.name,
-                  enabled: on && energiaIndisponivel == null,
-                  child: ListTile(
-                    leading: Icon(acao.icone),
-                    title: Text(acao.rotulo),
-                    subtitle: energiaIndisponivel == null
-                        ? null
-                        : Text(energiaIndisponivel),
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                ),
-              PopupMenuItem(
-                value: 'professor',
-                child: ListTile(
-                  leading: Icon(
-                    ehProfessor ? Icons.co_present : Icons.co_present_outlined,
-                  ),
-                  title: Text(
-                    ehProfessor
-                        ? 'Deixar de ser o Computador do Professor'
-                        : 'Usar como Computador do Professor',
-                  ),
-                  subtitle: ehProfessor
-                      ? null
-                      : const Text(
-                          'sem bloqueios/monitoramento; recebe os avisos',
-                        ),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'numero',
-                child: ListTile(
-                  leading: Icon(Icons.pin),
-                  title: Text('Alterar número da unidade'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'esquecer',
-                child: ListTile(
-                  leading: Icon(Icons.link_off),
-                  title: Text('Desconectar este PC'),
-                  contentPadding: EdgeInsets.zero,
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
+        actions: [_menuMais(s, nome), const SizedBox(width: 4)],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.only(top: 4, bottom: 24),
         children: [
-          // Confirmação do último envio para ESTE PC ("Ana recebeu ✓").
-          FaixaEntrega(
-            pairing: widget.pairing,
-            deviceId: widget.deviceId,
-            cartao: true,
+          // Confirmação do último envio para este computador ("Ana recebeu").
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: FaixaEntrega(pairing: _pairing, deviceId: _id, cartao: true),
           ),
-          if (chips.isNotEmpty)
+          if (on && !telao && s.alerta != null) _alerta(s.alerta!),
+          if (sinais.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Wrap(spacing: 6, runSpacing: 4, children: chips),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Wrap(spacing: 6, runSpacing: 6, children: sinais),
             ),
-          if (on && s.alerta != null)
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: cores(context).alertaBg,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.warning_amber, color: cores(context).alertaFg),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Alerta: aba de ${s.alerta} aberta',
-                      style: TextStyle(color: cores(context).alertaFg),
-                    ),
+          Cartao(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: AcoesDoPc(
+              contexto: context,
+              pairing: _pairing,
+              deviceId: _id,
+              onIrParaSites: widget.onIrParaSites,
+            ),
+          ),
+          ..._secaoAbas(s),
+          if (s.apps.isNotEmpty) ..._secaoProgramas(s),
+          if (telao) _avisoTelao() else ..._secaoUltimosSites(s),
+          _secaoRegistros(s),
+          _secaoSobre(s),
+        ],
+      ),
+    );
+  }
+
+  Widget _menuMais(PcSession s, String nome) {
+    final on = _pairing.isOnline(s);
+    final celita = temCelita(s.versaoExt);
+    final telao = _pairing.ehPcProfessor(_id);
+    final desatualizado = _pairing.desatualizado(s);
+    PopupMenuItem<String> item(
+      String valor,
+      IconData icone,
+      String titulo, {
+      String? subtitulo,
+      bool habilitado = true,
+      bool perigo = false,
+    }) {
+      final cor = perigo ? Theme.of(context).colorScheme.error : null;
+      return PopupMenuItem(
+        value: valor,
+        enabled: habilitado,
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(icone, color: cor),
+          title: Text(titulo, style: TextStyle(color: cor)),
+          subtitle: subtitulo == null ? null : Text(subtitulo),
+        ),
+      );
+    }
+
+    return PopupMenuButton<String>(
+      tooltip: 'Mais opções',
+      onSelected: (v) {
+        switch (v) {
+          case 'renomear':
+            mostrarDialogoRenomear(context, _pairing, _id, nome);
+          case 'numero':
+            mostrarDialogoNumeroUnidade(context, _pairing, _id);
+          case 'professor':
+            _alternarPcProfessor(nome);
+          case 'atualizar':
+            _atualizar(nome);
+          case 'desconectar':
+            _desconectar(nome);
+        }
+      },
+      itemBuilder: (_) => [
+        item('renomear', Icons.edit_outlined, 'Renomear'),
+        item('numero', Icons.pin_outlined, 'Alterar número da unidade'),
+        item(
+          'professor',
+          telao ? Icons.co_present : Icons.co_present_outlined,
+          telao ? 'Deixar de ser o Computador do Professor' : 'Usar como Computador do Professor',
+          subtitulo: telao ? null : 'Sem bloqueios nem monitoramento; recebe os avisos',
+        ),
+        item(
+          'atualizar',
+          Icons.system_update_alt,
+          'Atualizar o Celita OS agora',
+          habilitado: on && celita,
+          subtitulo: !celita
+              ? 'Só nos computadores com Celita OS'
+              : desatualizado
+                  ? 'Este computador está desatualizado'
+                  : 'Baixa e instala o que houver de novo',
+        ),
+        const PopupMenuDivider(),
+        item('desconectar', Icons.link_off, 'Desconectar este computador', perigo: true),
+      ],
+    );
+  }
+
+  Widget _alerta(String site) {
+    final c = cores(context);
+    return Cartao(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      cor: c.alertaBg,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: c.alertaFg),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Alerta: aba de $site aberta',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(color: c.alertaFg),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Menu de um link: abrir no celular ou no telão; nas abas, também fechar.
+  Widget _menuDoLink(String url, {bool aba = false}) {
+    final telao = _pairing.pcProfessorOnline;
+    return PopupMenuButton<String>(
+      tooltip: aba ? 'Opções da aba' : 'Opções do link',
+      onSelected: (v) {
+        switch (v) {
+          case 'celular':
+            abrirNoCelular(context, url);
+          case 'telao':
+            _abrirNoTelao(url);
+          case 'aba':
+            _fecharAba(url);
+          case 'dominio':
+            _fecharPorDominio(url);
+        }
+      },
+      itemBuilder: (_) => [
+        const PopupMenuItem(
+          value: 'celular',
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(Icons.smartphone),
+            title: Text('Abrir no meu celular'),
+          ),
+        ),
+        PopupMenuItem(
+          value: 'telao',
+          enabled: telao,
+          child: ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.co_present_outlined),
+            title: const Text('Abrir no Computador do Professor'),
+            subtitle: telao
+                ? null
+                : Text(
+                    _pairing.pcProfessorId == null
+                        ? 'Nenhum Computador do Professor definido'
+                        : 'O Computador do Professor está desligado',
                   ),
-                ],
-              ),
-            ),
-          Row(
-            children: [
-              Icon(
-                Icons.circle,
-                size: 12,
-                color: on ? cores(context).online : cores(context).offline,
-              ),
-              const SizedBox(width: 8),
-              Text(on ? 'online' : 'offline'),
-              const Spacer(),
-              Text(
-                _atualizadoHa(s.lastReportAt),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ],
           ),
-          if (versao != null || desatualizado)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                [
-                  if (versao != null) celita ? versao : 'Versão $versao',
-                  if (desatualizado) 'desatualizado (a mais nova é $maisNova)',
-                ].join(' · '),
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: desatualizado
-                          ? Theme.of(context).colorScheme.error
-                          : Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
+        ),
+        if (aba) ...[
+          const PopupMenuItem(
+            value: 'aba',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.close),
+              title: Text('Fechar esta aba'),
             ),
-          if (widget.pairing.aulaAtiva) ...[
-            const SizedBox(height: 8),
-            Row(
+          ),
+          PopupMenuItem(
+            value: 'dominio',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.tab_unselected),
+              title: Text('Fechar todas de ${dominioDe(url)}'),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Linha de um site: ícone (ou hora), título, domínio e o menu.
+  Widget _linhaDoSite({
+    required Widget inicio,
+    required String titulo,
+    required String url,
+    bool aba = false,
+  }) {
+    final t = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 4, 8),
+      child: Row(
+        children: [
+          SizedBox(width: 40, child: Center(child: inicio)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.person_outline, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    widget.pairing.alunoDe(widget.deviceId) ??
-                        'Nenhum aluno escolhido nesta aula',
-                  ),
-                ),
+                Text(titulo, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.textTheme.bodyMedium),
+                Text(dominioDe(url), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.textTheme.bodySmall),
               ],
             ),
+          ),
+          _menuDoLink(url, aba: aba),
+        ],
+      ),
+    );
+  }
+
+  Widget _cartaoDeLinhas(List<Widget> linhas, {double recuo = 68}) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        children: [
+          for (var i = 0; i < linhas.length; i++) ...[
+            if (i > 0) Divider(indent: recuo),
+            linhas[i],
           ],
-          const SizedBox(height: 12),
-          Row(
+        ],
+      ),
+    );
+  }
+
+  Widget _vazio(String texto) => Cartao(
+        child: Text(texto, style: Theme.of(context).textTheme.bodySmall),
+      );
+
+  List<Widget> _secaoAbas(PcSession s) {
+    final t = Theme.of(context);
+    final ativa = s.abaAtiva;
+    final outras = [for (final a in s.tabs) if (!identical(a, ativa)) a];
+    return [
+      TituloDeSecao(
+        'Na tela agora',
+        acao: Padding(
+          padding: const EdgeInsets.only(right: 8),
+          child: Text(_atualizadoHa(s.lastReportAt), style: t.textTheme.bodySmall),
+        ),
+      ),
+      if (ativa == null)
+        _vazio('Nenhuma aba aberta informada.')
+      else
+        Cartao(
+          padding: const EdgeInsets.fromLTRB(16, 12, 4, 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: FilledButton.tonalIcon(
-                  onPressed: _liberarSites,
-                  icon: const Icon(Icons.lock_open),
-                  label: Text(
-                    widget.pairing.liberacoesDe(widget.deviceId).isEmpty
-                        ? 'Desbloquear sites'
-                        : 'Liberados: '
-                            '${widget.pairing.liberacoesDe(widget.deviceId).length}',
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      ativa.title.isEmpty ? '(sem título)' : ativa.title,
+                      style: t.textTheme.titleSmall?.copyWith(fontSize: 15),
+                    ),
+                    const SizedBox(height: 4),
+                    SelectableText(ativa.url, style: t.textTheme.bodySmall),
+                  ],
                 ),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: on ? _confirmarFecharTudo : null,
-                  icon: const Icon(Icons.tab_unselected),
-                  label: const Text('Fechar abas'),
-                ),
-              ),
+              _menuDoLink(ativa.url, aba: true),
             ],
           ),
-          if (s.usuario != null) ...[
-            const SizedBox(height: 12),
-            ListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.account_circle_outlined),
-              title: Text('Conta aberta no PC: ${s.usuario}'),
-            ),
-          ],
-          const SizedBox(height: 16),
-          Text('Aba ativa', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Container(
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: ativa == null
-                  ? const Text('Sem aba ativa informada.')
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                ativa.title.isEmpty
-                                    ? '(sem título)'
-                                    : ativa.title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              SelectableText(
-                                ativa.url,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontFamily: 'monospace',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        PopupMenuButton<String>(
-                          tooltip: 'Opções da aba ativa',
-                          onSelected: (v) {
-                            if (v == 'celular') _abrirNoCelular(ativa.url);
-                            if (v == 'telao') _abrirNoTelao(ativa.url);
-                          },
-                          itemBuilder: (_) => [_itemMenuCelular(), _itemMenuTelao()],
-                        ),
-                      ],
-                    ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Abas abertas (${s.tabs.length})',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 4),
-          if (s.tabs.isEmpty)
-            const ListTile(dense: true, title: Text('Nenhuma aba informada.')),
-          for (final t in s.tabs)
-            ListTile(
-              dense: true,
-              leading: Icon(
-                t.active ? Icons.tab : Icons.tab_unselected,
-                color: t.active
-                    ? cores(context).online
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              title: Text(
-                t.title.isEmpty ? '(sem título)' : t.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              subtitle: Text(dominioDe(t.url)),
-              // Long-press = atalho; o menu ⋮ é a affordance visível.
-              onLongPress: () => _fecharPorDominio(t.url),
-              trailing: PopupMenuButton<String>(
-                tooltip: 'Opções da aba',
-                onSelected: (v) {
-                  if (v == 'aba') {
-                    widget.pairing.fecharAbaEm(widget.deviceId, t.url);
-                    ScaffoldMessenger.of(context)
-                      ..hideCurrentSnackBar()
-                      ..showSnackBar(
-                        const SnackBar(content: Text('Fechando a aba…')),
-                      );
-                  } else if (v == 'dominio') {
-                    _fecharPorDominio(t.url);
-                  } else if (v == 'telao') {
-                    _abrirNoTelao(t.url);
-                  } else if (v == 'celular') {
-                    _abrirNoCelular(t.url);
-                  }
-                },
-                itemBuilder: (_) => [
-                  _itemMenuCelular(),
-                  _itemMenuTelao(),
-                  const PopupMenuItem(
-                    value: 'aba',
-                    child: Text('Fechar esta aba'),
-                  ),
-                  PopupMenuItem(
-                    value: 'dominio',
-                    child: Text('Fechar todas de ${dominioDe(t.url)}'),
-                  ),
-                ],
-              ),
-            ),
-          if (s.apps.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            Text(
-              'Programas abertos (${s.apps.length})',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 4),
-            for (final a in s.apps)
-              ListTile(
-                dense: true,
-                leading: const Icon(Icons.desktop_windows_outlined),
-                title: Text(
-                  a.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: a.title.isEmpty ? null : Text(a.title),
-              ),
-          ],
-          ..._secaoNavegacao(s, ehProfessor),
-        ],
-      ),
-    );
-  }
-
-  /// Histórico guardado na nuvem: sempre habilitado, mesmo com o PC desligado.
-  Widget _botaoHistorico(PcSession s) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          OutlinedButton.icon(
-            onPressed: _verHistorico,
-            icon: const Icon(Icons.history),
-            label: const Text('Ver histórico (15 dias)'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _verEntradas,
-            icon: const Icon(Icons.photo_camera_front_outlined),
-            label: const Text('Fotos de início de sessão'),
-          ),
-          const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: _verMidia,
-            icon: const Icon(Icons.photo_library_outlined),
-            label: const Text('Fotos e vídeos da Câmera'),
-          ),
-          if (!temCelita(s.versaoExt))
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'só nos PCs com Celita OS',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// Sites visitados (em memória, desde que o app abriu). Telão: só o aviso
-  /// (as fotos valem para ele também, então o botão do histórico fica).
-  List<Widget> _secaoNavegacao(PcSession s, bool ehProfessor) {
-    if (ehProfessor) {
-      return [
-        const SizedBox(height: 16),
-        const ListTile(
-          dense: true,
-          leading: Icon(Icons.co_present),
-          title: Text('Computador do Professor'),
-          subtitle: Text(
-            'Sem monitoramento de histórico, alertas ou bloqueios.',
-          ),
         ),
-        _botaoHistorico(s),
-      ];
-    }
-    final historico = s.history.reversed.toList();
-    return [
-      const SizedBox(height: 16),
-      Text(
-        'Últimos sites',
-        style: Theme.of(context).textTheme.titleMedium,
-      ),
-      _botaoHistorico(s),
-      const SizedBox(height: 4),
-      if (historico.isEmpty)
-        const ListTile(dense: true, title: Text('Nenhuma visita ainda.')),
-      for (final e in historico)
-        ListTile(
-          dense: true,
-          leading: Text(
-            _hora(e.ts),
-            style: const TextStyle(fontFamily: 'monospace'),
-          ),
-          title: Text(
-            e.title.isEmpty ? e.url : e.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          subtitle: Text(dominioDe(e.url)),
-          trailing: PopupMenuButton<String>(
-            tooltip: 'Opções do link',
-            onSelected: (v) {
-              if (v == 'celular') _abrirNoCelular(e.url);
-              if (v == 'telao') _abrirNoTelao(e.url);
-            },
-            itemBuilder: (_) => [_itemMenuCelular(), _itemMenuTelao()],
-          ),
-        ),
+      if (outras.isNotEmpty) ...[
+        TituloDeSecao('Outras abas · ${outras.length}'),
+        _cartaoDeLinhas([
+          for (final a in outras)
+            GestureDetector(
+              // Toque longo = atalho para fechar o site; o ⋮ é o visível.
+              onLongPress: () => _fecharPorDominio(a.url),
+              child: _linhaDoSite(
+                inicio: Icon(Icons.tab_outlined, color: t.colorScheme.onSurfaceVariant),
+                titulo: a.title.isEmpty ? '(sem título)' : a.title,
+                url: a.url,
+                aba: true,
+              ),
+            ),
+        ]),
+      ],
     ];
+  }
+
+  List<Widget> _secaoProgramas(PcSession s) {
+    final t = Theme.of(context);
+    return [
+      TituloDeSecao('Programas abertos · ${s.apps.length}'),
+      _cartaoDeLinhas(
+        [
+          for (final a in s.apps)
+            ListTile(
+              leading: Icon(Icons.desktop_windows_outlined, color: t.colorScheme.onSurfaceVariant),
+              title: Text(a.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+              subtitle: a.title.isEmpty
+                  ? null
+                  : Text(a.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+            ),
+        ],
+        recuo: 56,
+      ),
+    ];
+  }
+
+  /// Sites visitados (em memória, desde que o app abriu); o histórico de 15
+  /// dias fica em Registros.
+  List<Widget> _secaoUltimosSites(PcSession s) {
+    final t = Theme.of(context);
+    final historico = s.history.reversed.take(20).toList();
+    return [
+      TituloDeSecao(
+        'Últimos sites',
+        acao: TextButton(
+          onPressed: () => _abrirPagina(ArchivePage(pairing: _pairing, deviceId: _id)),
+          child: const Text('Histórico completo'),
+        ),
+      ),
+      if (historico.isEmpty)
+        _vazio('Nenhuma visita desde que o app abriu.')
+      else
+        _cartaoDeLinhas([
+          for (final e in historico)
+            _linhaDoSite(
+              inicio: Text(_hora(e.ts), style: t.textTheme.labelMedium),
+              titulo: e.title.isEmpty ? e.url : e.title,
+              url: e.url,
+            ),
+        ]),
+    ];
+  }
+
+  Widget _avisoTelao() {
+    return const Padding(
+      padding: EdgeInsets.only(top: 12),
+      child: Cartao(
+        child: Row(
+          children: [
+            Icon(Icons.co_present_outlined),
+            SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                'Computador do Professor: sem monitoramento de histórico, '
+                'alertas ou bloqueios.',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _secaoRegistros(PcSession s) {
+    final so = temCelita(s.versaoExt) ? null : 'Só nos computadores com Celita OS';
+    ListTile linha(IconData icone, String titulo, String? subtitulo, Widget pagina) => ListTile(
+          leading: Icon(icone),
+          title: Text(titulo),
+          subtitle: subtitulo == null ? null : Text(subtitulo),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _abrirPagina(pagina),
+        );
+    return GrupoDeOpcoes(
+      titulo: 'Registros',
+      children: [
+        linha(
+          Icons.history,
+          'Histórico de navegação',
+          so ?? 'Últimos 15 dias',
+          ArchivePage(pairing: _pairing, deviceId: _id),
+        ),
+        linha(
+          Icons.photo_camera_front_outlined,
+          'Fotos de início de sessão',
+          so,
+          FotosDeEntradaPage(pairing: _pairing, deviceId: _id),
+        ),
+        linha(
+          Icons.photo_library_outlined,
+          'Fotos e vídeos da Câmera',
+          so,
+          MediaPage(pairing: _pairing, deviceId: _id),
+        ),
+      ],
+    );
+  }
+
+  Widget _secaoSobre(PcSession s) {
+    final t = Theme.of(context);
+    final on = _pairing.isOnline(s);
+    final celita = temCelita(s.versaoExt);
+    final desatualizado = _pairing.desatualizado(s);
+    final numero = _pairing.numeroDe(_id);
+    final curta = versaoCurta(s.versaoExt);
+    final versao = celita
+        ? (s.versaoOs == null ? 'Celita OS' : 'Celita OS ${s.versaoOs}')
+        : (curta == null ? 'Desconhecida' : 'Extensão $curta');
+    ListTile linha(IconData icone, String titulo, String valor, {Widget? fim, Color? cor}) =>
+        ListTile(
+          leading: Icon(icone),
+          title: Text(titulo),
+          subtitle: Text(valor, style: cor == null ? null : TextStyle(color: cor)),
+          trailing: fim,
+        );
+    return GrupoDeOpcoes(
+      titulo: 'Sobre este computador',
+      children: [
+        linha(Icons.badge_outlined, 'Nome', _pairing.nomeDe(s)),
+        linha(Icons.pin_outlined, 'Unidade', numero == null ? 'Sem número' : '$numero'),
+        if (s.usuario != null) linha(Icons.account_circle_outlined, 'Conta aberta', s.usuario!),
+        linha(
+          Icons.memory_outlined,
+          'Versão',
+          desatualizado ? '$versao · a mais nova é ${_pairing.versaoPublicada}' : versao,
+          cor: desatualizado ? t.colorScheme.error : null,
+          fim: desatualizado && on && celita
+              ? TextButton(
+                  onPressed: () => _atualizar(_pairing.nomeDe(s)),
+                  child: const Text('Atualizar'),
+                )
+              : null,
+        ),
+      ],
+    );
   }
 }

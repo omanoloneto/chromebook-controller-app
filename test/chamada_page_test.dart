@@ -70,7 +70,8 @@ void main() {
 
   testWidgets('lista a turma e conta os presentes', (tester) async {
     await _abrir(tester, (p) => p.vinculos['b'] = 'Bruno');
-    expect(find.text('Chamada · 7ºA'), findsOneWidget);
+    expect(find.text('Chamada'), findsOneWidget);
+    expect(find.text('7ºA'), findsOneWidget);
     expect(find.text('1 de 3 presentes'), findsOneWidget);
     expect(find.text('Unidade 2'), findsOneWidget);
     expect(find.text('Marcar'), findsNWidgets(2));
@@ -191,7 +192,7 @@ void main() {
     expect(find.widgetWithText(FilledButton, 'Cadastrar aluno'), findsOneWidget);
   });
 
-  testWidgets('a aula começa pela chamada, e a faixa da aula a reabre',
+  testWidgets('a aula começa pela chamada, e o botão Chamada a reabre',
       (tester) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 3;
@@ -211,12 +212,10 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.text('Iniciar aula'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('8ºB'));
+    await tester.tap(find.widgetWithText(OutlinedButton, '8ºB'));
     await tester.pumpAndSettle();
     expect(p.aulasIniciadas, ['8ºB']);
-    expect(find.text('Chamada · 8ºB'), findsOneWidget);
+    expect(find.text('Chamada'), findsOneWidget);
     expect(find.text('0 de 2 presentes'), findsOneWidget);
 
     await tester.tap(find.text('Eva'));
@@ -225,11 +224,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Concluir chamada'));
     await tester.pumpAndSettle();
-    expect(find.text('Aula: 8ºB · 1/2 presentes'), findsOneWidget);
+    expect(find.text('8ºB'), findsOneWidget);
+    expect(find.text('1 de 2 presentes'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Fazer chamada'));
     await tester.pumpAndSettle();
-    expect(find.text('Chamada · 8ºB'), findsOneWidget);
+    expect(find.text('Chamada'), findsOneWidget);
     expect(find.text('1 de 2 presentes'), findsOneWidget);
   });
 }

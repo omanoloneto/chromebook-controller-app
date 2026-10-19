@@ -1,10 +1,11 @@
-// Energia dos PCs com Celita OS (encerrar a sessão, reiniciar, desligar): o
-// comando, os bloqueios e a contagem do controller, o menu da tela do PC, o
-// sheet da turma e o ícone no banner da aula (em 320 e 360 dp).
+// Energia dos PCs com Celita OS (sair da conta, reiniciar, desligar): o
+// comando, os bloqueios e a contagem do controller, a ação Desligar da tela do
+// computador, o sheet da turma e o botão nas ações da aula (em 320 e 360 dp).
 
 import 'package:controle_de_aula/src/commands/command.dart';
 import 'package:controle_de_aula/src/pairing/pairing_controller.dart';
 import 'package:controle_de_aula/src/ui/aula_page.dart';
+import 'package:controle_de_aula/src/ui/componentes.dart';
 import 'package:controle_de_aula/src/ui/device_page.dart';
 import 'package:controle_de_aula/src/ui/energia_controles.dart';
 import 'package:controle_de_aula/src/ui/textos_erro.dart';
@@ -47,7 +48,7 @@ Widget _comBotao(void Function(BuildContext) acao) => MaterialApp(
       ),
     );
 
-const _acoes = ['Encerrar a sessão', 'Reiniciar', 'Desligar'];
+const _acoes = ['Sair da conta', 'Reiniciar', 'Desligar'];
 
 void main() {
   group('comando', () {
@@ -168,17 +169,13 @@ void main() {
     });
   });
 
-  group('menu da tela do PC', () {
-    Future<FakePairing> abrirMenu(
+  group('ação Desligar na tela do computador', () {
+    Future<FakePairing> abrir(
       WidgetTester tester,
       FakePairing p,
       String id,
     ) async {
-      // A linha "online · sem dados de abas ainda" não cabe em 360 dp com a
-      // fonte dos testes (cada letra tem 1 em de largura).
-      tester.view.physicalSize = const Size(1440, 2340);
-      tester.view.devicePixelRatio = 3;
-      addTearDown(tester.view.reset);
+      _telaGrande(tester);
       addTearDown(p.dispose);
       await tester.pumpWidget(
         MaterialApp(
@@ -186,86 +183,58 @@ void main() {
           home: DevicePage(pairing: p, deviceId: id),
         ),
       );
-      await tester.tap(find.byTooltip('Mais opções'));
-      await tester.pumpAndSettle();
       return p;
     }
 
-    Finder item(String texto) =>
-        find.widgetWithText(PopupMenuItem<String>, texto);
+    final botao = find.widgetWithText(BotaoDeAcao, 'Desligar');
 
-    bool habilitado(WidgetTester tester, String texto) =>
-        tester.widget<PopupMenuItem<String>>(item(texto)).enabled;
+    bool habilitado(WidgetTester tester) =>
+        tester.widget<BotaoDeAcao>(botao).onPressed != null;
 
-    Future<void> tocar(WidgetTester tester, String texto) async {
-      await tester.ensureVisible(item(texto));
+    Future<void> escolher(WidgetTester tester, String acao) async {
+      await tester.tap(botao);
       await tester.pumpAndSettle();
-      await tester.tap(item(texto));
+      await tester.tap(find.widgetWithText(ListTile, acao));
       await tester.pumpAndSettle();
     }
 
-    testWidgets('PC ligado com Celita OS: as três habilitadas, depois do '
-        'Atualizar', (tester) async {
-      await abrirMenu(tester, _sala(), 'a');
-      for (final t in _acoes) {
-        expect(habilitado(tester, t), isTrue, reason: t);
-        expect(
-          find.descendant(of: item(t), matching: find.byType(Text)),
-          findsOneWidget,
-          reason: '$t sem subtítulo',
-        );
-      }
+    testWidgets('ligado com Celita OS: as três ações, nesta ordem',
+        (tester) async {
+      await abrir(tester, _sala(), 'a');
+      expect(habilitado(tester), isTrue);
+      await tester.tap(botao);
+      await tester.pumpAndSettle();
       final ys = [
-        for (final t in ['Atualizar o Celita OS agora', ..._acoes])
-          tester.getTopLeft(item(t)).dy,
+        for (final t in _acoes)
+          tester.getTopLeft(find.widgetWithText(ListTile, t)).dy,
       ];
       expect(ys, [...ys]..sort());
     });
 
-    testWidgets('Chromebook: desabilitadas, só nos PCs com Celita OS',
+    testWidgets('Chromebook: desabilitado, e a dica diz por quê',
         (tester) async {
-      await abrirMenu(tester, _sala(), 'd');
-      for (final t in _acoes) {
-        expect(habilitado(tester, t), isFalse, reason: t);
-        expect(
-          find.descendant(
-            of: item(t),
-            matching: find.text('só nos PCs com Celita OS'),
-          ),
-          findsOneWidget,
-          reason: t,
-        );
-      }
+      await abrir(tester, _sala(), 'd');
+      expect(habilitado(tester), isFalse);
+      expect(find.byTooltip('Desligar: só com Celita OS'), findsOneWidget);
     });
 
-    testWidgets('Celita desligado: desabilitadas', (tester) async {
-      await abrirMenu(tester, _sala(), 'b');
-      for (final t in _acoes) {
-        expect(habilitado(tester, t), isFalse, reason: t);
-      }
+    testWidgets('Celita desligado: desabilitado', (tester) async {
+      await abrir(tester, _sala(), 'b');
+      expect(habilitado(tester), isFalse);
     });
 
-    testWidgets('na aula de outro professor: desabilitadas, com o motivo',
-        (tester) async {
+    testWidgets('na aula de outro professor: desabilitado, com o motivo no '
+        'alto', (tester) async {
       final p = _sala()..outrosProfessores['a'] = 'Prof. Carlos';
-      await abrirMenu(tester, p, 'a');
-      for (final t in _acoes) {
-        expect(habilitado(tester, t), isFalse, reason: t);
-        expect(
-          find.descendant(
-            of: item(t),
-            matching: find.text('Está na aula de Prof. Carlos'),
-          ),
-          findsOneWidget,
-          reason: t,
-        );
-      }
+      await abrir(tester, p, 'a');
+      expect(habilitado(tester), isFalse);
+      expect(find.textContaining('na aula de Prof. Carlos'), findsOneWidget);
     });
 
     testWidgets('Desligar pede confirmação; Cancelar não manda nada',
         (tester) async {
-      final p = await abrirMenu(tester, _sala(), 'a');
-      await tocar(tester, 'Desligar');
+      final p = await abrir(tester, _sala(), 'a');
+      await escolher(tester, 'Desligar');
       expect(find.text('Desligar Ana?'), findsOneWidget);
       expect(
         find.text(
@@ -280,10 +249,11 @@ void main() {
       expect(find.byType(SnackBar), findsNothing);
     });
 
-    testWidgets('confirmado: pede só a este PC e avisa', (tester) async {
-      final p = await abrirMenu(tester, _sala(), 'a');
-      await tocar(tester, 'Encerrar a sessão');
-      expect(find.text('Encerrar a sessão de Ana?'), findsOneWidget);
+    testWidgets('confirmado: pede só a este computador e avisa',
+        (tester) async {
+      final p = await abrir(tester, _sala(), 'a');
+      await escolher(tester, 'Sair da conta');
+      expect(find.text('Sair da conta em Ana?'), findsOneWidget);
       expect(
         find.text(
           'A conta aberta fecha na hora. Quem estiver usando perde o que não '
@@ -291,7 +261,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      await tester.tap(find.widgetWithText(FilledButton, 'Encerrar'));
+      await tester.tap(find.widgetWithText(FilledButton, 'Sair da conta'));
       await tester.pumpAndSettle();
       final e = p.energias.single;
       expect(e.alvos, ['a']);
@@ -310,7 +280,7 @@ void main() {
       await tester.pumpWidget(_comBotao((c) => mostrarSheetEnergia(c, p)));
       await tester.tap(find.text('abrir'));
       await tester.pumpAndSettle();
-      expect(find.text('Desligar os computadores'), findsOneWidget);
+      expect(find.text('Desligar computadores'), findsOneWidget);
       expect(
         find.text(
           'Vale para os 2 computadores com Celita OS ligados nesta aula.',
@@ -352,9 +322,9 @@ void main() {
         find.text('Vale para o computador com Celita OS ligado nesta aula.'),
         findsOneWidget,
       );
-      await tester.tap(find.text('Encerrar a sessão'));
+      await tester.tap(find.text('Sair da conta'));
       await tester.pumpAndSettle();
-      expect(find.text('Encerrar a sessão de 1 computador?'), findsOneWidget);
+      expect(find.text('Sair da conta em 1 computador?'), findsOneWidget);
       await tester.tap(find.text('Cancelar'));
       await tester.pumpAndSettle();
       expect(p.energias, isEmpty);
@@ -374,13 +344,13 @@ void main() {
         find.text('Nenhum computador com Celita OS ligado nesta aula.'),
         findsOneWidget,
       );
-      expect(find.text('Desligar os computadores'), findsNothing);
+      expect(find.text('Desligar computadores'), findsNothing);
     });
 
   });
 
-  group('banner da aula', () {
-    const dica = 'Desligar, reiniciar ou encerrar a sessão';
+  group('ações da aula', () {
+    const dica = 'Sair da conta, reiniciar ou desligar os computadores';
 
     Future<FakePairing> abrirAula(WidgetTester tester, double largura) async {
       tester.view.physicalSize = Size(largura * 3, 640 * 3);
@@ -400,40 +370,32 @@ void main() {
 
     for (final largura in [320.0, 360.0]) {
       testWidgets(
-          '${largura.toInt()} dp: ícone logo à esquerda do Encerrar, sem '
-          'estourar; a linha da turma continua com 4 botões', (tester) async {
+          '${largura.toInt()} dp: oito ações em duas linhas de quatro, sem '
+          'estourar; Desligar abre o sheet', (tester) async {
         await abrirAula(tester, largura);
-        expect(find.byType(BotaoDaTurma), findsNWidgets(4));
-        expect(find.widgetWithText(BotaoDaTurma, 'Desligar'), findsNothing);
+        final acoes = find.byType(BotaoDeAcao);
+        expect(acoes, findsNWidgets(8));
+        final linhas = {
+          for (var i = 0; i < 8; i++) tester.getTopLeft(acoes.at(i)).dy,
+        };
+        expect(linhas, hasLength(2));
 
-        final icone = find.byTooltip(dica);
-        expect(icone, findsOneWidget);
+        final botao = find.byTooltip(dica);
+        expect(botao, findsOneWidget);
         final semantica = tester.ensureSemantics();
         expect(
-          tester.getSemantics(icone),
-          isSemantics(tooltip: dica, isButton: true),
+          tester.getSemantics(botao),
+          isSemantics(tooltip: dica, isButton: true, isEnabled: true),
         );
         semantica.dispose();
 
-        final encerrar = find.ancestor(
-          of: find.text('Encerrar'),
-          matching: find.byWidgetPredicate((w) => w is TextButton),
-        );
-        final rIcone = tester.getRect(
-          find.ancestor(of: icone, matching: find.byType(IconButton)),
-        );
-        final rEncerrar = tester.getRect(encerrar);
-        expect(rIcone.right, lessThanOrEqualTo(rEncerrar.left));
-        expect(rEncerrar.left - rIcone.right, lessThan(1));
-        expect((rIcone.center.dy - rEncerrar.center.dy).abs(), lessThan(1));
-
-        await tester.tap(icone);
+        await tester.tap(botao);
         await tester.pumpAndSettle();
-        expect(find.text('Desligar os computadores'), findsOneWidget);
+        expect(find.text('Desligar computadores'), findsOneWidget);
       });
     }
 
-    testWidgets('do ícone até o pedido: escolhe, confirma e avisa',
+    testWidgets('do botão até o pedido: escolhe, confirma e avisa',
         (tester) async {
       final p = await abrirAula(tester, 360);
       await tester.tap(find.byTooltip(dica));
@@ -444,7 +406,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      await tester.tap(find.text('Desligar'));
+      await tester.tap(find.widgetWithText(ListTile, 'Desligar'));
       await tester.pumpAndSettle();
       expect(find.text('Desligar 2 computadores?'), findsOneWidget);
       await tester.tap(find.widgetWithText(FilledButton, 'Desligar'));

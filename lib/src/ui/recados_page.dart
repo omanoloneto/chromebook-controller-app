@@ -10,7 +10,9 @@ import 'package:flutter/material.dart';
 import '../cloud/conversa.dart';
 import '../cloud/session_registry.dart';
 import '../pairing/pairing_controller.dart';
+import 'acoes_do_pc.dart';
 import 'chat_page.dart';
+import 'componentes.dart';
 import 'theme.dart';
 
 /// Nome de rota de Recados (o toque numa notificação de pedido volta a ela).
@@ -163,112 +165,118 @@ class _RecadosPageState extends State<RecadosPage> {
               padding: const EdgeInsets.only(bottom: 24),
               children: [
                 if (pedidos.isNotEmpty) ...[
-                  _Titulo('Pedidos de liberação', pedidos.length),
+                  TituloDeSecao('Pedidos de liberação · ${pedidos.length}'),
                   for (final p in pedidos) _pedido(p),
                 ],
                 if (maos.isNotEmpty) ...[
-                  _Titulo('Mãos levantadas', maos.length),
-                  for (final s in maos) _mao(s),
+                  TituloDeSecao('Mãos levantadas · ${maos.length}'),
+                  _cartao([for (final s in maos) _mao(s)]),
                 ],
-                if (conversas.isNotEmpty) ...[
-                  _Titulo('Conversas', conversas.length),
-                  for (final s in conversas) _conversa(s),
+                if (conversas.isNotEmpty || silenciados.isNotEmpty) ...[
+                  TituloDeSecao('Conversas · ${conversas.length}'),
+                  _cartao([
+                    for (final s in conversas) _conversa(s),
+                    for (final id in silenciados) _silenciado(id),
+                  ]),
                 ],
-                for (final id in silenciados) _silenciado(id),
               ],
             ),
     );
   }
 
-  Widget _vazio() {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
+  Widget _vazio() => const EstadoVazio(
+        icone: Icons.inbox_outlined,
+        titulo: 'Nenhum recado dos alunos agora.',
+        texto: 'Pedidos de liberação, mãos levantadas e mensagens dos alunos '
+            'aparecem aqui.',
+      );
+
+  Widget _cartao(List<Widget> linhas) => Card(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.inbox_outlined, size: 56, color: scheme.outline),
-            const SizedBox(height: 12),
-            const Text(
-              'Nenhum recado dos alunos agora.',
-              textAlign: TextAlign.center,
-            ),
+            for (var i = 0; i < linhas.length; i++) ...[
+              if (i > 0) const Divider(indent: 72),
+              linhas[i],
+            ],
           ],
         ),
-      ),
-    );
-  }
+      );
 
   Widget _pedido(PedidoLiberacao p) {
     final scheme = Theme.of(context).colorScheme;
     final texto = Theme.of(context).textTheme;
     final ocupado = _ocupados.contains(p);
     final enviando = _enviando.contains(p);
+    final pc = _p.pcPorId(p.deviceId);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: hairline(Theme.of(context).brightness)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 12, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '${_p.nomeDoPc(p.deviceId)} · ${horaMinuto(p.ts)}',
-                style:
-                    texto.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                p.site,
-                style: texto.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              if (p.motivo.isNotEmpty) ...[
-                const SizedBox(height: 4),
-                Text(
-                  '“${p.motivo}”',
-                  style:
-                      texto.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Cartao(
+        padding: const EdgeInsets.fromLTRB(16, 14, 12, 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                SeloDaUnidade(
+                  numero: _p.numeroDe(p.deviceId),
+                  estado: pc == null ? EstadoDoPc.offline : estadoDoPc(_p, pc),
+                  tamanho: 32,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    '${_p.nomeDoPc(p.deviceId)} · ${horaMinuto(p.ts)}',
+                    style: texto.bodySmall
+                        ?.copyWith(color: scheme.onSurfaceVariant),
+                  ),
                 ),
               ],
-              const SizedBox(height: 8),
-              // Wrap: em tela estreita ou letra grande, os botões descem de
-              // linha em vez de transbordar.
-              SizedBox(
-                width: double.infinity,
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 4,
-                  children: [
-                    if (enviando)
-                      const Padding(
-                        padding: EdgeInsets.only(right: 4),
-                        child: SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    TextButton(
-                      onPressed: ocupado ? null : () => _recusar(p),
-                      child: const Text('Recusar'),
-                    ),
-                    FilledButton.tonalIcon(
-                      onPressed: ocupado ? null : () => _liberar(p),
-                      icon: const Icon(Icons.lock_open, size: 18),
-                      label: const Text('Liberar'),
-                    ),
-                  ],
-                ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              p.site,
+              style: texto.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            if (p.motivo.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                '“${p.motivo}”',
+                style: texto.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
               ),
             ],
-          ),
+            const SizedBox(height: 8),
+            // Wrap: em tela estreita ou letra grande, os botões descem de
+            // linha em vez de transbordar.
+            SizedBox(
+              width: double.infinity,
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  if (enviando)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 4),
+                      child: SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  TextButton(
+                    onPressed: ocupado ? null : () => _recusar(p),
+                    child: const Text('Recusar'),
+                  ),
+                  FilledButton.tonalIcon(
+                    onPressed: ocupado ? null : () => _liberar(p),
+                    icon: const Icon(Icons.lock_open, size: 18),
+                    label: const Text('Liberar'),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -281,9 +289,8 @@ class _RecadosPageState extends State<RecadosPage> {
         backgroundColor: c.atencao.withValues(alpha: 0.16),
         child: Icon(Icons.back_hand, color: c.atencao),
       ),
-      title: Text(
-        '${_p.nomeDoPc(s.deviceId)} levantou a mão · ${horaMinuto(s.maoEm!)}',
-      ),
+      title: Text(_p.nomeDoPc(s.deviceId)),
+      subtitle: Text('Levantou a mão às ${horaMinuto(s.maoEm!)}'),
       onTap: () => abrirConversa(context, _p, s.deviceId),
       trailing: TextButton(
         onPressed: () => _p.baixarMao(s.deviceId),
@@ -357,28 +364,6 @@ class _RecadosPageState extends State<RecadosPage> {
       ),
       title: Text(_p.nomeDoPc(deviceId)),
       subtitle: const Text(kTextoSilenciado),
-    );
-  }
-}
-
-class _Titulo extends StatelessWidget {
-  const _Titulo(this.texto, this.n);
-
-  final String texto;
-  final int n;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 6),
-      child: Text(
-        '$texto ($n)',
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.4,
-            ),
-      ),
     );
   }
 }

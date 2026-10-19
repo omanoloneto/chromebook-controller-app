@@ -96,7 +96,7 @@ class FakePairing extends PairingController {
   @override
   String nomeDe(PcSession s) => nomes[s.deviceId] ?? s.label;
   @override
-  String nomeDoPc(String deviceId) => nomes[deviceId] ?? deviceId;
+  String nomeDoPc(String deviceId) => alunoDe(deviceId) ?? nomes[deviceId] ?? deviceId;
   @override
   String? alunoDe(String deviceId) => vinculos[deviceId];
   @override
@@ -347,6 +347,9 @@ class FakePairing extends PairingController {
   List<Turma> get turmas => turmasFake;
   @override
   String get turmaDaAula => turmaFake;
+  DateTime? inicioFake;
+  @override
+  DateTime? get inicioDaAula => aulaAtivaFake ? inicioFake : null;
   @override
   List<String> get alunosDaAula => alunosFake;
   @override

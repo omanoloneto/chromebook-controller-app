@@ -1,11 +1,12 @@
-// Aba Ajustes: conectar PCs, aparência (tema), escola, conta, nome do
-// professor e versão.
+// Aba Ajustes, em grupos: computadores (conectar, atualizar, papel de parede,
+// exportar), escola, conta e professor, preferências e versão.
 
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../cloud/archive_store.dart';
 import '../pairing/pairing_controller.dart';
+import 'componentes.dart';
 import 'exportar_historico.dart';
 import 'scan_page.dart';
 import 'school_members_page.dart';
@@ -22,16 +23,32 @@ class SettingsPage extends StatefulWidget {
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
-class _SettingsPageState extends State<SettingsPage> {
+class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver {
+  // Consulta o sistema ao abrir e ao voltar ao app, não a cada rebuild.
+  bool _notificacoesBloqueadas = false;
+
+  Future<void> _checarNotificacoes() async {
+    final liberadas = await widget.pairing.notificacoes?.habilitadasNoSistema();
+    if (mounted) setState(() => _notificacoesBloqueadas = liberadas == false);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _checarNotificacoes();
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _checarNotificacoes();
     widget.settings.addListener(_onChange);
     widget.pairing.addListener(_onChange);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     widget.settings.removeListener(_onChange);
     widget.pairing.removeListener(_onChange);
     super.dispose();
@@ -129,7 +146,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _snack('Criando a escola…');
     final erro = await widget.pairing.criarWorkspace();
     if (!mounted) return;
-    _snack(erro ?? 'Escola criada — seus PCs e dados agora são compartilhados.');
+    _snack(erro ?? 'Escola criada — seus computadores e dados agora são compartilhados.');
     setState(() {});
   }
 
@@ -142,9 +159,10 @@ class _SettingsPageState extends State<SettingsPage> {
         builder: (ctx) => AlertDialog(
           title: const Text('Entrar na escola'),
           content: Text(
-            'Este celular tem ${widget.pairing.pcs.length} PC(s) pareado(s) '
-            'com a sua conta pessoal. Ao entrar, eles vão precisar reconectar '
-            '(tocar em "Desvincular" no PC e ler o código de novo). Continuar?',
+            'Este celular tem ${_computadores(widget.pairing.pcs.length)} '
+            'conectados pela sua conta pessoal. Ao entrar, eles vão precisar '
+            'reconectar (tocar em "Desvincular" no computador e ler o código de '
+            'novo). Continuar?',
           ),
           actions: [
             TextButton(
@@ -212,7 +230,7 @@ class _SettingsPageState extends State<SettingsPage> {
           title: const Text('Backup restaurado'),
           content: const Text(
             'Feche e abra o app para carregar os dados restaurados '
-            '(PCs pareados, histórico, turmas).',
+            '(computadores, histórico, turmas).',
           ),
           actions: [
             FilledButton(
@@ -236,281 +254,260 @@ class _SettingsPageState extends State<SettingsPage> {
     );
     if (img == null || !mounted) return;
     final n = widget.pairing.pcs.length;
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Papel de parede'),
-        content: Text('Aplicar esta imagem como papel de parede em $n PC(s)?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Aplicar'),
-          ),
-        ],
-      ),
+    final ok = await confirmar(
+      context,
+      titulo: 'Papel de parede',
+      mensagem: 'Aplicar esta imagem em ${_computadores(n)}? Os que estiverem '
+          'desligados trocam quando ligarem.',
+      acao: 'Aplicar',
     );
-    if (ok != true) return;
+    if (!ok) return;
     try {
       await widget.pairing.definirPapelDeParede(await img.readAsBytes());
     } on ArgumentError {
       _snack('A imagem é grande demais. Escolha uma com menos de 4 MB.');
       return;
     }
-    _snack('Papel de parede enviado para $n PC(s).');
+    _snack('Papel de parede enviado para ${_computadores(n)}.');
   }
 
-  Widget _secao(String titulo) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
-      child: Text(
-        titulo,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-            ),
-      ),
+  static String _computadores(int n) => n == 1 ? '1 computador' : '$n computadores';
+
+  Future<void> _atualizarDesatualizados() async {
+    final n = await widget.pairing.atualizarDesatualizados();
+    _snack(
+      n == 1
+          ? '1 computador vai baixar e instalar a atualização.'
+          : '$n computadores vão baixar e instalar a atualização.',
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final pairing = widget.pairing;
+    final velhos = pairing.desatualizadosOnline;
+    final maisNova = pairing.versaoPublicada;
     return Scaffold(
       appBar: AppBar(title: const Text('Ajustes')),
       body: ListView(
+        padding: const EdgeInsets.only(bottom: 32),
         children: [
-          _secao('Computadores'),
-          ListTile(
-            leading: const Icon(Icons.qr_code_scanner),
-            title: const Text('Conectar um Chromebook'),
-            subtitle: const Text('Ler o QR Code do PC ou do app do professor'),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ScanPage(pairing: widget.pairing),
+          GrupoDeOpcoes(
+            titulo: 'Computadores',
+            children: [
+              ListTile(
+                leading: const Icon(Icons.qr_code_scanner),
+                title: const Text('Conectar computador'),
+                subtitle: const Text('Ler o QR Code do computador ou do app do professor'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => ScanPage(pairing: pairing)),
+                ),
               ),
-            ),
-          ),
-          Builder(
-            builder: (context) {
-              final velhos = widget.pairing.desatualizadosOnline;
-              final maisNova = widget.pairing.versaoPublicada;
-              return ListTile(
+              ListTile(
                 leading: const Icon(Icons.system_update_alt),
-                title: const Text('Atualizar os PCs desatualizados'),
+                title: const Text('Atualizar os desatualizados'),
                 subtitle: Text(
                   maisNova == null
                       ? 'Verificando a versão mais nova do Celita OS…'
                       : velhos.isEmpty
-                          ? 'Todos os PCs ligados estão na versão mais nova ($maisNova).'
-                          : '${velhos.length} ${velhos.length == 1 ? 'PC ligado está' : 'PCs ligados estão'} '
+                          ? 'Todos os ligados estão na versão mais nova ($maisNova).'
+                          : '${_computadores(velhos.length)} '
+                              '${velhos.length == 1 ? 'ligado está' : 'ligados estão'} '
                               'numa versão antiga. A mais nova é a $maisNova.',
                 ),
                 enabled: velhos.isNotEmpty,
-                onTap: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  final n = await widget.pairing.atualizarDesatualizados();
-                  messenger
-                    ..hideCurrentSnackBar()
-                    ..showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          n == 1
-                              ? '1 PC vai baixar e instalar a atualização.'
-                              : '$n PCs vão baixar e instalar a atualização.',
-                        ),
-                      ),
-                    );
-                },
-              );
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.ios_share),
-            title: const Text('Exportar histórico de todos os PCs'),
-            subtitle: Text(
-              widget.pairing.workspaceAtivo
-                  ? 'Planilha com os sites visitados, de 1 a $kArchiveDays dias'
-                  : 'O histórico guardado existe só nos PCs da escola.',
-            ),
-            enabled: widget.pairing.workspaceAtivo,
-            onTap: () => exportarHistorico(context, widget.pairing),
-          ),
-          _secao('Aparência'),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            child: SegmentedButton<ThemeMode>(
-              segments: const [
-                ButtonSegment(
-                  value: ThemeMode.system,
-                  label: Text('Sistema'),
-                  icon: Icon(Icons.brightness_auto),
-                ),
-                ButtonSegment(
-                  value: ThemeMode.light,
-                  label: Text('Claro'),
-                  icon: Icon(Icons.light_mode),
-                ),
-                ButtonSegment(
-                  value: ThemeMode.dark,
-                  label: Text('Escuro'),
-                  icon: Icon(Icons.dark_mode),
-                ),
-              ],
-              selected: {widget.settings.themeMode},
-              onSelectionChanged: (sel) =>
-                  widget.settings.setThemeMode(sel.first),
-            ),
-          ),
-          _secao('Turma'),
-          ListTile(
-            leading: const Icon(Icons.wallpaper),
-            title: const Text('Papel de parede da turma'),
-            subtitle: Text(
-              widget.pairing.wallpaperHash == null
-                  ? 'Aplicar uma imagem em todos os PCs'
-                  : 'Imagem aplicada. Toque para trocar.',
-            ),
-            onTap: _escolherPapelDeParede,
-          ),
-          _secao('Escola'),
-          if (widget.pairing.workspaceAtivo) ...[
-            const ListTile(
-              leading: Icon(Icons.school_outlined),
-              title: Text('Escola conectada'),
-              subtitle: Text(
-                'PCs, turmas, regras e histórico compartilhados entre os '
-                'professores da escola.',
+                onTap: _atualizarDesatualizados,
               ),
-            ),
-            if (widget.pairing.souFundador)
               ListTile(
-                leading: const Icon(Icons.group_outlined),
-                title: const Text('Professores da escola'),
-                subtitle: const Text('Quem pode entrar na escola pelo app'),
+                leading: const Icon(Icons.wallpaper),
+                title: const Text('Papel de parede'),
+                subtitle: Text(
+                  pairing.wallpaperHash == null
+                      ? 'Uma imagem em todos os computadores, até nos desligados'
+                      : 'Imagem aplicada. Toque para trocar.',
+                ),
                 trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => SchoolMembersPage(
-                      emailFundador: widget.pairing.emailGoogle,
-                    ),
-                  ),
-                ),
+                onTap: _escolherPapelDeParede,
               ),
-          ] else ...[
-            ListTile(
-              leading: const Icon(Icons.group_add_outlined),
-              title: const Text('Entrar na escola'),
-              subtitle: const Text(
-                'Login Google — você passa a ver os PCs e turmas da escola.',
-              ),
-              onTap: _entrarWorkspace,
-            ),
-            ListTile(
-              leading: const Icon(Icons.school_outlined),
-              title: const Text('Criar a escola (primeiro professor)'),
-              subtitle: const Text(
-                'Uma vez só, pelo primeiro professor: seus PCs e dados viram '
-                'os da escola.',
-              ),
-              onTap: _criarWorkspace,
-            ),
-          ],
-          _secao('Conta (backup e troca de celular)'),
-          if (!widget.pairing.logadoComGoogle)
-            ListTile(
-              leading: const Icon(Icons.cloud_upload_outlined),
-              title: const Text('Entrar com o Google'),
-              subtitle: const Text(
-                'Guarda seus dados na nuvem para trocar de celular depois.',
-              ),
-              onTap: _entrarComGoogle,
-            )
-          else ...[
-            ListTile(
-              leading: Icon(
-                widget.pairing.backupAtivo
-                    ? Icons.cloud_done_outlined
-                    : Icons.cloud_off_outlined,
-              ),
-              title: Text('Conectado: ${widget.pairing.emailGoogle ?? 'Google'}'),
-              subtitle: Text(
-                widget.pairing.workspaceAtivo
-                    ? 'Favoritos e preferências sincronizados na nuvem.'
-                    : widget.pairing.backupAtivo
-                        ? 'Backup ativo — dados sincronizados na nuvem.'
-                        : 'Backup ainda não ativado neste celular.',
-              ),
-            ),
-            // No workspace a chave vem da escola — PIN de backup só faz
-            // sentido no modo isolado.
-            if (!widget.pairing.workspaceAtivo) ...[
-              if (!widget.pairing.backupAtivo)
-                ListTile(
-                  leading: const Icon(Icons.backup_outlined),
-                  title: const Text('Ativar backup (criar PIN)'),
-                  onTap: () async {
-                    final pin = await _pedirPin(
-                      titulo: 'Criar PIN de backup',
-                      acao: 'Ativar backup',
-                    );
-                    if (pin == null || !mounted) return;
-                    await widget.pairing.ativarBackup(pin);
-                    if (mounted) {
-                      _snack('Backup ativado.');
-                      setState(() {});
-                    }
-                  },
-                ),
               ListTile(
-                leading: const Icon(Icons.restore),
-                title: const Text('Restaurar backup neste celular'),
-                subtitle:
-                    const Text('Traz os dados de outro aparelho (pede o PIN).'),
-                onTap: _restaurar,
+                leading: const Icon(Icons.ios_share),
+                title: const Text('Exportar histórico'),
+                subtitle: Text(
+                  pairing.workspaceAtivo
+                      ? 'Planilha com os sites visitados, de 1 a $kArchiveDays dias'
+                      : 'O histórico guardado existe só nos computadores da escola.',
+                ),
+                enabled: pairing.workspaceAtivo,
+                onTap: () => exportarHistorico(context, pairing),
               ),
             ],
-          ],
-          _secao('Professor'),
-          ListTile(
-            leading: const Icon(Icons.badge_outlined),
-            title: const Text('Nome do professor'),
-            subtitle: Text(widget.settings.nomeProfessor),
-            trailing: const Icon(Icons.edit_outlined),
-            onTap: _editarNome,
           ),
-          _secao('Notificações'),
-          SwitchListTile(
-            secondary: const Icon(Icons.notifications_active_outlined),
-            title: const Text('Avisar com som'),
-            subtitle: const Text(
-              'Quando um PC abrir um site marcado "Só me avisar" ou tentar '
-              'um site bloqueado.',
-            ),
-            value: widget.settings.notificarSites,
-            onChanged: (v) => widget.settings.setNotificarSites(v),
-          ),
-          FutureBuilder<bool?>(
-            future: widget.pairing.notificacoes?.habilitadasNoSistema(),
-            builder: (_, snap) => snap.data == false
-                ? ListTile(
-                    leading: Icon(
-                      Icons.notifications_off_outlined,
-                      color: Theme.of(context).colorScheme.error,
+          GrupoDeOpcoes(
+            titulo: 'Escola',
+            children: [
+              if (pairing.workspaceAtivo) ...[
+                const ListTile(
+                  leading: Icon(Icons.school_outlined),
+                  title: Text('Escola conectada'),
+                  subtitle: Text(
+                    'Computadores, turmas, regras e histórico compartilhados '
+                    'entre os professores.',
+                  ),
+                ),
+                if (pairing.souFundador)
+                  ListTile(
+                    leading: const Icon(Icons.group_outlined),
+                    title: const Text('Professores da escola'),
+                    subtitle: const Text('Quem pode entrar na escola pelo app'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => SchoolMembersPage(emailFundador: pairing.emailGoogle),
+                      ),
                     ),
-                    title: const Text('Notificações bloqueadas pelo sistema'),
-                    subtitle: const Text(
-                      'Libere nas configurações do Android para ouvir os avisos.',
-                    ),
-                  )
-                : const SizedBox.shrink(),
+                  ),
+              ] else ...[
+                ListTile(
+                  leading: const Icon(Icons.group_add_outlined),
+                  title: const Text('Entrar na escola'),
+                  subtitle: const Text(
+                    'Com a conta Google: você passa a ver os computadores e as '
+                    'turmas da escola.',
+                  ),
+                  onTap: _entrarWorkspace,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.add_business_outlined),
+                  title: const Text('Criar a escola'),
+                  subtitle: const Text(
+                    'Uma vez só, pelo primeiro professor: seus computadores e '
+                    'dados viram os da escola.',
+                  ),
+                  onTap: _criarWorkspace,
+                ),
+              ],
+            ],
           ),
-          _secao('Sobre'),
-          const ListTile(
-            leading: Icon(Icons.info_outline),
-            title: Text('Versão'),
-            subtitle: Text(kVersaoApp),
+          GrupoDeOpcoes(
+            titulo: 'Conta',
+            children: [
+              ListTile(
+                leading: const Icon(Icons.badge_outlined),
+                title: const Text('Nome do professor'),
+                subtitle: Text(widget.settings.nomeProfessor),
+                trailing: const Icon(Icons.edit_outlined),
+                onTap: _editarNome,
+              ),
+              if (!pairing.logadoComGoogle)
+                ListTile(
+                  leading: const Icon(Icons.cloud_upload_outlined),
+                  title: const Text('Entrar com o Google'),
+                  subtitle: const Text('Guarda seus dados na nuvem para trocar de celular depois.'),
+                  onTap: _entrarComGoogle,
+                )
+              else ...[
+                ListTile(
+                  leading: Icon(
+                    pairing.backupAtivo ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
+                  ),
+                  title: Text(pairing.emailGoogle ?? 'Conta Google'),
+                  subtitle: Text(
+                    pairing.workspaceAtivo
+                        ? 'Favoritos e preferências sincronizados na nuvem.'
+                        : pairing.backupAtivo
+                            ? 'Backup ativo: dados sincronizados na nuvem.'
+                            : 'Backup ainda não ativado neste celular.',
+                  ),
+                ),
+                // Na escola a chave vem dela: PIN de backup só no modo isolado.
+                if (!pairing.workspaceAtivo) ...[
+                  if (!pairing.backupAtivo)
+                    ListTile(
+                      leading: const Icon(Icons.backup_outlined),
+                      title: const Text('Ativar backup'),
+                      subtitle: const Text('Cria um PIN para abrir o backup em outro celular.'),
+                      onTap: () async {
+                        final pin = await _pedirPin(
+                          titulo: 'Criar PIN de backup',
+                          acao: 'Ativar backup',
+                        );
+                        if (pin == null || !mounted) return;
+                        await pairing.ativarBackup(pin);
+                        if (mounted) {
+                          _snack('Backup ativado.');
+                          setState(() {});
+                        }
+                      },
+                    ),
+                  ListTile(
+                    leading: const Icon(Icons.restore),
+                    title: const Text('Restaurar backup neste celular'),
+                    subtitle: const Text('Traz os dados de outro aparelho (pede o PIN).'),
+                    onTap: _restaurar,
+                  ),
+                ],
+              ],
+            ],
+          ),
+          GrupoDeOpcoes(
+            titulo: 'Preferências',
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Aparência', style: Theme.of(context).listTileTheme.titleTextStyle),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<ThemeMode>(
+                        showSelectedIcon: false,
+                        segments: const [
+                          ButtonSegment(value: ThemeMode.system, label: Text('Sistema')),
+                          ButtonSegment(value: ThemeMode.light, label: Text('Claro')),
+                          ButtonSegment(value: ThemeMode.dark, label: Text('Escuro')),
+                        ],
+                        selected: {widget.settings.themeMode},
+                        onSelectionChanged: (sel) => widget.settings.setThemeMode(sel.first),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              SwitchListTile(
+                secondary: const Icon(Icons.notifications_active_outlined),
+                title: const Text('Avisar com som'),
+                subtitle: const Text(
+                  'Quando um computador abrir um site marcado "Só me avisar" ou '
+                  'tentar um site bloqueado.',
+                ),
+                value: widget.settings.notificarSites,
+                onChanged: (v) => widget.settings.setNotificarSites(v),
+              ),
+              if (_notificacoesBloqueadas)
+                ListTile(
+                  leading: Icon(
+                    Icons.notifications_off_outlined,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  title: const Text('Notificações bloqueadas pelo sistema'),
+                  subtitle: const Text(
+                    'Libere nas configurações do Android para ouvir os avisos.',
+                  ),
+                ),
+            ],
+          ),
+          const GrupoDeOpcoes(
+            titulo: 'Sobre',
+            children: [
+              ListTile(
+                leading: Icon(Icons.info_outline),
+                title: Text('Controle de Aula'),
+                subtitle: Text('Versão $kVersaoApp'),
+              ),
+            ],
           ),
         ],
       ),

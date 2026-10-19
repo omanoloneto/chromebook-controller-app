@@ -1,5 +1,5 @@
-// Energia dos PCs com Celita OS: encerrar a sessão, reiniciar e desligar, num
-// PC (menu ⋮ da tela dele) ou na turma (ícone de desligar no banner da aula).
+// Energia dos PCs com Celita OS: sair da conta, reiniciar e desligar, num PC
+// (ações dele) ou na turma (ação "Desligar" da aula).
 // Sempre com confirmação: o PC age na hora, sem contagem na tela do aluno. A
 // faixa de entrega mostra quem recebeu.
 
@@ -11,7 +11,7 @@ import '../pairing/pairing_controller.dart';
 /// Rótulo e ícone de cada ação (menu do PC e sheet da turma).
 extension TextosDeEnergia on AcaoEnergia {
   String get rotulo => switch (this) {
-        AcaoEnergia.encerrar => 'Encerrar a sessão',
+        AcaoEnergia.encerrar => 'Sair da conta',
         AcaoEnergia.reiniciar => 'Reiniciar',
         AcaoEnergia.desligar => 'Desligar',
       };
@@ -22,22 +22,22 @@ extension TextosDeEnergia on AcaoEnergia {
         AcaoEnergia.desligar => Icons.power_settings_new,
       };
 
-  String get _efeito => switch (this) {
-        AcaoEnergia.encerrar => 'Sai da conta aberta; o computador continua ligado',
+  String get efeito => switch (this) {
+        AcaoEnergia.encerrar => 'Fecha a conta aberta; o computador continua ligado',
         AcaoEnergia.reiniciar => 'Desliga e liga de novo',
         AcaoEnergia.desligar => 'Fica desligado até alguém ligar',
       };
 
-  String get _botao => this == AcaoEnergia.encerrar ? 'Encerrar' : rotulo;
+  String get _botao => rotulo;
 
   String _perguntaPc(String nome) => this == AcaoEnergia.encerrar
-      ? 'Encerrar a sessão de $nome?'
+      ? 'Sair da conta em $nome?'
       : '$rotulo $nome?';
 
   String _perguntaTurma(int n) => switch (this) {
         AcaoEnergia.encerrar => n == 1
-            ? 'Encerrar a sessão de 1 computador?'
-            : 'Encerrar as sessões de $n computadores?',
+            ? 'Sair da conta em 1 computador?'
+            : 'Sair da conta em $n computadores?',
         _ => n == 1 ? '$rotulo 1 computador?' : '$rotulo $n computadores?',
       };
 
@@ -58,7 +58,7 @@ extension TextosDeEnergia on AcaoEnergia {
   }
 }
 
-/// Confirma e pede [acao] a um PC (menu ⋮ da tela dele).
+/// Confirma e pede [acao] a um PC (ação "Desligar" dele).
 Future<void> confirmarEnergiaNoPc(
   BuildContext context,
   PairingController pairing,
@@ -82,8 +82,8 @@ Future<void> confirmarEnergiaNoPc(
     );
 }
 
-/// Toque no ícone de desligar do banner da aula: escolhe a ação, confirma e
-/// pede aos PCs da aula que estão ligados com Celita OS.
+/// Ação "Desligar" da aula: escolhe a ação, confirma e pede aos PCs da aula
+/// que estão ligados com Celita OS.
 Future<void> mostrarSheetEnergia(
   BuildContext context,
   PairingController pairing,
@@ -107,7 +107,7 @@ Future<void> mostrarSheetEnergia(
         shrinkWrap: true,
         children: [
           ListTile(
-            title: const Text('Desligar os computadores'),
+            title: const Text('Desligar computadores'),
             subtitle: Text(
               n == 1
                   ? 'Vale para o computador com Celita OS ligado$onde.'
@@ -119,7 +119,7 @@ Future<void> mostrarSheetEnergia(
             ListTile(
               leading: Icon(a.icone),
               title: Text(a.rotulo),
-              subtitle: Text(a._efeito),
+              subtitle: Text(a.efeito),
               onTap: () => Navigator.pop(ctx, a),
             ),
         ],

@@ -1,30 +1,38 @@
 // Tela de turmas e alunos: cadastro local (nada vai ao Firebase).
-// Nível 1 = turmas; toque abre o nível 2 = alunos da turma.
+// Nível 1 = turmas, cada uma com "Iniciar aula"; toque abre o nível 2 = alunos
+// da turma.
 
 import 'package:flutter/material.dart';
 
 import '../pairing/pairing_controller.dart';
 import 'aluno_page.dart';
+import 'chamada_page.dart';
+import 'componentes.dart';
 
 class StudentsPage extends StatefulWidget {
-  const StudentsPage({super.key, required this.pairing});
+  const StudentsPage({super.key, required this.pairing, this.onAulaIniciada});
 
   final PairingController pairing;
+
+  /// A aula começou por uma turma daqui: a casca volta para a aba Aula.
+  final VoidCallback? onAulaIniciada;
 
   @override
   State<StudentsPage> createState() => _StudentsPageState();
 }
 
 class _StudentsPageState extends State<StudentsPage> {
+  PairingController get _pairing => widget.pairing;
+
   @override
   void initState() {
     super.initState();
-    widget.pairing.addListener(_onChange);
+    _pairing.addListener(_onChange);
   }
 
   @override
   void dispose() {
-    widget.pairing.removeListener(_onChange);
+    _pairing.removeListener(_onChange);
     super.dispose();
   }
 
@@ -33,45 +41,52 @@ class _StudentsPageState extends State<StudentsPage> {
   }
 
   Future<void> _dialogoTurma({int? indice}) async {
-    final turmas = widget.pairing.turmas;
-    final existente = indice != null ? turmas[indice] : null;
-    final ctrl = TextEditingController(text: existente?.nome ?? '');
-    final salvo = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(existente == null ? 'Nova turma' : 'Renomear turma'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            labelText: 'Nome da turma',
-            hintText: 'ex.: 2º ano A',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Salvar'),
-          ),
-        ],
-      ),
+    final existente = indice != null ? _pairing.turmas[indice] : null;
+    final nome = await pedirTexto(
+      context,
+      titulo: existente == null ? 'Nova turma' : 'Renomear turma',
+      rotulo: 'Nome da turma',
+      dica: 'ex.: 2º ano A',
+      inicial: existente?.nome ?? '',
     );
-    if (salvo != true || ctrl.text.trim().isEmpty) return;
+    if (nome == null) return;
     if (indice == null) {
-      await widget.pairing.adicionarTurma(ctrl.text);
+      await _pairing.adicionarTurma(nome);
     } else {
-      await widget.pairing.renomearTurma(indice, ctrl.text);
+      await _pairing.renomearTurma(indice, nome);
     }
   }
 
+  Future<void> _removerTurma(int indice) async {
+    final t = _pairing.turmas[indice];
+    final ok = await confirmar(
+      context,
+      titulo: 'Remover ${t.nome}',
+      mensagem: 'A turma e ${_alunos(t.alunos.length)} saem do app. O histórico '
+          'das aulas antigas continua guardado.',
+      acao: 'Remover',
+      destrutiva: true,
+    );
+    if (ok) await _pairing.removerTurma(indice);
+  }
+
+  // A aula começa pela chamada, como na aba Aula.
+  Future<void> _iniciarAula(String turma) async {
+    await _pairing.iniciarAula(turma);
+    if (!mounted) return;
+    widget.onAulaIniciada?.call();
+    await Navigator.of(context).push(rotaChamada(_pairing));
+  }
+
+  void _abrirTurma(int indice) => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _AlunosPage(pairing: _pairing, turmaIndice: indice),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
-    final turmas = widget.pairing.turmas;
+    final turmas = _pairing.turmas;
     return Scaffold(
       appBar: AppBar(title: const Text('Turmas')),
       floatingActionButton: FloatingActionButton.extended(
@@ -82,79 +97,106 @@ class _StudentsPageState extends State<StudentsPage> {
         label: const Text('Nova turma'),
       ),
       body: turmas.isEmpty
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Nenhuma turma ainda.\n\n'
-                  'Cadastre suas turmas e alunos para marcar quem está em '
-                  'cada Chromebook durante a aula.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
+          ? const EstadoVazio(
+              icone: Icons.school_outlined,
+              titulo: 'Nenhuma turma ainda',
+              texto: 'Cadastre suas turmas e alunos para fazer a chamada e '
+                  'saber quem está em cada computador durante a aula.',
             )
-          : ListView.separated(
-              padding: const EdgeInsets.only(bottom: 88),
-              itemCount: turmas.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (_, i) {
-                final t = turmas[i];
-                return Dismissible(
-                  key: ValueKey('turma|${t.nome}'),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    color: Theme.of(context).colorScheme.error,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 16),
-                    child: Icon(
-                      Icons.delete,
-                      color: Theme.of(context).colorScheme.onError,
-                    ),
+          : ListView(
+              padding: const EdgeInsets.only(top: 4, bottom: 96),
+              children: [
+                for (var i = 0; i < turmas.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _cartaoDaTurma(i, turmas[i].nome, turmas[i].alunos.length),
                   ),
-                  confirmDismiss: (_) => showDialog<bool>(
-                    context: context,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('Remover turma'),
-                      content: Text(
-                        'Remover "${t.nome}" e seus ${t.alunos.length} aluno(s)?',
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Cancelar'),
-                        ),
-                        FilledButton(
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text('Remover'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  onDismissed: (_) => widget.pairing.removerTurma(i),
-                  child: ListTile(
-                    leading: const Icon(Icons.school),
-                    title: Text(t.nome),
-                    subtitle: Text('${t.alunos.length} aluno(s)'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.edit_outlined),
-                      tooltip: 'Renomear turma',
-                      onPressed: () => _dialogoTurma(indice: i),
-                    ),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => _AlunosPage(
-                          pairing: widget.pairing,
-                          turmaIndice: i,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
+              ],
             ),
     );
   }
+
+  Widget _cartaoDaTurma(int indice, String nome, int alunos) {
+    final t = Theme.of(context);
+    final aula = _pairing.aulaAtiva;
+    final estaEmAula = aula && _pairing.turmaDaAula == nome;
+    return Cartao(
+      padding: const EdgeInsets.fromLTRB(16, 14, 4, 14),
+      onTap: () => _abrirTurma(indice),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: t.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(Icons.school_outlined, color: t.colorScheme.onPrimaryContainer),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(nome, style: t.textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    Text(_alunos(alunos), style: t.textTheme.bodySmall),
+                  ],
+                ),
+              ),
+              if (estaEmAula) const Selo('Em aula', icone: Icons.circle, tom: Tom.sucesso),
+              PopupMenuButton<String>(
+                tooltip: 'Opções da turma',
+                onSelected: (v) {
+                  if (v == 'renomear') _dialogoTurma(indice: indice);
+                  if (v == 'remover') _removerTurma(indice);
+                },
+                itemBuilder: (_) => [
+                  const PopupMenuItem(
+                    value: 'renomear',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.edit_outlined),
+                      title: Text('Renomear'),
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'remover',
+                    // Turma da aula em andamento: só depois de encerrar.
+                    enabled: !estaEmAula,
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.delete_outline, color: t.colorScheme.error),
+                      title: Text('Remover', style: TextStyle(color: t.colorScheme.error)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (!aula) ...[
+            const SizedBox(height: 12),
+            FilledButton.tonalIcon(
+              onPressed: () => _iniciarAula(nome),
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: const Text('Iniciar aula'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }
+
+String _alunos(int n) => switch (n) {
+      0 => 'Nenhum aluno',
+      1 => '1 aluno',
+      _ => '$n alunos',
+    };
 
 // Nível 2: alunos de uma turma.
 class _AlunosPage extends StatefulWidget {
@@ -168,15 +210,17 @@ class _AlunosPage extends StatefulWidget {
 }
 
 class _AlunosPageState extends State<_AlunosPage> {
+  PairingController get _pairing => widget.pairing;
+
   @override
   void initState() {
     super.initState();
-    widget.pairing.addListener(_onChange);
+    _pairing.addListener(_onChange);
   }
 
   @override
   void dispose() {
-    widget.pairing.removeListener(_onChange);
+    _pairing.removeListener(_onChange);
     super.dispose();
   }
 
@@ -185,115 +229,137 @@ class _AlunosPageState extends State<_AlunosPage> {
   }
 
   Future<void> _dialogoAluno({int? indice}) async {
-    final turma = widget.pairing.turmas[widget.turmaIndice];
+    final turma = _pairing.turmas[widget.turmaIndice];
     final existente = indice != null ? turma.alunos[indice] : null;
-    final ctrl = TextEditingController(text: existente ?? '');
-    final salvo = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(existente == null ? 'Novo aluno' : 'Renomear aluno'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: InputDecoration(
-            labelText: 'Nome do aluno',
-            hintText: 'ex.: William',
-            helperText: existente == null
-                ? null
-                : 'O histórico de aulas antigas continua sob o nome anterior.',
-            helperMaxLines: 2,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Salvar'),
-          ),
-        ],
-      ),
+    final nome = await pedirTexto(
+      context,
+      titulo: existente == null ? 'Novo aluno' : 'Renomear aluno',
+      rotulo: 'Nome do aluno',
+      dica: 'ex.: William',
+      ajuda: existente == null
+          ? null
+          : 'O histórico de aulas antigas continua sob o nome anterior.',
+      inicial: existente ?? '',
+      capitalizacao: TextCapitalization.words,
     );
-    if (salvo != true || ctrl.text.trim().isEmpty) return;
+    if (nome == null) return;
     if (indice == null) {
-      await widget.pairing.adicionarAluno(widget.turmaIndice, ctrl.text);
+      await _pairing.adicionarAluno(widget.turmaIndice, nome);
     } else {
-      await widget.pairing.renomearAluno(widget.turmaIndice, indice, ctrl.text);
+      await _pairing.renomearAluno(widget.turmaIndice, indice, nome);
     }
+  }
+
+  Future<void> _removerAluno(int indice, String aluno) async {
+    final ok = await confirmar(
+      context,
+      titulo: 'Remover $aluno',
+      mensagem: 'O aluno sai da turma. O histórico das aulas antigas continua '
+          'guardado.',
+      acao: 'Remover',
+      destrutiva: true,
+    );
+    if (ok) await _pairing.removerAluno(widget.turmaIndice, indice);
   }
 
   @override
   Widget build(BuildContext context) {
     // Turma pode ter sido removida em outra tela.
-    if (widget.turmaIndice >= widget.pairing.turmas.length) {
+    if (widget.turmaIndice >= _pairing.turmas.length) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Turma removida')),
-        body: const Center(child: Text('Esta turma não existe mais.')),
+        appBar: AppBar(),
+        body: const EstadoVazio(
+          icone: Icons.school_outlined,
+          titulo: 'Turma removida',
+          texto: 'Esta turma não existe mais.',
+        ),
       );
     }
-    final turma = widget.pairing.turmas[widget.turmaIndice];
+    final t = Theme.of(context);
+    final turma = _pairing.turmas[widget.turmaIndice];
     return Scaffold(
-      appBar: AppBar(title: Text(turma.nome)),
+      appBar: AppBar(
+        toolbarHeight: 68,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(turma.nome),
+            const SizedBox(height: 2),
+            Text(_alunos(turma.alunos.length), style: t.textTheme.bodySmall),
+          ],
+        ),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'fab_alunos',
         onPressed: () => _dialogoAluno(),
-        icon: const Icon(Icons.person_add),
+        icon: const Icon(Icons.person_add_alt),
         label: const Text('Novo aluno'),
       ),
       body: turma.alunos.isEmpty
-          ? const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Nenhum aluno nesta turma ainda.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
+          ? const EstadoVazio(
+              icone: Icons.person_add_alt,
+              titulo: 'Nenhum aluno nesta turma ainda',
+              texto: 'Cadastre aqui ou na chamada, quando o aluno chegar.',
             )
-          : ListView.separated(
-              padding: const EdgeInsets.only(bottom: 88),
-              itemCount: turma.alunos.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
-              itemBuilder: (_, i) {
-                final aluno = turma.alunos[i];
-                return Dismissible(
-                  key: ValueKey('aluno|$aluno'),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    color: Theme.of(context).colorScheme.error,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 16),
-                    child: Icon(
-                      Icons.delete,
-                      color: Theme.of(context).colorScheme.onError,
-                    ),
+          : ListView(
+              padding: const EdgeInsets.only(top: 4, bottom: 96),
+              children: [
+                Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < turma.alunos.length; i++) ...[
+                        if (i > 0) const Divider(indent: 68),
+                        _linhaDoAluno(i, turma.alunos[i]),
+                      ],
+                    ],
                   ),
-                  onDismissed: (_) =>
-                      widget.pairing.removerAluno(widget.turmaIndice, i),
-                  child: ListTile(
-                    leading: const Icon(Icons.person_outline),
-                    title: Text(aluno),
-                    subtitle: const Text('toque para ver as aulas'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.edit_outlined),
-                      tooltip: 'Renomear aluno',
-                      onPressed: () => _dialogoAluno(indice: i),
-                    ),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => AlunoPage(
-                          pairing: widget.pairing,
-                          aluno: aluno,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-              },
+                ),
+              ],
             ),
+    );
+  }
+
+  Widget _linhaDoAluno(int indice, String aluno) {
+    final t = Theme.of(context);
+    return ListTile(
+      leading: CircleAvatar(
+        radius: 19,
+        backgroundColor: t.colorScheme.surfaceContainerHighest,
+        foregroundColor: t.colorScheme.onSurfaceVariant,
+        child: Text(aluno.characters.first.toUpperCase()),
+      ),
+      title: Text(aluno),
+      subtitle: const Text('Ver as aulas'),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => AlunoPage(pairing: _pairing, aluno: aluno)),
+      ),
+      trailing: PopupMenuButton<String>(
+        tooltip: 'Opções do aluno',
+        onSelected: (v) {
+          if (v == 'renomear') _dialogoAluno(indice: indice);
+          if (v == 'remover') _removerAluno(indice, aluno);
+        },
+        itemBuilder: (_) => [
+          const PopupMenuItem(
+            value: 'renomear',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.edit_outlined),
+              title: Text('Renomear'),
+            ),
+          ),
+          PopupMenuItem(
+            value: 'remover',
+            child: ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.delete_outline, color: t.colorScheme.error),
+              title: Text('Remover', style: TextStyle(color: t.colorScheme.error)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

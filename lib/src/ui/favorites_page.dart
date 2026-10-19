@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 
 import '../pairing/pairing_controller.dart';
+import 'componentes.dart';
 import 'theme.dart';
 
 class FavoritesView extends StatelessWidget {
@@ -16,31 +17,11 @@ class FavoritesView extends StatelessWidget {
   Widget build(BuildContext context) {
     final itens = pairing.favoritos;
     if (itens.isEmpty) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.star_outline,
-                size: 56,
-                color: Theme.of(context).colorScheme.outline,
-              ),
-              const SizedBox(height: 12),
-              const Text(
-                'Salve aqui os sites que você mais usa na aula.\n'
-                'Eles viram botões na tela Aula — a turma toda abre com 1 toque.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Toque em "Novo favorito" aqui embaixo para começar.',
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
+      return const EstadoVazio(
+        icone: Icons.star_outline,
+        titulo: 'Nenhum favorito ainda',
+        texto: 'Salve os sites que você mais usa. Eles aparecem em "Abrir '
+            'site", para a turma toda abrir com um toque.',
       );
     }
     return ReorderableListView.builder(

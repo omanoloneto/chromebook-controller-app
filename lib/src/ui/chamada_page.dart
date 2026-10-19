@@ -1,12 +1,13 @@
 // Chamada da aula: a lista da turma; tocar num aluno marca a presença e já
-// pergunta em qual unidade ele sentou. Abre sozinha ao iniciar a aula e pela
-// faixa da aula, para quem chega depois.
+// pergunta em qual unidade ele sentou. Abre sozinha ao iniciar a aula e pelo
+// botão Chamada da aula, para quem chega depois.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../pairing/chamada.dart';
 import '../pairing/pairing_controller.dart';
+import 'componentes.dart';
 
 Route<void> rotaChamada(PairingController pairing) =>
     MaterialPageRoute(builder: (_) => ChamadaPage(pairing: pairing));
@@ -69,27 +70,14 @@ class _ChamadaPageState extends State<ChamadaPage> {
     final deviceId = _pairing.pcDaUnidade(numero);
     final ocupante = deviceId == null ? null : _pairing.alunoDe(deviceId);
     if (ocupante != null && ocupante != aluno) {
-      final trocar = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: Text('Unidade $numero ocupada'),
-          content: Text(
-            'A unidade $numero está com $ocupante. Pôr $aluno no lugar? '
+      final trocar = await confirmar(
+        context,
+        titulo: 'Unidade $numero ocupada',
+        mensagem: 'A unidade $numero está com $ocupante. Pôr $aluno no lugar? '
             '$ocupante fica sem PC até você marcar outra unidade.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Trocar'),
-            ),
-          ],
-        ),
+        acao: 'Trocar',
       );
-      if (trocar != true || !mounted) return;
+      if (!trocar || !mounted) return;
     }
     final erro = await _pairing.marcarPresente(aluno, numero);
     if (erro != null && mounted) _snack(erro);
@@ -104,7 +92,7 @@ class _ChamadaPageState extends State<ChamadaPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: Text(aluno),
+              title: Text(aluno, style: Theme.of(ctx).textTheme.titleMedium),
               subtitle: Text(
                 unidade == null ? 'Presente' : 'Presente na unidade $unidade',
               ),
@@ -120,6 +108,7 @@ class _ChamadaPageState extends State<ChamadaPage> {
               title: const Text('Marcar falta'),
               onTap: () => Navigator.pop(ctx, 'falta'),
             ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
@@ -132,32 +121,13 @@ class _ChamadaPageState extends State<ChamadaPage> {
   }
 
   Future<void> _alunoNovo() async {
-    final ctrl = TextEditingController();
-    final nome = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Aluno novo'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          textCapitalization: TextCapitalization.words,
-          decoration: const InputDecoration(
-            labelText: 'Nome do aluno',
-            hintText: 'ex.: William',
-          ),
-          onSubmitted: (v) => Navigator.pop(ctx, v),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text),
-            child: const Text('Cadastrar'),
-          ),
-        ],
-      ),
+    final nome = await pedirTexto(
+      context,
+      titulo: 'Aluno novo',
+      rotulo: 'Nome do aluno',
+      dica: 'ex.: William',
+      acao: 'Cadastrar',
+      capitalizacao: TextCapitalization.words,
     );
     if (nome == null || !mounted) return;
     final erro = await _pairing.cadastrarAlunoNaAula(nome);
@@ -166,77 +136,65 @@ class _ChamadaPageState extends State<ChamadaPage> {
       _snack(erro);
       return;
     }
-    await _perguntarUnidade(nome.trim());
+    await _perguntarUnidade(nome);
   }
 
   @override
   Widget build(BuildContext context) {
+    final t = Theme.of(context).textTheme;
     final alunos = _pairing.alunosDaAula;
     final presentes = alunos.where((a) => _pairing.pcDoAluno(a) != null).length;
-    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
-        title: Text('Chamada · ${_pairing.turmaDaAula}'),
+        toolbarHeight: 68,
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Chamada'),
+            const SizedBox(height: 2),
+            Text(_pairing.turmaDaAula, style: t.bodySmall),
+          ],
+        ),
         actions: [
           IconButton(
             onPressed: _alunoNovo,
             icon: const Icon(Icons.person_add_alt),
             tooltip: 'Aluno novo',
           ),
+          const SizedBox(width: 4),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Row(
+      body: alunos.isEmpty
+          ? EstadoVazio(
+              icone: Icons.groups_outlined,
+              titulo: 'Nenhum aluno nesta turma ainda.',
+              texto: 'Cadastre quem chegou; o nome fica na turma para as '
+                  'próximas aulas.',
+              acao: FilledButton.icon(
+                onPressed: _alunoNovo,
+                icon: const Icon(Icons.person_add_alt),
+                label: const Text('Cadastrar aluno'),
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.only(top: 4, bottom: 24),
               children: [
-                Expanded(
-                  child: Text(
-                    '$presentes de ${alunos.length} presentes',
-                    style: Theme.of(context).textTheme.titleMedium,
+                _resumo(presentes, alunos.length),
+                const SizedBox(height: 12),
+                Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < alunos.length; i++) ...[
+                        if (i > 0) const Divider(indent: 68),
+                        _linha(alunos[i]),
+                      ],
+                    ],
                   ),
-                ),
-                Text(
-                  'Toque no aluno que veio',
-                  style: TextStyle(color: scheme.onSurfaceVariant),
                 ),
               ],
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: LinearProgressIndicator(
-              value: alunos.isEmpty ? 0 : presentes / alunos.length,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: alunos.isEmpty
-                ? Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('Nenhum aluno nesta turma ainda.'),
-                          const SizedBox(height: 12),
-                          FilledButton.icon(
-                            onPressed: _alunoNovo,
-                            icon: const Icon(Icons.person_add_alt),
-                            label: const Text('Cadastrar aluno'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    itemCount: alunos.length,
-                    itemBuilder: (_, i) => _linha(alunos[i]),
-                  ),
-          ),
-        ],
-      ),
       bottomNavigationBar: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
@@ -249,30 +207,85 @@ class _ChamadaPageState extends State<ChamadaPage> {
     );
   }
 
+  Widget _resumo(int presentes, int total) {
+    final t = Theme.of(context);
+    return Cartao(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$presentes de $total presentes', style: t.textTheme.titleMedium),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              minHeight: 8,
+              value: total == 0 ? 0 : presentes / total,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Toque no aluno que chegou e diga em qual unidade ele sentou.',
+            style: t.textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _linha(String aluno) {
-    final scheme = Theme.of(context).colorScheme;
+    final t = Theme.of(context);
+    final s = t.colorScheme;
     final deviceId = _pairing.pcDoAluno(aluno);
     final presente = deviceId != null;
     final unidade = _unidadeDe(aluno);
-    return ListTile(
-      leading: CircleAvatar(
-        backgroundColor:
-            presente ? scheme.primary : scheme.surfaceContainerHighest,
-        foregroundColor: presente ? scheme.onPrimary : scheme.onSurfaceVariant,
-        child: presente
-            ? const Icon(Icons.check)
-            : Text(aluno.characters.first.toUpperCase()),
-      ),
-      title: Text(aluno),
-      subtitle: presente
-          ? Text(
-              unidade == null ? _pairing.nomeDoPc(deviceId) : 'Unidade $unidade',
-            )
-          : null,
-      trailing: presente
-          ? null
-          : Text('Marcar', style: TextStyle(color: scheme.primary)),
+    return InkWell(
       onTap: () => _tocar(aluno),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: presente ? s.primary : s.surfaceContainerHighest,
+                shape: BoxShape.circle,
+              ),
+              child: presente
+                  ? Icon(Icons.check, size: 20, color: s.onPrimary)
+                  : Text(
+                      aluno.characters.first.toUpperCase(),
+                      style: t.textTheme.labelLarge?.copyWith(color: s.onSurfaceVariant),
+                    ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    aluno,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: t.textTheme.titleSmall?.copyWith(fontSize: 15),
+                  ),
+                  if (presente)
+                    Text(
+                      unidade == null ? _pairing.nomeDoPc(deviceId) : 'Unidade $unidade',
+                      style: t.textTheme.bodySmall,
+                    ),
+                ],
+              ),
+            ),
+            if (!presente)
+              Text(
+                'Marcar',
+                style: t.textTheme.labelLarge?.copyWith(color: s.primary),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }

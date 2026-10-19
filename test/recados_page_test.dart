@@ -73,16 +73,16 @@ void main() {
       p.silenciados = ['b'];
     });
     final titulos = [
-      'Pedidos de liberação (1)',
-      'Mãos levantadas (1)',
-      'Conversas (2)',
+      'Pedidos de liberação · 1',
+      'Mãos levantadas · 1',
+      'Conversas · 2',
     ];
     final ys = [for (final t in titulos) tester.getTopLeft(find.text(t)).dy];
     expect(ys, orderedEquals([...ys]..sort()));
     expect(find.text('Ana · 10:40'), findsOneWidget);
     expect(find.text('youtube.com'), findsOneWidget);
     expect(find.text('“Vídeo da aula de ciências”'), findsOneWidget);
-    expect(find.text('Bruno levantou a mão · 10:41'), findsOneWidget);
+    expect(find.text('Levantou a mão às 10:41'), findsOneWidget);
     // Conversa mais recente primeiro; a do professor tem "Você: ".
     final caio = tester.getTopLeft(find.text('Terminei a atividade')).dy;
     final ana = tester.getTopLeft(find.text('Você: Pode abrir')).dy;
