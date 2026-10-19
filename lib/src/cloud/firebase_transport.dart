@@ -33,6 +33,15 @@ String noDeEstado(Object? type) => switch (type) {
       _ => throw ArgumentError.value(type, 'type', 'não é comando de estado'),
     };
 
+/// PCs de um estado mandado para a escola toda: os pareados, menos o telão.
+/// O que vale para toda máquina, como o papel de parede, inclui o telão.
+List<String> alvosDeEstado(
+  Iterable<String> ids,
+  String? pcProfessorId, {
+  bool incluirTelao = false,
+}) =>
+    [for (final id in ids) if (incluirTelao || id != pcProfessorId) id];
+
 class FirebaseTransport {
   FirebaseTransport({
     required this.teacher,
@@ -703,10 +712,14 @@ class FirebaseTransport {
     });
   }
 
-  Future<void> setStateAll(Map<String, dynamic> cmd) async {
-    for (final s in registry.all) {
-      if (s.deviceId == pcProfessorId) continue;
-      await setStateOne(s.deviceId, cmd);
+  Future<void> setStateAll(Map<String, dynamic> cmd, {bool incluirTelao = false}) async {
+    final ids = alvosDeEstado(
+      registry.all.map((s) => s.deviceId),
+      pcProfessorId,
+      incluirTelao: incluirTelao,
+    );
+    for (final id in ids) {
+      await setStateOne(id, cmd);
     }
   }
 }

@@ -22,6 +22,13 @@ void main() {
     expect(noDeEstado(buildSetMonitor(rev: 1, ate: 2)['type']), 'monitor');
   });
 
+  test('papel de parede vai também ao telão; o resto do estado, não', () {
+    const ids = ['pc1', 'telao', 'pc2'];
+    expect(alvosDeEstado(ids, 'telao'), ['pc1', 'pc2']);
+    expect(alvosDeEstado(ids, 'telao', incluirTelao: true), ids);
+    expect(alvosDeEstado(ids, null), ids);
+  });
+
   test('tipo desconhecido ou de fila lança', () {
     expect(() => noDeEstado('set_qualquer'), throwsArgumentError);
     expect(() => noDeEstado(null), throwsArgumentError);

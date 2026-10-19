@@ -80,7 +80,7 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Regras de sites**: bloquear (vale nos Chromebooks) ou alertar (cartão vermelho)
 - [x] **Favoritos** ilimitados (chips na home, reordenáveis)
 - [x] ***Foreground service*** (conexão viva com a tela apagada)
-- [x] **Papel de parede** da turma (galeria → Chromebooks; só ChromeOS)
+- [x] **Papel de parede** da escola (galeria → todos os PCs, telão incluído; ChromeOS e Celita OS)
 - [x] **Turmas e alunos** (cadastro local) + vínculo aluno↔PC por aula
 - [x] **Fechar todas as abas** (turma toda ou um PC)
 - [x] **Encerrar aula**: fecha o navegador de todos os PCs e limpa os vínculos

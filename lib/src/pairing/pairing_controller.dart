@@ -1581,7 +1581,8 @@ class PairingController extends ChangeNotifier {
   String? get wallpaperHash => _wallpaper?.hash;
 
   /// Publica o blob no RTDB (compartilhado pela turma) e grava o comando de
-  /// estado (só o hash) em cada PC. Vale no ChromeOS e no Celita OS.
+  /// estado (só o hash) em cada PC, telão incluído. PC desligado o recebe ao
+  /// conectar. Vale no ChromeOS e no Celita OS.
   Future<void> definirPapelDeParede(Uint8List bytes) async {
     final transport = _transport;
     if (transport == null) return;
@@ -1591,7 +1592,7 @@ class PairingController extends ChangeNotifier {
     final hash = c.sha256.convert(bytes).toString().substring(0, 8);
     await transport.publishWallpaper(bytes, hash);
     await _wallpaper?.definir(hash);
-    await transport.setStateAll(buildSetWallpaper(hash));
+    await transport.setStateAll(buildSetWallpaper(hash), incluirTelao: true);
     notifyListeners();
   }
 

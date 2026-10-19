@@ -85,8 +85,9 @@ flutter run
 8. **Regras** (🛡): **Bloquear** impede o site nos Chromebooks (página "Site
    bloqueado pelo professor"; vale na hora e persiste offline); **Alertar**
    deixa o cartão do aluno vermelho aqui no app.
-9. **Papel de parede** (🖼): escolha uma imagem da galeria e aplique na turma
-   (só funciona em ChromeOS de verdade).
+9. **Papel de parede** (🖼): escolha uma imagem da galeria e aplique em todos
+   os PCs da escola, telão incluído. No Celita OS vale para toda conta, e o PC
+   desligado troca assim que conectar.
 10. No 1º uso o app pede **permissão de notificação** — é a notificação do
     serviço ("N PCs conectados"), que mantém tudo funcionando **com a tela
     apagada**. Negar não derruba o serviço; só esconde a notificação. Também
