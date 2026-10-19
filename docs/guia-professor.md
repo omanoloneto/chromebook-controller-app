@@ -42,10 +42,14 @@ nos avisos e nas travas de aula ("Em aula com Fulano").
 
 1. Aba **Turmas**: cadastre a turma e os alunos (compartilhado — se um colega
    já cadastrou, você já vê).
-2. Aba **Aula → Iniciar aula** → escolha a turma.
-3. Em cada PC da lista, **vincule o aluno** que está usando (dá para
-   cadastrar um aluno novo na hora). Só PCs vinculados recebem os comandos
-   da turma.
+2. Aba **Aula → Iniciar aula** → escolha a turma. Abre a **Chamada**.
+3. Na chamada, toque em cada aluno que veio e diga o **número da unidade**
+   em que ele sentou: digite ou toque num dos atalhos das unidades ligadas e
+   livres. Aluno já marcado: toque de novo para trocar de unidade ou marcar
+   falta. Unidade de outro aluno pede confirmação; o botão de pessoa no alto
+   cadastra um aluno novo. Para quem chega depois, toque na faixa da aula
+   ("Aula: … presentes"). Também dá para vincular pelo botão de cada PC. Só
+   PCs com aluno recebem os comandos da turma.
 4. Comandos: **abrir site na turma**, fechar site, fechar todas as abas,
    bloquear sites (aba **Sites**), papel de parede, telão ("PC do professor"
    mostra a **Visão da turma** com o que cada aluno está vendo).

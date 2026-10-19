@@ -82,6 +82,8 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] ***Foreground service*** (conexão viva com a tela apagada)
 - [x] **Papel de parede** da escola (galeria → todos os PCs, telão incluído; ChromeOS e Celita OS)
 - [x] **Turmas e alunos** (cadastro local) + vínculo aluno↔PC por aula
+- [x] **Chamada** ao iniciar a aula: marcar presente já pergunta a unidade
+      (número digitado ou atalho das ligadas e livres); troca, falta e aluno novo
 - [x] **Fechar todas as abas** (turma toda ou um PC)
 - [x] **Encerrar aula**: fecha o navegador de todos os PCs e limpa os vínculos
 - [x] **Desbloquear site para 1 PC** durante a aula (menu do PC / tela de detalhe)

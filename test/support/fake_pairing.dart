@@ -10,6 +10,7 @@ import 'package:controle_de_aula/src/cloud/entrega.dart';
 import 'package:controle_de_aula/src/cloud/session_registry.dart';
 import 'package:controle_de_aula/src/commands/command.dart';
 import 'package:controle_de_aula/src/pairing/pairing_controller.dart';
+import 'package:controle_de_aula/src/pairing/students_store.dart';
 import 'package:controle_de_aula/src/secure/crypto.dart';
 import 'package:controle_de_aula/src/util/versao.dart';
 
@@ -97,7 +98,7 @@ class FakePairing extends PairingController {
   @override
   String nomeDoPc(String deviceId) => nomes[deviceId] ?? deviceId;
   @override
-  String? alunoDe(String deviceId) => null;
+  String? alunoDe(String deviceId) => vinculos[deviceId];
   @override
   List<String> get pcsDaTurma => turma;
   @override
@@ -329,6 +330,80 @@ class FakePairing extends PairingController {
   @override
   String textoDaEntregaNoPc(Entrega e, EntregaPc p) =>
       '${nomeDoPc(p.deviceId)} — ${textoDoPc(e, p)}';
+
+  // ---- Aula e chamada ----------------------------------------------------
+  List<Turma> turmasFake = [];
+  String turmaFake = '';
+  List<String> alunosFake = [];
+  final Map<String, int> numeros = {}; // deviceId -> unidade
+  final Map<String, String> vinculos = {}; // deviceId -> aluno
+  String? telaoFake;
+  final List<String> aulasIniciadas = [];
+  final List<(String, int)> presencas = [];
+  final List<String> faltas = [];
+  final List<String> cadastrados = [];
+
+  @override
+  List<Turma> get turmas => turmasFake;
+  @override
+  String get turmaDaAula => turmaFake;
+  @override
+  List<String> get alunosDaAula => alunosFake;
+  @override
+  int get totalVinculados => vinculos.length;
+  @override
+  int get totalAlunosDaTurma => alunosFake.length;
+  @override
+  int? numeroDe(String deviceId) => numeros[deviceId];
+  @override
+  bool ehPcProfessor(String deviceId) => deviceId == telaoFake;
+  @override
+  String? pcDoAluno(String aluno) =>
+      vinculos.entries.where((e) => e.value == aluno).firstOrNull?.key;
+  @override
+  String? pcDaUnidade(int numero) => numeros.entries
+      .where((e) => e.value == numero && mapa.containsKey(e.key))
+      .firstOrNull
+      ?.key;
+
+  @override
+  Future<void> iniciarAula(String turma) async {
+    aulasIniciadas.add(turma);
+    aulaAtivaFake = true;
+    turmaFake = turma;
+    alunosFake = [
+      for (final t in turmasFake)
+        if (t.nome == turma) ...t.alunos,
+    ];
+    notifyListeners();
+  }
+
+  // Como o controller: o aluno sai do PC antigo e quem estava no novo fica sem.
+  @override
+  Future<String?> marcarPresente(String aluno, int numero) async {
+    presencas.add((aluno, numero));
+    final id = pcDaUnidade(numero);
+    if (id == null) return 'Nenhum PC é a unidade $numero.';
+    vinculos.removeWhere((_, a) => a == aluno);
+    vinculos[id] = aluno;
+    notifyListeners();
+    return null;
+  }
+
+  @override
+  Future<void> marcarFalta(String aluno) async {
+    faltas.add(aluno);
+    vinculos.removeWhere((_, a) => a == aluno);
+    notifyListeners();
+  }
+
+  @override
+  Future<String?> cadastrarAlunoNaAula(String nome) async {
+    cadastrados.add(nome.trim());
+    alunosFake = [...alunosFake, nome.trim()];
+    notifyListeners();
+    return null;
+  }
 }
 
 /// Uma mensagem da conversa (hora = [kAgoraTeste] + [min] minutos).

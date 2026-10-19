@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import '../cloud/entrega.dart';
 import '../cloud/session_registry.dart';
 import '../pairing/pairing_controller.dart';
+import 'chamada_page.dart';
 import 'chat_page.dart';
 import 'device_page.dart';
 import 'energia_controles.dart';
@@ -160,8 +161,8 @@ class _AulaPageState extends State<AulaPage> {
     );
     if (escolhida != null) {
       await _pairing.iniciarAula(escolhida);
-      _snack('Aula iniciada: $escolhida. Vincule os alunos pelo botão de '
-          'cada PC.');
+      // A aula começa pela chamada: cada presença já diz a unidade.
+      if (mounted) await Navigator.of(context).push(rotaChamada(_pairing));
     }
   }
 
@@ -457,29 +458,49 @@ class _AulaPageState extends State<AulaPage> {
     );
   }
 
-  // Banner da aula ativa (turma + progresso dos vínculos + desligar os
+  // Banner da aula ativa (turma + presentes, que abre a chamada + desligar os
   // computadores + encerrar).
   Widget _bannerAula() {
     final scheme = Theme.of(context).colorScheme;
     return Material(
       color: scheme.primaryContainer,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         child: Row(
           children: [
-            Icon(Icons.school, size: 20, color: scheme.onPrimaryContainer),
-            const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                'Aula: ${_pairing.turmaDaAula} · '
-                '${_pairing.totalVinculados}/${_pairing.totalAlunosDaTurma} '
-                'alunos com PC',
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: scheme.onPrimaryContainer,
+              child: Tooltip(
+                message: 'Fazer chamada',
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () => Navigator.of(context).push(rotaChamada(_pairing)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.how_to_reg,
+                          size: 20,
+                          color: scheme.onPrimaryContainer,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Aula: ${_pairing.turmaDaAula} · '
+                            '${_pairing.totalVinculados}/'
+                            '${_pairing.totalAlunosDaTurma} presentes',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w600,
+                              color: scheme.onPrimaryContainer,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
               ),
             ),
             IconButton(
