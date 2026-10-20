@@ -212,7 +212,10 @@ void main() {
     );
     await tester.pump();
 
-    await tester.tap(find.widgetWithText(OutlinedButton, '8ºB'));
+    await tester.tap(find.text('Começar aula'));
+    await tester.pumpAndSettle();
+    expect(find.text('Iniciar aula com qual turma?'), findsOneWidget);
+    await tester.tap(find.text('8ºB'));
     await tester.pumpAndSettle();
     expect(p.aulasIniciadas, ['8ºB']);
     expect(find.text('Chamada'), findsOneWidget);

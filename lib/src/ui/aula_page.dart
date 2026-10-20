@@ -1,6 +1,7 @@
-// Aba Aula: o painel da aula. Sem aula, começa uma pela turma; com aula, a
-// turma no alto, as ações da turma a um toque, os recados quando houver e os
-// computadores com o aluno, o site e os sinais de cada um.
+// Aba Aula: o painel da aula. Sem aula, as ações gerais (Começar aula entre
+// elas); com aula, a turma no alto, as ações da turma a um toque, os recados
+// quando houver e os computadores com o aluno, o site e os sinais de cada um.
+// As fotos de início de sessão ficam no ⋮.
 
 import 'package:flutter/material.dart';
 
@@ -125,15 +126,16 @@ class _AulaPageState extends State<AulaPage> {
 
   // ---- Sessão de aula --------------------------------------------------------------
 
-  /// Começa a aula com a turma (do cartão) ou pergunta qual (sem turma).
-  Future<void> _iniciarAula([String? turma]) async {
+  /// "Começar aula": pergunta a turma e abre a chamada. Sem turma, leva à
+  /// aba Turmas.
+  Future<void> _iniciarAula() async {
     final turmas = _pairing.turmas;
     if (turmas.isEmpty) {
-      _snack('Cadastre uma turma primeiro, na aba Turmas.');
+      _snack('Cadastre a primeira turma para começar uma aula.');
+      widget.onIrParaTurmas?.call();
       return;
     }
-    final escolhida = turma ??
-        await showModalBottomSheet<String>(
+    final escolhida = await showModalBottomSheet<String>(
           context: context,
           builder: (ctx) => SafeArea(
             child: ListView(
@@ -322,7 +324,7 @@ class _AulaPageState extends State<AulaPage> {
     return ListView(
       padding: const EdgeInsets.only(bottom: 24),
       children: [
-        if (aula) _acoesDaAula() else ...[_comecarAula(), _acoesForaDaAula()],
+        if (aula) _acoesDaAula() else _acoesForaDaAula(),
         ...faixas,
         if (recados > 0) _cartaoRecados(recados),
         if (pcs.isEmpty) _semComputadores() else ..._listaPcs(pcs),
@@ -413,60 +415,9 @@ class _AulaPageState extends State<AulaPage> {
     );
   }
 
-  Widget _comecarAula() {
-    final t = Theme.of(context);
-    final turmas = _pairing.turmas;
-    return Padding(
-      padding: const EdgeInsets.only(top: 4),
-      child: Cartao(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Icon(Icons.play_circle_outline, color: t.colorScheme.primary),
-                const SizedBox(width: 10),
-                Text('Começar uma aula', style: t.textTheme.titleMedium),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              turmas.isEmpty
-                  ? 'Cadastre a primeira turma para começar.'
-                  : 'Escolha a turma. A chamada abre em seguida.',
-              style: t.textTheme.bodySmall,
-            ),
-            const SizedBox(height: 14),
-            if (turmas.isEmpty)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: FilledButton.tonalIcon(
-                  onPressed: widget.onIrParaTurmas,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Cadastrar turma'),
-                ),
-              )
-            else
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final turma in turmas)
-                    OutlinedButton(
-                      onPressed: () => _iniciarAula(turma.nome),
-                      child: Text(turma.nome),
-                    ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _acoesForaDaAula() {
     return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      padding: const EdgeInsets.only(top: 4, bottom: 4),
       child: Cartao(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: GradeDeAcoes(
@@ -483,13 +434,13 @@ class _AulaPageState extends State<AulaPage> {
               dica: 'Conectar um computador',
               onPressed: _abrirScanner,
             ),
-            if (_pairing.workspaceAtivo)
-              BotaoDeAcao(
-                icone: Icons.photo_camera_front_outlined,
-                rotulo: 'Fotos de entrada',
-                dica: 'Fotos de início de sessão',
-                onPressed: _abrirFotosDeEntrada,
-              ),
+            BotaoDeAcao(
+              icone: Icons.play_arrow_rounded,
+              rotulo: 'Começar aula',
+              dica: 'Começar uma aula com uma turma',
+              tom: Tom.primario,
+              onPressed: _iniciarAula,
+            ),
             BotaoDeAcao(
               icone: Icons.power_settings_new,
               rotulo: 'Desligar',

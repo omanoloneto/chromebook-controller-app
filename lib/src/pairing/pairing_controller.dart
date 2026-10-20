@@ -189,6 +189,19 @@ class PairingController extends ChangeNotifier {
         MessageType.screenSnapshot,
       );
 
+  /// Exclui da nuvem a última captura do PC (o PC não guarda cópia). null =
+  /// ok; senão o motivo.
+  Future<String?> apagarCaptura(String deviceId) async {
+    final t = _transport;
+    if (t == null) return 'Ainda conectando — tente de novo.';
+    try {
+      await t.apagarCaptura(deviceId);
+      return null;
+    } catch (_) {
+      return 'Não deu para excluir. Confira a internet do celular e tente de novo.';
+    }
+  }
+
   Future<Uint8List?> _pedirImagem(
     String deviceId,
     Map<String, dynamic> comando,

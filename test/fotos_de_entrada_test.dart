@@ -49,6 +49,14 @@ class _Arquivo extends ArchiveStore {
 
   @override
   Future<ArchivedDay> readDay(String day) async => ArchivedDay(sessions: sessoes, unreadable: 0);
+
+  final List<PhotoRef> apagadas = [];
+
+  @override
+  Future<void> deletePhoto(PhotoRef ref) async {
+    apagadas.add(ref);
+    fotos.remove(ref.ts);
+  }
 }
 
 String _hm(int ts) {
@@ -130,11 +138,13 @@ void main() {
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 300));
     }
-    expect(find.text('Salvar no celular'), findsOneWidget);
+    expect(find.byTooltip('Salvar no celular'), findsOneWidget);
+    expect(find.byTooltip('Excluir'), findsOneWidget);
+    expect(find.byType(InteractiveViewer), findsOneWidget);
     expect(find.textContaining('Entrou às ${_hm(entrou)}'), findsOneWidget);
     expect(find.textContaining('conta aluno2'), findsOneWidget);
 
-    await tester.tap(find.text('Ver histórico'));
+    await tester.tap(find.byTooltip('Ver histórico'));
     for (var i = 0; i < 6; i++) {
       await tester.pump(const Duration(milliseconds: 300));
     }
@@ -146,6 +156,32 @@ void main() {
     await tester.pump();
     expect(find.text('Escola'), findsOneWidget);
     expect(find.text('Wikipédia'), findsOneWidget);
+  });
+
+  testWidgets('Excluir confirma, apaga do arquivo e a foto some da galeria', (tester) async {
+    final ts = kAgoraTeste - _hora;
+    final arquivo = _Arquivo('a')..entrada(ts, 'aluno1');
+    await _abrir(tester, (p) {
+      p.pc('a', nome: 'Unidade 7', ext: 'celita-1.30.0');
+      p.arquivos['a'] = arquivo;
+    });
+    await tester.tap(find.textContaining('Unidade 7'));
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+    await tester.tap(find.byTooltip('Excluir'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Excluir esta foto?'), findsOneWidget);
+    expect(find.textContaining('No computador ela não fica guardada'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Excluir'));
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 300));
+    }
+    expect(arquivo.apagadas.single.ts, ts);
+    expect(find.text('Foto excluída.'), findsOneWidget);
+    expect(find.byType(InteractiveViewer), findsNothing);
+    expect(find.textContaining('Nenhuma foto de início de sessão neste dia.'), findsOneWidget);
   });
 
   testWidgets('dia sem foto explica de que versão elas vêm', (tester) async {

@@ -4,9 +4,7 @@
 // e captura da tela são pedidos avulsos do professor — nunca contínuos.
 
 import 'dart:async';
-import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 
 import '../cloud/session_registry.dart';
@@ -22,6 +20,7 @@ import 'fotos_de_entrada_page.dart';
 import 'media_page.dart';
 import 'theme.dart';
 import 'trava_sheet.dart';
+import 'visualizador.dart';
 
 /// Domínio de uma URL para exibição compacta ("pt.khanacademy.org").
 String dominioDe(String url) {
@@ -325,99 +324,17 @@ Future<void> mostrarImagemDoPc(
       );
     return;
   }
-  await mostrarDialogoImagem(
+  final agora = DateTime.now();
+  final hora = '${agora.hour.toString().padLeft(2, '0')}:${agora.minute.toString().padLeft(2, '0')}';
+  await abrirImagem(
     context,
     bytes: bytes,
     titulo: tela ? 'Tela — $nome' : 'Quem está no computador — $nome',
-  );
-}
-
-/// Spinner enquanto [tarefa] roda. Fecha só a própria rota: o voltar do
-/// Android ou o toque numa notificação podem tê-lo tirado antes, e um pop às
-/// cegas fecharia a tela de baixo. Com [progresso], o texto acompanha ele.
-Future<T> esperarComSpinner<T>(
-  BuildContext context,
-  String texto,
-  Future<T> tarefa, {
-  ValueListenable<String>? progresso,
-}) async {
-  final navigator = Navigator.of(context);
-  final rota = DialogRoute<void>(
-    context: context,
-    barrierDismissible: false,
-    builder: (_) => AlertDialog(
-      content: Row(
-        children: [
-          const CircularProgressIndicator(),
-          const SizedBox(width: 16),
-          Expanded(
-            child: progresso == null
-                ? Text(texto)
-                : ValueListenableBuilder<String>(
-                    valueListenable: progresso,
-                    builder: (context, valor, child) => Text(valor),
-                  ),
-          ),
-        ],
-      ),
-    ),
-  );
-  unawaited(navigator.push(rota));
-  try {
-    return await tarefa;
-  } finally {
-    if (rota.isActive) navigator.removeRoute(rota);
-  }
-}
-
-/// A tela de [context] continua no topo (nada abriu por cima). Checar
-/// `mounted` antes.
-bool continuaNaFrente(BuildContext context) =>
-    ModalRoute.of(context)?.isCurrent ?? true;
-
-/// Diálogo com uma imagem do PC (foto da câmera ou tela) e legenda opcional.
-Future<void> mostrarDialogoImagem(
-  BuildContext context, {
-  required Uint8List bytes,
-  required String titulo,
-  String? legenda,
-}) {
-  return showDialog<void>(
-    context: context,
-    builder: (ctx) => Dialog(
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Text(
-                titulo,
-                style: Theme.of(ctx).textTheme.titleMedium,
-              ),
-            ),
-            Image.memory(bytes),
-            if (legenda != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-                child: Text(
-                  legenda,
-                  style: Theme.of(ctx).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                      ),
-                ),
-              ),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Fechar'),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
+    legenda: tela ? 'Tela às $hora' : 'Foto da câmera às $hora',
+    nomeArquivo: nomeParaGaleria('${tela ? 'Tela' : 'Foto'} $nome', agora.millisecondsSinceEpoch),
+    onExcluir: () => pairing.apagarCaptura(deviceId),
+    avisoAoExcluir: 'A captura sai da nuvem. No computador ela não fica guardada. Não '
+        'dá para desfazer.',
   );
 }
 

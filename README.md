@@ -87,6 +87,8 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
 - [x] **Fechar todas as abas** (turma toda ou um PC)
 - [x] **Encerrar aula**: fecha o navegador de todos os PCs e limpa os vínculos
 - [x] **Liberar sites para 1 PC** durante a aula (ações do computador)
+- [x] **Tela cheia para fotos, telas e vídeos**: zoom nas fotos, player com
+      tela cheia ao deitar o celular, salvar na galeria e excluir da nuvem e do PC
 - [x] **Notificações com som**: site de alerta acessado ou bloqueado tentado
 - [x] **Fotos de início de sessão** de todos os PCs da escola (ou de um),
       por dia: salvar na galeria ou abrir o histórico só daquela entrada na

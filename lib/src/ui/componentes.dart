@@ -3,6 +3,9 @@
 // os diálogos de confirmar e de pedir um texto. Tela nova usa estas, não
 // monta a sua.
 
+import 'dart:async';
+
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -509,3 +512,46 @@ class _DialogoTextoState extends State<_DialogoTexto> {
     );
   }
 }
+
+/// Spinner enquanto [tarefa] roda. Fecha só a própria rota: o voltar do
+/// Android ou o toque numa notificação podem tê-lo tirado antes, e um pop às
+/// cegas fecharia a tela de baixo. Com [progresso], o texto acompanha ele.
+Future<T> esperarComSpinner<T>(
+  BuildContext context,
+  String texto,
+  Future<T> tarefa, {
+  ValueListenable<String>? progresso,
+}) async {
+  final navigator = Navigator.of(context);
+  final rota = DialogRoute<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => AlertDialog(
+      content: Row(
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(width: 16),
+          Expanded(
+            child: progresso == null
+                ? Text(texto)
+                : ValueListenableBuilder<String>(
+                    valueListenable: progresso,
+                    builder: (context, valor, child) => Text(valor),
+                  ),
+          ),
+        ],
+      ),
+    ),
+  );
+  unawaited(navigator.push(rota));
+  try {
+    return await tarefa;
+  } finally {
+    if (rota.isActive) navigator.removeRoute(rota);
+  }
+}
+
+/// A tela de [context] continua no topo (nada abriu por cima). Checar
+/// `mounted` antes.
+bool continuaNaFrente(BuildContext context) =>
+    ModalRoute.of(context)?.isCurrent ?? true;

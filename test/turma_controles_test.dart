@@ -269,18 +269,21 @@ void main() {
       await tester.pumpWidget(app(p));
       await tester.pump();
 
-      // Chromebook: só amplia a miniatura.
+      // Chromebook: só amplia a miniatura, em tela cheia com zoom.
       await tester.tap(find.text('Ana'));
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pump(const Duration(milliseconds: 400));
       expect(
-        find.text('Miniatura da aba aberta neste computador.'),
+        find.text('há 12 s · Miniatura da aba aberta neste computador.'),
         findsOneWidget,
       );
-      expect(find.text('há 12 s'), findsNWidgets(2)); // quadro e ampliada
+      expect(find.byType(InteractiveViewer), findsOneWidget);
+      expect(find.byTooltip('Salvar no celular'), findsOneWidget);
+      expect(find.byTooltip('Excluir'), findsNothing, reason: 'a miniatura o PC apaga sozinho');
       expect(p.fotosDeTela, isEmpty);
-      await tester.tap(find.byTooltip('Fechar'));
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.byType(BackButton));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
       // Celita OS: pede capture_screen; sem resposta, fica a miniatura.
       await tester.tap(find.text('Caio'));
@@ -288,7 +291,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(p.fotosDeTela, ['c']);
       expect(
-        find.text('A tela maior não veio agora — esta é a miniatura.'),
+        find.textContaining('A tela maior não veio agora — esta é a miniatura.'),
         findsOneWidget,
       );
     });

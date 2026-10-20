@@ -290,6 +290,13 @@ class FakePairing extends PairingController {
   }
 
   final List<String> fotosDeTela = [];
+  final List<String> capturasApagadas = [];
+
+  @override
+  Future<String?> apagarCaptura(String deviceId) async {
+    capturasApagadas.add(deviceId);
+    return null;
+  }
 
   @override
   Future<Uint8List?> tirarFotoTela(String deviceId) async {

@@ -8,9 +8,11 @@ import '../cloud/archive_store.dart';
 import '../pairing/pairing_controller.dart';
 import '../secure/crypto.dart';
 import '../util/versao.dart';
+import 'componentes.dart';
 import 'device_page.dart';
 import 'exportar_historico.dart';
 import 'theme.dart';
+import 'visualizador.dart';
 
 const _diasDaSemana = ['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'];
 
@@ -55,6 +57,16 @@ String mensagemDaFoto(Object erro) => erro is PhotoException
           'Não deu para baixar a foto. Confira a internet do celular e tente de novo.',
       }
     : 'Não deu para baixar a foto. Confira a internet do celular e tente de novo.';
+
+/// Exclui uma foto do arquivo (Storage e índice). null = ok; senão o motivo.
+Future<String?> excluirFotoDoArquivo(ArchiveStore store, PhotoRef ref) async {
+  try {
+    await store.deletePhoto(ref);
+    return null;
+  } catch (_) {
+    return 'Não deu para excluir a foto. Confira a internet do celular e tente de novo.';
+  }
+}
 
 /// Uma entrada numa conta do PC: o histórico pode abrir só nela.
 typedef EntradaNaConta = ({int login, String user});
@@ -161,11 +173,16 @@ class _ArchivePageState extends State<ArchivePage> {
       _snack(erro ?? 'Nenhuma foto deste horário.');
       return;
     }
-    await mostrarDialogoImagem(
+    final ref = escolhida.ref;
+    await abrirImagem(
       context,
       bytes: escolhida.photo.jpeg,
-      titulo: 'Quem estava no PC — $nome',
+      titulo: 'Quem estava no computador — $nome',
       legenda: legendaDaFoto(escolhida.photo, evento.ts),
+      nomeArquivo: nomeParaGaleria(nome, escolhida.photo.ts),
+      onExcluir: () => excluirFotoDoArquivo(store, ref),
+      avisoAoExcluir: 'A foto some da nuvem. No computador ela não fica guardada. Não '
+          'dá para desfazer.',
     );
   }
 

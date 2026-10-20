@@ -1,11 +1,12 @@
 // Fotos e vídeos tirados na Câmera de um PC do Celita OS: as da pasta de cada
-// conta e as que o logout dos alunos guardou no PC (15 dias). Baixar salva na
-// galeria do celular; apagar tira do PC.
+// conta e as que o logout dos alunos guardou no PC (15 dias). Tocar baixa e
+// abre em tela cheia (foto com zoom, vídeo no player); salvar vai para a
+// galeria do celular; excluir apaga do PC e da lista na nuvem. Segurar
+// seleciona vários.
 
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:gal/gal.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../cloud/archive_store.dart';
@@ -13,10 +14,9 @@ import '../cloud/media_store.dart';
 import '../pairing/pairing_controller.dart';
 import '../util/versao.dart';
 import 'archive_page.dart';
-import 'device_page.dart';
+import 'componentes.dart';
 import 'theme.dart';
-
-const String kAlbum = 'Controle de Aula';
+import 'visualizador.dart';
 
 String _dois(int n) => n.toString().padLeft(2, '0');
 
@@ -101,12 +101,6 @@ class _MediaPageState extends State<MediaPage> {
       _snack('O PC está desligado. Ligue-o para baixar.');
       return;
     }
-    try {
-      if (!await Gal.hasAccess(toAlbum: true) && !await Gal.requestAccess(toAlbum: true)) {
-        _snack('Sem permissão para salvar na galeria do celular.');
-        return;
-      }
-    } catch (_) {}
     setState(() {
       _baixando = true;
       _selecionados.clear();
@@ -128,14 +122,8 @@ class _MediaPageState extends State<MediaPage> {
             if (mounted) setState(() => _progresso[item.mid] = f);
           },
         );
-        if (item.video) {
-          await Gal.putVideo(destino.path, album: kAlbum);
-        } else {
-          await Gal.putImage(destino.path, album: kAlbum);
-        }
-        salvos++;
-      } on GalException {
-        erro = 'Não deu para salvar na galeria do celular.';
+        erro = await salvarArquivoNaGaleria(destino.path, video: item.video);
+        if (erro == null) salvos++;
       } catch (e) {
         erro = mensagemDeMidia(e);
       } finally {
@@ -181,73 +169,86 @@ class _MediaPageState extends State<MediaPage> {
     _snack(erro ?? (n == 1 ? 'Apagado do PC.' : '$n arquivos apagados do PC.'));
   }
 
-  Future<void> _detalhes(MediaItem item) async {
+  String _legenda(MediaItem item) {
     final quando = DateTime.fromMillisecondsSinceEpoch(item.ts);
     final expira = item.expira != null ? DateTime.fromMillisecondsSinceEpoch(item.expira!) : null;
-    final acao = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (item.thumb != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(item.thumb!, fit: BoxFit.contain, gaplessPlayback: true),
-                ),
-              ),
-            ListTile(
-              title: Text(item.nome),
-              subtitle: Text(
-                [
-                  'Conta ${item.conta}',
-                  '${_dois(quando.day)}/${_dois(quando.month)} às ${_dois(quando.hour)}:${_dois(quando.minute)}',
-                  tamanhoLegivel(item.bytes),
-                  if (item.duracao != null) duracaoLegivel(item.duracao!),
-                ].join(' · '),
-              ),
-            ),
-            if (expira != null)
-              ListTile(
-                dense: true,
-                leading: const Icon(Icons.schedule),
-                title: Text(
-                  'Saiu da pasta do aluno ao sair da conta. Fica no PC até '
-                  '${_dois(expira.day)}/${_dois(expira.month)}.',
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => Navigator.pop(ctx, 'apagar'),
-                      icon: const Icon(Icons.delete_outline),
-                      label: const Text('Apagar do PC'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => Navigator.pop(ctx, 'baixar'),
-                      icon: const Icon(Icons.download),
-                      label: const Text('Baixar'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (acao == 'baixar') await _baixar([item]);
-    if (acao == 'apagar') await _apagar([item]);
+    final linha = [
+      'Conta ${item.conta}',
+      '${_dois(quando.day)}/${_dois(quando.month)} às ${_dois(quando.hour)}:${_dois(quando.minute)}',
+      tamanhoLegivel(item.bytes),
+      if (item.duracao != null) duracaoLegivel(item.duracao!),
+    ].join(' · ');
+    if (expira == null) return linha;
+    return '$linha\nSaiu da pasta do aluno ao sair da conta; fica no PC até '
+        '${_dois(expira.day)}/${_dois(expira.month)}.';
+  }
+
+  /// Baixa o arquivo para a pasta temporária e abre em tela cheia; o arquivo
+  /// sai do celular ao fechar (salvar copia para a galeria).
+  Future<void> _abrir(MediaItem item) async {
+    final store = _store;
+    if (store == null || _progresso.containsKey(item.mid)) return;
+    final s = widget.pairing.pcPorId(widget.deviceId);
+    if (s == null || !widget.pairing.isOnline(s)) {
+      _snack('O PC está desligado. Ligue-o para abrir.');
+      return;
+    }
+    final pasta = Directory('${(await getTemporaryDirectory()).path}/midia-aberta');
+    await pasta.create(recursive: true);
+    final arquivo = File('${pasta.path}/${item.nome.replaceAll('/', '-')}');
+    if (!mounted) return;
+    setState(() => _progresso[item.mid] = 0);
+    try {
+      await store.baixar(
+        item,
+        arquivo,
+        pedir: () => widget.pairing.pedirEnvioDeMidia(widget.deviceId, item.mid),
+        onProgress: (f) {
+          if (mounted) setState(() => _progresso[item.mid] = f);
+        },
+      );
+    } catch (e) {
+      await _apagarDoCelular(arquivo);
+      _snack(mensagemDeMidia(e));
+      return;
+    } finally {
+      if (mounted) setState(() => _progresso.remove(item.mid));
+    }
+    try {
+      if (!mounted || !continuaNaFrente(context)) return;
+      Future<String?> excluir() => widget.pairing.apagarMidias(widget.deviceId, [item.mid]);
+      if (item.video) {
+        await abrirVideo(
+          context,
+          arquivo: arquivo,
+          titulo: _nome,
+          legenda: _legenda(item),
+          onExcluir: excluir,
+          avisoAoExcluir: 'O vídeo some do computador e da nuvem. Não dá para desfazer.',
+        );
+      } else {
+        final bytes = await arquivo.readAsBytes();
+        if (!mounted) return;
+        await abrirImagem(
+          context,
+          bytes: bytes,
+          titulo: _nome,
+          legenda: _legenda(item),
+          nomeArquivo: item.nome,
+          onSalvar: () => salvarArquivoNaGaleria(arquivo.path, video: false),
+          onExcluir: excluir,
+          avisoAoExcluir: 'A foto some do computador e da nuvem. Não dá para desfazer.',
+        );
+      }
+    } finally {
+      await _apagarDoCelular(arquivo);
+    }
+  }
+
+  static Future<void> _apagarDoCelular(File arquivo) async {
+    try {
+      if (await arquivo.exists()) await arquivo.delete();
+    } catch (_) {}
   }
 
   @override
@@ -383,7 +384,7 @@ class _MediaPageState extends State<MediaPage> {
           if (_selecionados.isNotEmpty) {
             setState(() => selecionado ? _selecionados.remove(item.mid) : _selecionados.add(item.mid));
           } else {
-            _detalhes(item);
+            _abrir(item);
           }
         },
         onLongPress: () => setState(() => _selecionados.add(item.mid)),

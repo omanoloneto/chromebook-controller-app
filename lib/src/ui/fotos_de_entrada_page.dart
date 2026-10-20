@@ -1,31 +1,23 @@
 // Fotos de início de sessão: a foto que o PC do Celita OS tira quando alguém
 // entra numa conta, de todos os PCs da escola ou de um só, por dia. Tocar
-// abre a foto para salvar na galeria do celular ou ir ao histórico daquela
-// entrada.
+// abre a foto em tela cheia: zoom, salvar no celular, excluir e o histórico
+// daquela entrada.
 
 import 'package:flutter/material.dart';
-import 'package:gal/gal.dart';
 
 import '../cloud/archive_store.dart';
 import '../pairing/pairing_controller.dart';
 import '../secure/crypto.dart';
 import '../util/versao.dart';
 import 'archive_page.dart';
-import 'device_page.dart';
-import 'media_page.dart' show kAlbum;
+import 'componentes.dart';
+import 'visualizador.dart';
 
 String _dois(int n) => n.toString().padLeft(2, '0');
 
 String _hora(int ts) {
   final d = DateTime.fromMillisecondsSinceEpoch(ts);
   return '${_dois(d.hour)}:${_dois(d.minute)}';
-}
-
-/// Nome do arquivo na galeria: "Unidade 12 2026-10-17 07.42".
-String nomeDaFotoDeEntrada(String pc, int ts) {
-  final d = DateTime.fromMillisecondsSinceEpoch(ts);
-  final limpo = pc.replaceAll(RegExp(r'[\\/:*?"<>|]'), '-').trim();
-  return '$limpo ${d.year}-${_dois(d.month)}-${_dois(d.day)} ${_dois(d.hour)}.${_dois(d.minute)}';
 }
 
 /// Uma foto de entrada e o PC dela.
@@ -153,86 +145,41 @@ class _FotosDeEntradaPageState extends State<FotosDeEntradaPage> {
     final pc = _nomeDoPc(f.deviceId);
     final login = foto.login ?? f.ref.ts;
     final quando = DateTime.fromMillisecondsSinceEpoch(login);
-    final acao = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (ctx) => SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(foto.jpeg, fit: BoxFit.contain, gaplessPlayback: true),
-                ),
+    final user = foto.user;
+    final excluiu = await abrirImagem(
+      context,
+      bytes: foto.jpeg,
+      titulo: pc,
+      legenda: [
+        'Entrou às ${_hora(login)} de ${_dois(quando.day)}/${_dois(quando.month)}',
+        if (user != null && user.isNotEmpty) 'conta $user',
+      ].join(' · '),
+      nomeArquivo: nomeParaGaleria(pc, foto.ts),
+      extras: [
+        AcaoDaMidia(
+          icone: Icons.history,
+          dica: 'Ver histórico',
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => ArchivePage(
+                pairing: widget.pairing,
+                deviceId: f.deviceId,
+                dia: dayOf(login),
+                entrada: user == null || foto.login == null ? null : (login: login, user: user),
               ),
-              ListTile(
-                title: Text(pc),
-                subtitle: Text(
-                  [
-                    'Entrou às ${_hora(login)} de ${_dois(quando.day)}/${_dois(quando.month)}',
-                    if (foto.user != null && foto.user!.isNotEmpty) 'conta ${foto.user}',
-                  ].join(' · '),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.pop(ctx, 'salvar'),
-                        icon: const Icon(Icons.download),
-                        label: const Text('Salvar no celular'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: () => Navigator.pop(ctx, 'historico'),
-                        icon: const Icon(Icons.history),
-                        label: const Text('Ver histórico'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
         ),
-      ),
+      ],
+      onExcluir: () => excluirFotoDoArquivo(f.store, f.ref),
+      avisoAoExcluir: 'A foto some da nuvem. No computador ela não fica guardada. Não '
+          'dá para desfazer.',
     );
-    if (!mounted) return;
-    if (acao == 'salvar') await _salvar(pc, foto);
-    if (acao == 'historico' && mounted) {
-      final user = foto.user;
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ArchivePage(
-            pairing: widget.pairing,
-            deviceId: f.deviceId,
-            dia: dayOf(login),
-            entrada: user == null || foto.login == null ? null : (login: login, user: user),
-          ),
-        ),
-      );
-    }
-  }
-
-  Future<void> _salvar(String pc, ArchivedPhoto foto) async {
-    try {
-      if (!await Gal.hasAccess(toAlbum: true) && !await Gal.requestAccess(toAlbum: true)) {
-        _snack('Sem permissão para salvar na galeria do celular.');
-        return;
-      }
-      await Gal.putImageBytes(foto.jpeg, album: kAlbum, name: nomeDaFotoDeEntrada(pc, foto.ts));
-      _snack('Foto salva na galeria do celular (álbum $kAlbum).');
-    } catch (_) {
-      _snack('Não deu para salvar na galeria do celular.');
+    if (excluiu && mounted) {
+      setState(() {
+        _fotos.remove('${f.deviceId}|${f.ref.path}');
+        _carga = _carregar();
+      });
     }
   }
 

@@ -365,6 +365,17 @@ class ArchiveStore implements PhotoIndex {
     }
   }
 
+  /// Exclui a foto: primeiro o objeto no Storage (os bytes), depois a entrada
+  /// do índice. Lança em erro de rede/permissão.
+  Future<void> deletePhoto(PhotoRef ref) async {
+    try {
+      await _storage.ref(ref.path).delete();
+    } on FirebaseException catch (e) {
+      if (e.code != 'object-not-found') rethrow;
+    }
+    await _photos(ref.day).child(ts13(ref.ts)).remove();
+  }
+
   Future<ChosenPhoto?> photoFor(
     String day,
     ArchivedSession session,

@@ -10,7 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../cloud/archive_export.dart';
 import '../cloud/archive_store.dart';
 import '../pairing/pairing_controller.dart';
-import 'device_page.dart';
+import 'componentes.dart';
 
 String _diaMes(String dia) => '${dia.substring(8, 10)}/${dia.substring(5, 7)}';
 

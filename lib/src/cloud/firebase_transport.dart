@@ -554,6 +554,9 @@ class FirebaseTransport {
     }
   }
 
+  /// Apaga a última captura (tela ou câmera) do PC. Lança em erro.
+  Future<void> apagarCaptura(String deviceId) => _dev(deviceId).child('snapshot').remove();
+
   /// Apaga um item do up/ (só filhos: as rules não deixam o professor apagar
   /// o nó inteiro). Lança em erro (o controller mostra o texto de §1.3).
   Future<void> apagarUp(String deviceId, String key) =>

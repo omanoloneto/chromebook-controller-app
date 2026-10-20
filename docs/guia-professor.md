@@ -43,7 +43,7 @@ ele que aparece nos avisos e nas travas de aula ("Em aula com Fulano").
 
 1. Aba **Turmas**: cadastre a turma e os alunos (compartilhado — se um colega
    já cadastrou, você já vê).
-2. Aba **Aula → Começar uma aula** → toque na turma (ou **Iniciar aula** no
+2. Aba **Aula → Começar aula** → escolha a turma (ou **Iniciar aula** no
    cartão da turma, na aba Turmas). Abre a **Chamada**.
 3. Na chamada, toque em cada aluno que veio e diga o **número da unidade**
    em que ele sentou: digite ou toque num dos atalhos das unidades ligadas e
@@ -69,6 +69,13 @@ abas, os últimos sites e os **Registros**. As raras (renomear, número,
 Computador do Professor, atualizar, desconectar) ficam no **⋮**. Para não sair
 da lista, segure o PC (ou toque no ⋮ da linha): abrem as mesmas ações.
 
+**Fotos, telas e vídeos** abrem em tela cheia: pinça ou toque duplo para o
+zoom nas fotos, **Salvar no celular** (álbum "Controle de Aula") e **Excluir**,
+que apaga de onde estiver guardado — da nuvem e do computador (a tela e a foto
+pedidas na hora o computador não guarda; a captura sai da nuvem). Os vídeos
+tocam no próprio app: deite o celular (ou toque em **Tela cheia**) para ver em
+tela cheia.
+
 - **Ver quem está no PC (foto)** — tira uma foto pela câmera do PC, para
   identificar quem sentou ali. Aparece também na hora de escolher o aluno
   ("Não sei quem é — tirar foto"). A luzinha da câmera acende no PC do aluno.
@@ -80,9 +87,10 @@ da lista, segure o PC (ou toque no ⋮ da linha): abrem as mesmas ações.
 - **Fotos e vídeos da Câmera** — na tela do PC, **Fotos e vídeos da Câmera**
   mostra o que foi tirado no app Câmera do Celita, das contas de professor e
   dos alunos (o do aluno sai da pasta dele ao sair da conta e fica guardado no
-  PC por 15 dias). Toque para **baixar** para a galeria do celular (álbum
-  "Controle de Aula") ou **apagar do PC**; segure para selecionar vários. Baixar
-  e apagar precisam do PC ligado.
+  PC por 15 dias). Toque para **abrir em tela cheia** (a foto com zoom, o vídeo
+  no player), salvar no celular ou excluir do PC e da nuvem; segure para
+  selecionar vários e baixar ou apagar de uma vez. Abrir, salvar e excluir
+  precisam do PC ligado.
 - **Exportar o histórico** — numa planilha (abre no Excel e no Planilhas
   Google), dos últimos 1 a 15 dias: de um PC, pelo botão de compartilhar no
   **Histórico de navegação** dele (tela do PC → Registros), ou de todos, em
@@ -90,11 +98,10 @@ da lista, segure o PC (ou toque no ⋮ da linha): abrem as mesmas ações.
   criptografia: guarde-a com cuidado.
 
 - **Fotos de início de sessão** — a foto que o PC tira quando alguém entra
-  numa conta, de todos os PCs, por dia: **Fotos de entrada** nas ações da aba
-  **Aula** (durante a aula, **⋮ → Fotos de início de sessão**); na tela do PC,
-  em **Registros**, só daquele PC.
-  Toque numa foto para **salvar no celular** (álbum "Controle de Aula") ou
-  **ver o histórico** só daquela entrada na conta. Valem as fotos dos PCs com
+  numa conta, de todos os PCs, por dia: **⋮ → Fotos de início de sessão** na
+  aba **Aula**; na tela do PC, em **Registros**, só daquele PC. Toque numa foto
+  para abrir em tela cheia: **salvar no celular**, **excluir** ou **ver o
+  histórico** só daquela entrada na conta. Valem as fotos dos PCs com
   Celita OS 1.30 ou mais novo.
 - **Sair da conta, reiniciar ou desligar** — pelo botão **Desligar** nas
   ações do PC, ou para os PCs da aula pelo botão **Desligar** nas ações da aba

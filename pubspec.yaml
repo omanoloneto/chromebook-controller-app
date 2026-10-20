@@ -1,7 +1,7 @@
 name: controle_de_aula
 description: "Controle de aula (app do celular): abre URLs nos Chromebooks e mostra abas/URLs visitadas, cifrado ponta-a-ponta via Firebase RTDB (funciona entre redes diferentes)."
 publish_to: "none"
-version: 0.27.0+31
+version: 0.28.0+32
 
 environment:
   sdk: ">=3.4.0 <4.0.0"
@@ -35,12 +35,15 @@ dependencies:
   gal: ^2.3.3
   # Push dos recados dos alunos com o app fechado (Cloud Function avisarRecado).
   firebase_messaging: ^16.7.0
+  # Tocar em tela cheia os vídeos da Câmera dos PCs.
+  video_player: ^2.11.1
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
   flutter_launcher_icons: ^0.14.1
+  video_player_platform_interface: ^6.9.0
 
 # Ícone do launcher (arte = icon.svg da extensão, renderizada em assets/icon).
 # Regenerar: dart run flutter_launcher_icons

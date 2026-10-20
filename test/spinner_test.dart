@@ -3,7 +3,7 @@
 
 import 'dart:async';
 
-import 'package:controle_de_aula/src/ui/device_page.dart';
+import 'package:controle_de_aula/src/ui/componentes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

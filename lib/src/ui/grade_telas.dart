@@ -14,6 +14,7 @@ import '../pairing/pairing_controller.dart';
 import '../util/natural_sort.dart';
 import '../util/versao.dart';
 import 'theme.dart';
+import 'visualizador.dart';
 
 /// Observa as trocas de TELA (rotas de página; diálogos e sheets não contam):
 /// a grade para quando outra tela cobre a aba Aula. Registrado no MaterialApp.
@@ -271,19 +272,24 @@ class _GradeTelasState extends State<GradeTelas>
     );
   }
 
-  // Toque para ampliar: no Celita OS pede a tela inteira (capture_screen) e
-  // mostra a miniatura enquanto ela não chega; no Chromebook só amplia.
+  // Toque para ampliar, em tela cheia: no Celita OS pede a tela inteira
+  // (capture_screen) e mostra a miniatura enquanto ela não chega.
   Future<void> _ampliar(String deviceId) {
     final s = _p.pcPorId(deviceId);
     final celita = s != null && temCelita(s.versaoExt) && _p.isOnline(s);
-    return showDialog<void>(
+    // Rota de diálogo, não de página: a grade continua ligada por baixo e a
+    // miniatura segue chegando enquanto a tela inteira não vem.
+    return showGeneralDialog<void>(
       context: context,
-      builder: (ctx) => _TelaAmpliada(
+      barrierColor: Colors.black,
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (_, __, ___) => _TelaAmpliada(
         pairing: _p,
         deviceId: deviceId,
         nome: _p.nomeDoPc(deviceId),
         telaInteira: celita ? _p.tirarFotoTela(deviceId) : null,
       ),
+      transitionBuilder: (_, animacao, __, filho) => FadeTransition(opacity: animacao, child: filho),
     );
   }
 }
@@ -522,102 +528,65 @@ class _TelaAmpliada extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final legendaEstilo = Theme.of(context).textTheme.bodySmall?.copyWith(
-          color: Theme.of(context).colorScheme.onSurfaceVariant,
-        );
-    return Dialog(
-      insetPadding: const EdgeInsets.all(12),
-      clipBehavior: Clip.antiAlias,
-      child: FutureBuilder<Uint8List?>(
-        future: telaInteira,
-        builder: (context, snap) {
-          final cheia = snap.data;
-          final esperando = telaInteira != null &&
-              snap.connectionState != ConnectionState.done;
-          return ListenableBuilder(
-            listenable: pairing,
-            builder: (context, _) {
-              final thumb = pairing.miniaturaDe(deviceId);
-              final mini = thumb?.jpeg;
-              // A miniatura usa o mesmo tamanho do quadro (já decodificada:
-              // aparece na hora); a tela inteira, um limite maior.
-              final ImageProvider? imagem = cheia != null
-                  ? imagemDoPc(cheia, largura: 2560, altura: 1600)
-                  : mini != null
-                      ? imagemDoPc(mini)
-                      : null;
-              // Idade da miniatura ("há 2 min"), ao lado do nome, como no
-              // rodapé do quadro.
-              var idade = '';
-              if (cheia == null && thumb != null && mini != null) {
-                final e = estadoDoQuadro(
-                  online: true,
-                  suportaTurma: true,
-                  thumb: thumb,
-                  gradeAbertaEm: null,
-                  agoraMs: pairing.agoraServidorMs(),
-                );
-                idade = e.texto;
-              }
-              final String legenda;
-              if (cheia != null) {
-                legenda = 'Tela inteira agora.';
-              } else if (esperando) {
-                legenda = 'Buscando a tela em tamanho maior…';
-              } else if (telaInteira != null) {
-                legenda = 'A tela maior não veio agora — esta é a miniatura.';
-              } else {
-                legenda = 'Miniatura da aba aberta neste computador.';
-              }
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            nome,
-                            style: Theme.of(context).textTheme.titleMedium,
-                          ),
-                        ),
-                        if (idade.isNotEmpty) Text(idade, style: legendaEstilo),
-                        IconButton(
-                          tooltip: 'Fechar',
-                          icon: const Icon(Icons.close),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (esperando) const LinearProgressIndicator(minHeight: 2),
-                  if (imagem != null)
-                    InteractiveViewer(
-                      maxScale: 4,
-                      child: Image(
-                        image: imagem,
-                        gaplessPlayback: true,
-                        errorBuilder: (_, __, ___) => const Padding(
-                          padding: EdgeInsets.all(24),
-                          child: Text(
-                            'Tela indisponível agora',
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
+    return FutureBuilder<Uint8List?>(
+      future: telaInteira,
+      builder: (context, snap) {
+        final cheia = snap.data;
+        final esperando = telaInteira != null && snap.connectionState != ConnectionState.done;
+        return ListenableBuilder(
+          listenable: pairing,
+          builder: (context, _) {
+            final thumb = pairing.miniaturaDe(deviceId);
+            final mini = thumb?.jpeg;
+            // A miniatura usa o mesmo tamanho do quadro (já decodificada:
+            // aparece na hora); a tela inteira, um limite maior.
+            final ImageProvider? imagem = cheia != null
+                ? imagemDoPc(cheia, largura: 2560, altura: 1600)
+                : mini != null
+                    ? imagemDoPc(mini)
+                    : null;
+            // Idade da miniatura ("há 2 min"), como no rodapé do quadro.
+            var idade = '';
+            if (cheia == null && thumb != null && mini != null) {
+              idade = estadoDoQuadro(
+                online: true,
+                suportaTurma: true,
+                thumb: thumb,
+                gradeAbertaEm: null,
+                agoraMs: pairing.agoraServidorMs(),
+              ).texto;
+            }
+            final String legenda;
+            if (cheia != null) {
+              legenda = 'Tela inteira agora.';
+            } else if (esperando) {
+              legenda = 'Buscando a tela em tamanho maior…';
+            } else if (telaInteira != null) {
+              legenda = 'A tela maior não veio agora — esta é a miniatura.';
+            } else {
+              legenda = 'Miniatura da aba aberta neste computador.';
+            }
+            final bytes = cheia ?? mini;
+            return VisualizadorDeImagem(
+              imagem: imagem,
+              titulo: nome,
+              legenda: idade.isEmpty ? legenda : '$idade · $legenda',
+              carregando: esperando,
+              onSalvar: bytes == null
+                  ? null
+                  : () => salvarImagemNaGaleria(
+                        bytes,
+                        nomeParaGaleria('Tela $nome', pairing.agoraServidorMs()),
                       ),
-                    ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                    child: Text(legenda, style: legendaEstilo),
-                  ),
-                ],
-              );
-            },
-          );
-        },
-      ),
+              // A miniatura o PC apaga sozinho ao fechar a grade; a tela
+              // inteira fica na nuvem até alguém excluir.
+              onExcluir: cheia == null ? null : () => pairing.apagarCaptura(deviceId),
+              avisoAoExcluir: 'A captura sai da nuvem. No computador ela não fica '
+                  'guardada. Não dá para desfazer.',
+            );
+          },
+        );
+      },
     );
   }
 }
