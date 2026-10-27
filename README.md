@@ -98,7 +98,11 @@ test/          # crypto/keypair/replay/tab_report/rules (paridade com o JS)
       com Celita OS ≥ 1.30
 - [x] **Push dos recados dos alunos** (chat, pedido de liberação, mão
       levantada) com o app fechado: Cloud Function `avisarRecado`
-      (`firebase/functions`) + FCM, envelope cifrado ponta a ponta
+      (`firebase/functions`) + FCM, envelope cifrado ponta a ponta; na
+      escola, PC fora de aula avisa o fundador
+- [x] **Notificação fixa com os PCs ligados**, também com o app fechado e
+      depois de reiniciar o celular (o serviço conta e renova a reserva da
+      aula aberta)
 - [x] **PC do professor**: fora dos broadcasts/bloqueios; recebe links do
       histórico dos alunos e os avisos (notificação no Chromebook)
 - [x] **Ficha do aluno**: aulas que participou (data) + acessos por aula —

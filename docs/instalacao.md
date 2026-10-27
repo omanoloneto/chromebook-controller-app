@@ -90,7 +90,10 @@ flutter run
    desligado troca assim que conectar.
 10. No 1º uso o app pede **permissão de notificação** — é a notificação do
     serviço ("N PCs conectados"), que mantém tudo funcionando **com a tela
-    apagada**. Negar não derruba o serviço; só esconde a notificação. Também
+    apagada** e conta os PCs ligados também com o app fechado (volta sozinha
+    ao reiniciar o celular). Negar não derruba o serviço; só esconde a
+    notificação. No Samsung, deixe a bateria do app em **Sem restrições**
+    (passo a passo no guia do professor). Também
     pede **câmera** (só para escanear o QR).
 
 > A comunicação é **criptografada ponta-a-ponta** (X25519 → AES-256-GCM): o

@@ -1,5 +1,5 @@
-// Canal up/: destino pela reserva de aula, push id, teto de 20 por PC,
-// silêncio por excesso, idade de 12 h e dedup por (deviceId, mid).
+// Canal up/: destino pela reserva de aula (e pelo fundador), push id, teto de
+// 20 por PC, silêncio por excesso, idade de 12 h e dedup por (deviceId, mid).
 
 import 'package:controle_de_aula/src/cloud/up_router.dart';
 import 'package:controle_de_aula/src/commands/command.dart';
@@ -31,24 +31,57 @@ UpMessage _msg(String mid, {String type = UpType.chat}) => UpMessage.fromMap({
 void main() {
   const agora = 1767369600000;
 
-  test('destinoDoUp: os 4 casos', () {
+  test('destinoDoUp: sem escola, reservas e PC livre (mesma regra do push)', () {
+    for (final souFundador in [false, true]) {
+      expect(
+        destinoDoUp(
+          modoEscola: false,
+          reservadoPorOutro: true,
+          reservadoPorMim: false,
+          souFundador: souFundador,
+        ),
+        DestinoUp.mostrarENotificar,
+        reason: 'sem escola: tudo é do professor vinculado',
+      );
+      expect(
+        destinoDoUp(
+          modoEscola: true,
+          reservadoPorOutro: true,
+          reservadoPorMim: false,
+          souFundador: souFundador,
+        ),
+        DestinoUp.ignorar,
+        reason: 'aula viva de outra professora: só ela, nem o fundador lê',
+      );
+      expect(
+        destinoDoUp(
+          modoEscola: true,
+          reservadoPorOutro: false,
+          reservadoPorMim: true,
+          souFundador: souFundador,
+        ),
+        DestinoUp.mostrarENotificar,
+      );
+    }
     expect(
-      destinoDoUp(modoEscola: false, reservadoPorOutro: true, reservadoPorMim: false),
-      DestinoUp.mostrarENotificar,
-      reason: 'sem escola: tudo é do professor vinculado',
-    );
-    expect(
-      destinoDoUp(modoEscola: true, reservadoPorOutro: true, reservadoPorMim: false),
-      DestinoUp.ignorar,
-    );
-    expect(
-      destinoDoUp(modoEscola: true, reservadoPorOutro: false, reservadoPorMim: true),
-      DestinoUp.mostrarENotificar,
-    );
-    expect(
-      destinoDoUp(modoEscola: true, reservadoPorOutro: false, reservadoPorMim: false),
+      destinoDoUp(
+        modoEscola: true,
+        reservadoPorOutro: false,
+        reservadoPorMim: false,
+        souFundador: false,
+      ),
       DestinoUp.mostrar,
-      reason: 'PC livre: todo MEMBRO vê, ninguém é notificado',
+      reason: 'PC livre no celular de um membro: aparece, sem tocar',
+    );
+    expect(
+      destinoDoUp(
+        modoEscola: true,
+        reservadoPorOutro: false,
+        reservadoPorMim: false,
+        souFundador: true,
+      ),
+      DestinoUp.mostrarENotificar,
+      reason: 'PC livre no celular do fundador (dono do vínculo): toca',
     );
   });
 

@@ -10,6 +10,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Janela anti-spam por (tipo, deviceId, domínio).
@@ -137,10 +138,63 @@ class NotificationService {
     );
   }
 
+  /// Um card por PC e tipo de recado.
+  static String chaveDoRecado(String k, String deviceId) => 'recado|$k|$deviceId';
+
+  /// Id do card, fixo por PC e tipo: o Android junta o toque dos cards de
+  /// mesmo id, e cada card tem de abrir o seu PC. Faixa só dos recados, longe
+  /// dos alertas ([_idEstavel]) e do serviço (256).
+  static int idDoRecado(String k, String deviceId) =>
+      0x40000000 | (chaveDoRecado(k, deviceId).hashCode & 0x3fffffff);
+
+  /// Tag do card: a chave, o ts (push id) do recado que tocou e a hora local
+  /// do toque. Push e app aberto são isolates diferentes: é pela barra que um
+  /// sabe que o outro já tocou.
+  static String tagDoRecado(String k, String deviceId, {required int ts, required int tocouEm}) =>
+      '${chaveDoRecado(k, deviceId)}|$ts|$tocouEm';
+
+  /// Card do recado [ts], pelos tags dos cards na barra e pela hora local
+  /// [agoraMs]. Toca no máximo uma vez a cada [kJanelaNotificacao] por PC e
+  /// tipo, e o card mostra o recado mais novo; o mesmo recado pelos dois
+  /// caminhos toca uma vez; card tirado da barra toca de novo. [tag] nulo =
+  /// recado mais velho que o que tocou (fica o card na barra); [saem] = cards
+  /// do mesmo PC e tipo que saem.
+  static ({String? tag, bool toca, List<String> saem}) cardDoRecado({
+    required String k,
+    required String deviceId,
+    required int ts,
+    required int agoraMs,
+    required Iterable<String?> tagsAtivos,
+  }) {
+    final prefixo = '${chaveDoRecado(k, deviceId)}|';
+    final ativos = <({String tag, int ts, int tocouEm})>[];
+    for (final tag in tagsAtivos) {
+      if (tag == null || !tag.startsWith(prefixo)) continue;
+      final partes = tag.substring(prefixo.length).split('|');
+      if (partes.length != 2) continue;
+      final t = int.tryParse(partes[0]), em = int.tryParse(partes[1]);
+      if (t != null && em != null) ativos.add((tag: tag, ts: t, tocouEm: em));
+    }
+    final novo = tagDoRecado(k, deviceId, ts: ts, tocouEm: agoraMs);
+    if (ativos.isEmpty) return (tag: novo, toca: true, saem: const []);
+    ativos.sort((a, b) => b.ts.compareTo(a.ts));
+    final atual = ativos.first;
+    final duplicados = [for (final a in ativos.skip(1)) a.tag];
+    if (ts < atual.ts) return (tag: null, toca: false, saem: duplicados);
+    if (ts > atual.ts && agoraMs - atual.tocouEm >= kJanelaNotificacao.inMilliseconds) {
+      return (tag: novo, toca: true, saem: [for (final a in ativos) a.tag]);
+    }
+    return (tag: atual.tag, toca: false, saem: duplicados);
+  }
+
+  // Em série por PC e tipo (todas as instâncias do isolate): chamadas sem
+  // await leriam a mesma foto da barra e tocariam todas.
+  static final Map<String, Future<void>> _filasDeRecado = {};
+
   /// Recado de aluno: [k] = 'chat' (título = nome, corpo = texto), 'pedido'
   /// ("Pedido de liberação" / "{nome}: {site}") ou 'mao' ("Mão levantada" /
-  /// "{nome}"). Sem throttle (o PC já limita); o card de cada PC é
-  /// substituído pelo mais novo e só toca de novo depois de dispensado.
+  /// "{nome}"). O card de cada PC e tipo mostra o recado mais novo e toca no
+  /// máximo uma vez a cada 2 min ([cardDoRecado]).
   Future<bool> notificarRecado({
     required String k,
     required String deviceId,
@@ -150,28 +204,67 @@ class NotificationService {
   }) async {
     if (!kTiposDeRecado.contains(k)) return false;
     if (!_pronto) return true;
-    const detalhes = NotificationDetails(
-      android: AndroidNotificationDetails(
-        'recados_alunos',
-        'Recados dos alunos',
-        channelDescription:
-            'Mensagens, pedidos de liberação e mãos levantadas dos alunos.',
-        importance: Importance.high,
-        priority: Priority.high,
-        category: AndroidNotificationCategory.message,
-        // Tela de bloqueio: o Android esconde o texto (dado de aluno).
-        visibility: NotificationVisibility.private,
-        onlyAlertOnce: true,
-      ),
+    final chave = chaveDoRecado(k, deviceId);
+    final vez = (_filasDeRecado[chave] ?? Future<void>.value())
+        .then((_) => _mostrarRecado(k: k, deviceId: deviceId, ts: ts, titulo: titulo, corpo: corpo))
+        .catchError((Object e) => debugPrint('[CdA] recado: $e'));
+    _filasDeRecado[chave] = vez;
+    await vez;
+    return true;
+  }
+
+  Future<void> _mostrarRecado({
+    required String k,
+    required String deviceId,
+    required int ts,
+    required String titulo,
+    required String corpo,
+  }) async {
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    var ativas = const <ActiveNotification>[];
+    try {
+      ativas = await android?.getActiveNotifications() ?? ativas;
+    } catch (e) {
+      debugPrint('[CdA] notificações ativas: $e'); // o recado aparece mesmo assim
+    }
+    final card = cardDoRecado(
+      k: k,
+      deviceId: deviceId,
+      ts: ts,
+      agoraMs: _relogio().millisecondsSinceEpoch,
+      tagsAtivos: [for (final a in ativas) a.tag],
     );
+    for (final a in ativas) {
+      if (a.id != null && card.saem.contains(a.tag)) {
+        await android?.cancel(id: a.id!, tag: a.tag);
+      }
+    }
+    final tag = card.tag;
+    if (tag == null) return;
+    // Toque = tag novo (notificação nova); o mesmo tag só atualiza o card,
+    // calado pelo onlyAlertOnce.
     await _plugin.show(
-      id: _idEstavel('recado|$k|$deviceId'),
+      id: idDoRecado(k, deviceId),
       title: titulo,
       body: corpo,
-      notificationDetails: detalhes,
+      notificationDetails: NotificationDetails(
+        android: AndroidNotificationDetails(
+          'recados_alunos',
+          'Recados dos alunos',
+          channelDescription:
+              'Mensagens, pedidos de liberação e mãos levantadas dos alunos.',
+          importance: Importance.high,
+          priority: Priority.high,
+          category: AndroidNotificationCategory.message,
+          // Tela de bloqueio: o Android esconde o texto (dado de aluno).
+          visibility: NotificationVisibility.private,
+          onlyAlertOnce: true,
+          tag: tag,
+        ),
+      ),
       payload: montarPayload(deviceId, ts, k: k),
     );
-    return true;
   }
 
   /// Visível para teste: aplica o throttle e registra o disparo.

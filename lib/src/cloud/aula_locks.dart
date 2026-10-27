@@ -1,9 +1,10 @@
 // Travas de aula do workspace (/school/aulas/{deviceId}): garante que um PC
 // só participa de UMA aula por vez, entre celulares de professores
 // diferentes. Trava = {uid, ts, env}; env = {professor, turma} cifrado com a
-// chave da escola (nome de turma não vaza em claro). Heartbeat renova o ts;
-// trava sem heartbeat há >15 min é órfã (app morto) — o takeover é validado
-// também nas rules (server-side).
+// chave da escola (nome de turma não vaza em claro). [renovarReservas] renova
+// o ts (o serviço do celular, também com o app fechado; o app aberto só sem o
+// serviço, [telaRenovaReservas]); trava sem renovação há >15 min é órfã — o
+// takeover é validado também nas rules (server-side).
 
 import 'dart:async';
 
@@ -15,9 +16,65 @@ import '../secure/crypto.dart';
 /// Trava órfã depois disso sem heartbeat (espelhado nas rules: 900000 ms).
 const Duration kTravaExpira = Duration(minutes: 15);
 
+/// Renovação da reserva só até isto desde o início da aula: aula esquecida
+/// aberta não prende os PCs dos outros professores no dia seguinte.
+const Duration kReservaTeto = Duration(hours: 6);
+
 /// Decisão pura de expiração (testável).
 bool travaExpirada({required int ts, required int agoraMs}) =>
     agoraMs - ts > kTravaExpira.inMilliseconds;
+
+/// A reserva da aula ainda deve ser renovada? [inicioMs] e [agoraMs] no
+/// relógio do celular, que gravou o início da aula.
+bool deveRenovar({
+  required bool aulaAtiva,
+  required int inicioMs,
+  required int agoraMs,
+}) =>
+    aulaAtiva && agoraMs - inicioMs < kReservaTeto.inMilliseconds;
+
+/// O app aberto renova a reserva? Só sem o serviço rodando, e com conexão.
+/// O plugin do banco espera, sem prazo e no laço único do processo, a
+/// resposta do motor que começou a transação; o motor da tela morre ao fechar
+/// o app e travaria o banco do processo inteiro. Sem rede, a transação roda de
+/// novo quando a conexão volta, talvez já com a tela fechada.
+bool telaRenovaReservas({required bool servicoRodando, required bool conectado}) =>
+    !servicoRodando && conectado;
+
+/// O que a renovação grava no nó [atual] de /school/aulas/{pc}: o mesmo nó
+/// com o ts novo (reserva de [uid]); nada (nó apagado, aula encerrada: não
+/// recria); ou aborta (reserva de outra pessoa).
+Transaction reservaRenovada(Object? atual, String uid, int agoraMs) {
+  // Sem o nó no cache, abortar encerraria sem perguntar ao servidor e a
+  // reserva nunca renovaria: success(null) faz o servidor conferir.
+  if (atual == null) return Transaction.success(null);
+  if (atual is! Map || atual['uid'] != uid) return Transaction.abort();
+  return Transaction.success({...atual, 'ts': agoraMs});
+}
+
+/// Renova as reservas de [uid] nos [pcs] da aula aberta, uma transação por PC
+/// ([reservaRenovada]). [agoraMs] = relógio do servidor. Falha só vai ao log.
+Future<void> renovarReservas({
+  required String uid,
+  required Iterable<String> pcs,
+  required int agoraMs,
+  FirebaseDatabase? database,
+}) async {
+  final db = database ?? FirebaseDatabase.instance;
+  await Future.wait([
+    for (final pc in pcs)
+      db
+          .ref('school/aulas/$pc')
+          .runTransaction(
+            (atual) => reservaRenovada(atual, uid, agoraMs),
+            applyLocally: false,
+          )
+          .then<void>(
+            (_) {},
+            onError: (Object e) => debugPrint('[CdA] renovar a reserva de $pc: $e'),
+          ),
+  ]);
+}
 
 class TravaDeAula {
   const TravaDeAula({required this.uid, required this.ts, this.professor, this.turma});
@@ -163,19 +220,6 @@ class AulaLocks {
     for (final e in _travas.entries.toList()) {
       if (e.value.uid == meuUid) {
         await _db.ref('school/aulas/${e.key}').remove().catchError((_) {});
-      }
-    }
-  }
-
-  /// Renova o ts das minhas travas (chamar num Timer com a aula ativa).
-  Future<void> heartbeat() async {
-    final agora = nowServerMs();
-    for (final e in _travas.entries.toList()) {
-      if (e.value.uid == meuUid) {
-        await _db
-            .ref('school/aulas/${e.key}/ts')
-            .set(agora)
-            .catchError((_) {});
       }
     }
   }

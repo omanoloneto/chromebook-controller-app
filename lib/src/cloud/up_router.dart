@@ -7,14 +7,18 @@ import 'dart:collection';
 import '../commands/command.dart';
 
 /// O que fazer com o `up` de um PC, pela reserva de aula (multi-professor).
+/// Mesma regra do push (firebase/functions/recado.js).
 enum DestinoUp {
-  /// PC reservado por OUTRO professor: nem decifra, nem apaga.
+  /// PC reservado por OUTRO professor: nem decifra, nem apaga (também no
+  /// celular do fundador).
   ignorar,
 
-  /// PC livre na escola: aparece em Recados de todo MEMBRO, sem notificação.
+  /// PC livre na escola, no celular de um membro que não é o fundador:
+  /// aparece em Recados, sem notificação.
   mostrar,
 
-  /// Sem escola, ou PC reservado por mim: aparece e toca o celular.
+  /// Sem escola, PC reservado por mim, ou PC livre no celular do fundador
+  /// (o dono do vínculo): aparece e toca o celular.
   mostrarENotificar,
 }
 
@@ -22,10 +26,11 @@ DestinoUp destinoDoUp({
   required bool modoEscola,
   required bool reservadoPorOutro,
   required bool reservadoPorMim,
+  required bool souFundador,
 }) {
   if (!modoEscola) return DestinoUp.mostrarENotificar;
   if (reservadoPorOutro) return DestinoUp.ignorar;
-  if (reservadoPorMim) return DestinoUp.mostrarENotificar;
+  if (reservadoPorMim || souFundador) return DestinoUp.mostrarENotificar;
   return DestinoUp.mostrar;
 }
 

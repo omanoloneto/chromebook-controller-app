@@ -80,7 +80,6 @@ class PairingController extends ChangeNotifier {
   ClassSessionStore? _session;
   ProvaStore? _provaStore;
   Timer? _notifyTimer;
-  int _ultimoOnline = -1;
 
   // Imagens pedidas (câmera/tela) aguardando chegar por /snapshot. A chave
   // leva o tipo: uma captura de tela não pode resolver um pedido de foto.
@@ -379,10 +378,11 @@ class PairingController extends ChangeNotifier {
         }
         unawaited(_podarArquivo(transport));
       }
-      // Heartbeat da reserva (escola) + renovação de "Olhos em mim" e do modo
-      // prova (os dois modos): 5 min, o mesmo timer.
+      // Renovação da reserva (escola; só sem o serviço, que é quem renova) +
+      // de "Olhos em mim" e do modo prova (os dois modos): 5 min, o mesmo
+      // timer.
       _lockHeartbeat ??= Timer.periodic(kRenovacao, (_) {
-        if (aulaAtiva) _aulaLocks?.heartbeat();
+        unawaited(_renovarReservas());
         unawaited(_renovarTurma());
         // Reserva de outro professor vence pelo relógio (15 min sem
         // heartbeat), sem evento em /school/aulas: o up/ guardado do PC que
@@ -993,21 +993,13 @@ class PairingController extends ChangeNotifier {
   }
 
   // Coalesce: presença/report da turma toda dispara muitos onChange por
-  // segundo; a UI só precisa de ~4 quadros/s.
+  // segundo; a UI só precisa de ~4 quadros/s. O texto da notificação fixa é
+  // do serviço (foreground_service.dart), que conta também com o app fechado.
   void _scheduleNotify() {
     _notifyTimer ??= Timer(const Duration(milliseconds: 250), () {
       _notifyTimer = null;
-      _atualizarNotificacao();
       notifyListeners();
     });
-  }
-
-  void _atualizarNotificacao() {
-    final online = pcs.where(isOnline).length;
-    if (online != _ultimoOnline) {
-      _ultimoOnline = online;
-      atualizarNotificacaoAula('$online PC(s) conectados');
-    }
   }
 
   List<PcSession> get pcs => _transport?.registry.all ?? const [];
@@ -1519,6 +1511,29 @@ class PairingController extends ChangeNotifier {
     // usuário — o telão é por conta e morre com a aula).
     marcarPcProfessor(null);
     notifyListeners();
+  }
+
+  /// Reservas dos PCs da aula aberta, até o teto de [kReservaTeto] (só na
+  /// escola), quando o serviço não roda ([telaRenovaReservas]).
+  Future<void> _renovarReservas() async {
+    final locks = _aulaLocks, session = _session, transport = _transport;
+    if (locks == null || session == null || transport == null) return;
+    final renovar = deveRenovar(
+      aulaAtiva: session.ativa,
+      inicioMs: session.inicio.millisecondsSinceEpoch,
+      agoraMs: DateTime.now().millisecondsSinceEpoch,
+    );
+    if (!renovar) return;
+    final pelaTela = telaRenovaReservas(
+      servicoRodando: await servicoAulaRodando(),
+      conectado: transport.conectado,
+    );
+    if (!pelaTela) return;
+    await renovarReservas(
+      uid: locks.meuUid,
+      pcs: session.vinculos.keys,
+      agoraMs: locks.nowServerMs(),
+    );
   }
 
   // ---- Regras -------------------------------------------------------------------
@@ -2182,6 +2197,7 @@ class PairingController extends ChangeNotifier {
       modoEscola: workspaceAtivo,
       reservadoPorOutro: locks?.travadoPorOutro(deviceId) ?? false,
       reservadoPorMim: locks?.travadoPorMim(deviceId) ?? false,
+      souFundador: souFundador,
     );
   }
 
@@ -2258,11 +2274,11 @@ class PairingController extends ChangeNotifier {
           ),);
         }
       case UpType.raiseHand:
-        final jaLevantada = _maoVisivel(s, agoraServidorMs());
         s.maoMids.add(msg.mid);
         if (s.maoEm == null || ms > s.maoEm!) s.maoEm = ms;
-        // Notifica só na transição para levantada.
-        if (notificar && !jaLevantada && _maoVisivel(s, agoraServidorMs())) {
+        // Cada levantada toca, no máximo uma vez a cada 2 min (a mesma regra
+        // do push: notificarRecado).
+        if (notificar && _maoVisivel(s, agoraServidorMs())) {
           unawaited(notifs.notificarRecado(
             k: 'mao',
             deviceId: deviceId,

@@ -12,9 +12,22 @@ exige conhecimento técnico.
    **Configurações → Permitir desta fonte** e volte para concluir a
    instalação. (Isso aparece só na primeira vez.)
 4. Abra o **Controle de Aula** e permita as **notificações** quando pedir.
+5. **Celular Samsung**: para os recados chegarem com o app fechado, ajuste a
+   bateria uma vez:
+   - **Configurações → Aplicativos → Controle de Aula → Bateria → Sem
+     restrições**;
+   - **Configurações → Bateria → Limites de uso em segundo plano → Apps nunca
+     suspensos → +** e marque o **Controle de Aula**.
+
+   Sem isso, o celular põe o app para dormir e os recados atrasam ou não
+   chegam. Também não toque em **Parar** no Controle de Aula na lista de apps
+   ativos.
 
 **Atualizar**: baixe o APK novo no mesmo link e instale por cima — os dados
-ficam.
+ficam. Abra o app uma vez depois de atualizar.
+
+A notificação fixa **Servidor da aula ativo** mostra quantos PCs estão
+ligados, também com o app fechado, e volta sozinha quando o celular reinicia.
 
 ## 2. Entrar no workspace da escola
 
@@ -116,7 +129,11 @@ tela cheia.
   **Falar com o professor** da Área de Trabalho ou pelo notebook com o número
   da unidade, ao lado do relógio. Mensagem, pedido de liberação e mão
   levantada chegam como notificação no celular na hora, **mesmo com o app
-  fechado**. Na escola, só toca para quem está com o PC na aula.
+  fechado**. Na escola, toca para quem está com o PC na aula; PC fora de aula
+  (sem chamada, ou com a aula encerrada) toca para o fundador da escola. Um
+  recado novo do mesmo PC toca de novo, no máximo uma vez a cada 2 minutos
+  para cada tipo (mensagem, pedido de liberação, mão levantada); nesse
+  meio-tempo, a notificação só passa a mostrar o recado mais novo.
 
 - Um PC só participa de **uma aula por vez**: se um colega já vinculou um
   aluno naquele PC, o app avisa "Em aula com {professor}".
@@ -144,5 +161,6 @@ cada Chromebook uma vez; as atualizações são automáticas.
 |---------|-------------|
 | Extensão "conectando…" sem parar | Ícone da extensão → botão **⟳** (reconectar). |
 | PC não recebe comandos | Está vinculado na aula de outro professor? Encerrou a aula anterior? |
+| Recado não toca com o app fechado | Samsung: confira a bateria do app (seção 1, passo 5). |
 | "QR expirado" | Feche e reabra o popup da extensão (gera QR novo). |
 | Troquei de celular | Instale o app, entre no workspace com o mesmo Google — tudo volta. |

@@ -139,10 +139,15 @@ class PushService {
     if (antiga != null && antiga != chave) await _db.ref('fcm/$uid/$antiga').remove();
   }
 
-  /// Este celular para de receber os recados da conta.
-  Future<void> esquecer() async {
+  /// Para de ouvir a renovação do token; o token fica em /fcm.
+  Future<void> parar() async {
     await _renovacao?.cancel();
     _renovacao = null;
+  }
+
+  /// Este celular para de receber os recados da conta.
+  Future<void> esquecer() async {
+    await parar();
     final uid = _uid, chave = _chave;
     _uid = null;
     _chave = null;
