@@ -15,9 +15,8 @@ exige conhecimento técnico.
 5. **Celular Samsung**: para os recados chegarem com o app fechado, ajuste a
    bateria uma vez:
    - **Configurações → Aplicativos → Controle de Aula → Bateria → Sem
-     restrições**;
-   - **Configurações → Bateria → Limites de uso em segundo plano → Apps nunca
-     suspensos → +** e marque o **Controle de Aula**.
+     restrições**. Com isso o Samsung já trata o app como nunca suspenso, e ele
+     nem aparece na lista de **Apps nunca suspensos** (conferido no One UI 8.5).
 
    Sem isso, o celular põe o app para dormir e os recados atrasam ou não
    chegam. Também não toque em **Parar** no Controle de Aula na lista de apps
