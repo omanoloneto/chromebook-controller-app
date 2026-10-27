@@ -2,7 +2,7 @@
 
 // Push de um item novo do up/ (chat, pedido de liberação, mão levantada): quem
 // recebe, o que vai e quais tokens o FCM recusou. Sem Firebase aqui dentro —
-// index.js entrega o banco e o envio, e os testes rodam sem rede.
+// index.js entrega o banco, o envio e o log, e os testes rodam sem rede.
 
 // Mesmo prazo de kTravaExpira (lib/src/cloud/aula_locks.dart).
 const TRAVA_EXPIRA_MS = 15 * 60 * 1000;
@@ -15,13 +15,13 @@ const TOKEN_MORTO = new Set([
   'messaging/invalid-registration-token',
 ]);
 
-/** Sem escola, o professor vinculado; na escola, só quem tem a reserva viva
- * do PC — PC livre aparece a todo membro no app, sem notificação. */
+/** Na escola, quem tem a reserva viva do PC; sem ela (PC livre ou reserva
+ * vencida) e fora da escola, o dono do vínculo — na escola, o fundador. */
 function destinatarios({ teacherUid, schoolUid, aula, agoraMs }) {
   if (typeof teacherUid !== 'string' || !teacherUid) return [];
-  if (typeof schoolUid !== 'string' || teacherUid !== schoolUid) return [teacherUid];
-  if (!aula || typeof aula.uid !== 'string' || !aula.uid || typeof aula.ts !== 'number') return [];
-  return agoraMs - aula.ts > TRAVA_EXPIRA_MS ? [] : [aula.uid];
+  const viva = teacherUid === schoolUid && !!aula && typeof aula.uid === 'string' && !!aula.uid &&
+    typeof aula.ts === 'number' && agoraMs - aula.ts <= TRAVA_EXPIRA_MS;
+  return [viva ? aula.uid : teacherUid];
 }
 
 /** O envelope vai como chegou: só o celular do professor decifra
@@ -50,8 +50,9 @@ function tokensMortos(alvos, resposta) {
 }
 
 /** `ler(caminho)` → valor ou null; `enviar(mensagem)` → BatchResponse;
- * `apagar(caminho)`. Devolve quantos celulares receberam. */
-async function avisar({ deviceId, pushId, env }, { ler, enviar, apagar, agoraMs }) {
+ * `apagar(caminho)`; `registrar(motivo, celulares)` → log de cada saída, só
+ * com o motivo e a contagem. Devolve quantos celulares receberam. */
+async function avisar({ deviceId, pushId, env }, { ler, enviar, apagar, agoraMs, registrar = () => {} }) {
   const [teacherUid, meta, schoolUid, aula] = await Promise.all([
     ler(`devices/${deviceId}/bind/teacherUid`),
     ler(`devices/${deviceId}/meta`),
@@ -59,18 +60,24 @@ async function avisar({ deviceId, pushId, env }, { ler, enviar, apagar, agoraMs 
     ler(`school/aulas/${deviceId}`),
   ]);
   const uids = destinatarios({ teacherUid, schoolUid, aula, agoraMs });
+  if (!uids.length) return saida(registrar, 'sem_destinatario', 0);
   const data = dadosDoPush({ deviceId, pushId, env, meta });
-  if (!uids.length || !data) return 0;
+  if (!data) return saida(registrar, 'sem_dados', 0);
   const alvos = [];
   for (const uid of uids) {
     for (const [chave, item] of Object.entries((await ler(`fcm/${uid}`)) || {})) {
       if (item && typeof item.t === 'string' && item.t) alvos.push({ uid, chave, token: item.t });
     }
   }
-  if (!alvos.length) return 0;
+  if (!alvos.length) return saida(registrar, 'sem_celular', 0);
   const resposta = await enviar(mensagem(alvos, data));
   await Promise.all(tokensMortos(alvos, resposta).map(apagar));
-  return resposta.successCount;
+  return saida(registrar, 'enviado', resposta.successCount);
+}
+
+function saida(registrar, motivo, celulares) {
+  registrar(motivo, celulares);
+  return celulares;
 }
 
 module.exports = { avisar, dadosDoPush, destinatarios, tokensMortos, TRAVA_EXPIRA_MS, ENVELOPE_MAX };
