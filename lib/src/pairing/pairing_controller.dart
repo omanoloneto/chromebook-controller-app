@@ -29,6 +29,7 @@ import '../cloud/school_sync.dart';
 import '../cloud/session_registry.dart';
 import '../cloud/up_router.dart';
 import '../cloud/versao_publicada.dart';
+import '../cloud/wifi_guardiao.dart';
 import '../commands/class_view.dart';
 import '../commands/command.dart';
 import '../commands/domain_rules.dart';
@@ -125,6 +126,7 @@ class PairingController extends ChangeNotifier {
 
   SchoolSync? _schoolSync;
   AulaLocks? _aulaLocks;
+  WifiGuardiao? _wifiGuardiao;
   Timer? _lockHeartbeat;
 
   String? _pcProfessorId;
@@ -366,6 +368,15 @@ class PairingController extends ChangeNotifier {
           _scheduleNotify();
         };
         _aulaLocks!.start();
+        // Guardião do Wi-Fi da escola: opcional, nunca impede o app de abrir.
+        try {
+          _wifiGuardiao = WifiGuardiao(
+            uid: user.uid,
+            chave: await KeyStore.loadOrCreateGuardiao(),
+          )..start();
+        } catch (e) {
+          debugPrint('[CdA] guardião do Wi-Fi não começou: $e');
+        }
         unawaited(_podarArquivo(transport));
       }
       // Heartbeat da reserva (escola) + renovação de "Olhos em mim" e do modo
@@ -589,6 +600,8 @@ class PairingController extends ChangeNotifier {
   // ---- Workspace da escola ---------------------------------------------------------
 
   Future<void> _reiniciarTransporte() async {
+    await _wifiGuardiao?.stop();
+    _wifiGuardiao = null;
     await _aulaLocks?.stop();
     _aulaLocks = null;
     await _schoolSync?.stop();
@@ -702,6 +715,8 @@ class PairingController extends ChangeNotifier {
     naoLiberadoNaEscola = true;
     erroDeConexao = textoNaoLiberado(_usuarioAtual?.email ?? emailGoogle);
     unawaited(() async {
+      await _wifiGuardiao?.stop();
+      _wifiGuardiao = null;
       await _aulaLocks?.stop();
       _aulaLocks = null;
       await _schoolSync?.stop();
@@ -2923,6 +2938,8 @@ class PairingController extends ChangeNotifier {
   }
 
   Future<void> stop() async {
+    await _wifiGuardiao?.stop();
+    _wifiGuardiao = null;
     await fecharGrade();
     await pararServicoAula();
     await _transport?.stop();

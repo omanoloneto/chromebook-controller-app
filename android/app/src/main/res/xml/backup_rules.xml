@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 ou anterior: o par do guardião do Wi-Fi da escola nunca sai do
+     celular. O resto segue no Auto Backup, como antes. -->
+<full-backup-content>
+    <exclude domain="file" path="wifi_guardiao.txt" />
+</full-backup-content>

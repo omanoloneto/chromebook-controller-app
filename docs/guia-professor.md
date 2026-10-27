@@ -38,6 +38,10 @@ ele que aparece nos avisos e nas travas de aula ("Em aula com Fulano").
 3. O PC ganha um número automático ("Unidade 7") e entra na lista de todos
    os professores. Para mudar o número: toque no PC → **⋮ → Alterar número da
    unidade** (número ocupado = os dois PCs trocam).
+4. PC com Celita OS 1.31 ou mais novo recebe sozinho as redes Wi-Fi que as
+   outras unidades conhecem: em até 2 minutos com o app aberto num celular de
+   professor, ou em até 5 minutos com outra unidade ligada (10 se ela ainda
+   estiver no Celita 1.30).
 
 ## 4. Dar aula
 

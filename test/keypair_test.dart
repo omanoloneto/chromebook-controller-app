@@ -33,4 +33,12 @@ void main() {
     final skB = await b.deriveSessionKey(_b64url(aX));
     expect(base64.encode(skA), base64.encode(skB));
   });
+
+  test('pública de ordem baixa é recusada, como no Web Crypto', () async {
+    final a = await DeviceKeyPair.fromBytes(_b64url(aD), _b64url(aX));
+    for (final u in [List.filled(32, 0), [1, ...List.filled(31, 0)]]) {
+      await expectLater(a.deriveSessionKey(u), throwsArgumentError);
+      await expectLater(a.deriveWifiWrapKey(u), throwsArgumentError);
+    }
+  });
 }

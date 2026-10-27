@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 ou posterior: o par do guardião do Wi-Fi da escola nem vai para
+     o backup na nuvem nem passa para outro celular. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="file" path="wifi_guardiao.txt" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="file" path="wifi_guardiao.txt" />
+    </device-transfer>
+</data-extraction-rules>

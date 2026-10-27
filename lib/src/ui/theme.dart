@@ -12,7 +12,7 @@ import 'package:flutter/material.dart';
 const Color kSeed = Color(0xFF2962FF);
 
 /// Versão exibida em Ajustes. Um teste confere com o pubspec.yaml.
-const String kVersaoApp = '0.28.0';
+const String kVersaoApp = '0.29.0';
 
 /// Fonte do app, embutida em assets/fonts.
 const String kFonte = 'Inter';

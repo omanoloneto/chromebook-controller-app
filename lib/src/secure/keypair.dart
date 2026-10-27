@@ -10,6 +10,7 @@ final _x25519 = X25519();
 final _hkdf = Hkdf(hmac: Hmac.sha256(), outputLength: 32);
 final List<int> _salt = utf8.encode('controle-de-aula');
 final List<int> _info = utf8.encode('session-key-v3');
+final List<int> _infoWifi = utf8.encode('wifi-frota-v1');
 
 String pubToB64url(List<int> pub) => base64Url.encode(pub).replaceAll('=', '');
 
@@ -42,16 +43,35 @@ class DeviceKeyPair {
     return DeviceKeyPair._(kp, pub);
   }
 
+  /// Refaz o par só com a privada: a pública sai dela.
+  static Future<DeviceKeyPair> fromPrivate(List<int> priv) async {
+    final kp = await _x25519.newKeyPairFromSeed(priv);
+    return DeviceKeyPair._(kp, (await kp.extractPublicKey()).bytes);
+  }
+
   Future<List<int>> privateBytes() => _keyPair.extractPrivateKeyBytes();
 
   /// Deriva a chave de sessão AES (32 bytes) com a pubkey do par remoto.
-  Future<List<int>> deriveSessionKey(List<int> peerPublicBytes) async {
+  Future<List<int>> deriveSessionKey(List<int> peerPublicBytes) =>
+      _derive(peerPublicBytes, _info);
+
+  /// Embrulho da chave do Wi-Fi da escola (docs/protocolo.md §9): o mesmo
+  /// derive_wifi_wrap_key do agente do Celita.
+  Future<List<int>> deriveWifiWrapKey(List<int> peerPublicBytes) =>
+      _derive(peerPublicBytes, _infoWifi);
+
+  Future<List<int>> _derive(List<int> peerPublicBytes, List<int> info) async {
     final shared = await _x25519.sharedSecretKey(
       keyPair: _keyPair,
       remotePublicKey:
           SimplePublicKey(peerPublicBytes, type: KeyPairType.x25519),
     );
-    final sk = await _hkdf.deriveKey(secretKey: shared, nonce: _salt, info: _info);
+    // Pública de ordem baixa dá segredo zero, e o embrulho seria público. O
+    // Web Crypto da extensão e o OpenSSL do agente também recusam.
+    if ((await shared.extractBytes()).fold(0, (a, b) => a | b) == 0) {
+      throw ArgumentError('publica_de_ordem_baixa');
+    }
+    final sk = await _hkdf.deriveKey(secretKey: shared, nonce: _salt, info: info);
     return sk.extractBytes();
   }
 }
