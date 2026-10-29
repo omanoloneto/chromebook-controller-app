@@ -76,6 +76,7 @@ class MessageType {
   static const String liberarIas = 'liberar_ias'; // app -> agente Celita: IAs até o logout
   static const String atualizar = 'atualizar'; // app -> agente Celita: atualizar o sistema agora
   static const String energia = 'energia'; // app -> agente Celita: encerrar a sessão, reiniciar ou desligar
+  static const String diagnostico = 'diagnostico'; // app -> agente Celita: gravar o diagnóstico de Wi-Fi e da tampa
   static const String enviarMidia = 'enviar_midia'; // app -> agente Celita: subir uma foto/vídeo da Câmera
   static const String apagarMidia = 'apagar_midia'; // app -> agente Celita: apagar fotos/vídeos do PC
   // Recursos de turma (app >= 0.20.0, ext >= 0.7.0, Celita >= 0.13.0):
@@ -103,6 +104,7 @@ const Set<String> kComandosSoCelita = {
   MessageType.liberarIas,
   MessageType.atualizar,
   MessageType.energia,
+  MessageType.diagnostico,
 };
 
 String _nextId() => novoId();
@@ -333,6 +335,21 @@ Map<String, dynamic> buildAtualizar() {
     'type': MessageType.atualizar,
     'id': _nextId(),
     'payload': const <String, dynamic>{},
+  };
+}
+
+/// Horas do "Gravar diagnóstico": uma tarde de aula.
+const int kHorasDiagnostico = 6;
+
+/// Monta o comando `diagnostico` — o PC grava o Wi-Fi, as redes à volta, a
+/// tampa e o diário do sistema por [horas] (0 para). Só o agente do Celita OS
+/// atende, e quem lê é o fundador, pelo console do Firebase.
+Map<String, dynamic> buildDiagnostico(int horas) {
+  return {
+    'v': kProtocolVersion,
+    'type': MessageType.diagnostico,
+    'id': _nextId(),
+    'payload': {'horas': horas},
   };
 }
 

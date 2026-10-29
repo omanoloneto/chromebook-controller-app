@@ -1061,6 +1061,17 @@ class PairingController extends ChangeNotifier {
     return n;
   }
 
+  /// Liga por [horas] (0 para) o diagnóstico de Wi-Fi e da tampa no PC. PC
+  /// desligado recebe da fila quando ligar. null = pedido enviado.
+  Future<String?> diagnosticoPc(String deviceId, int horas) async {
+    final transport = _transport;
+    final s = transport?.registry.byId(deviceId);
+    if (transport == null || s == null) return 'Ainda conectando — tente de novo.';
+    if (!temCelita(s.versaoExt)) return 'Só os PCs com Celita OS gravam o diagnóstico.';
+    await transport.sendCommand(deviceId, buildDiagnostico(horas));
+    return null;
+  }
+
   // ---- Energia (encerrar a sessão, reiniciar, desligar) ----------------------------
   // Só o agente do Celita OS atende, e age na hora: não há contagem no PC.
 

@@ -53,6 +53,7 @@ void main() {
       MessageType.liberarIas,
       MessageType.atualizar,
       MessageType.energia,
+      MessageType.diagnostico,
     ]) {
       expect(
         textoErro('tipo_desconhecido', tipoComando: tipo, ext: '0.6.0'),

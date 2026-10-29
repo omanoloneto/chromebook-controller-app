@@ -8,6 +8,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../cloud/session_registry.dart';
+import '../commands/command.dart' show kHorasDiagnostico;
 import '../pairing/pairing_controller.dart';
 import '../util/abrir_no_celular.dart';
 import '../util/versao.dart';
@@ -469,6 +470,44 @@ class _DevicePageState extends State<DevicePage> {
     );
   }
 
+  Future<void> _diagnostico(String nome) async {
+    final horas = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Diagnóstico de Wi-Fi e da tampa'),
+        content: const Text(
+          'O computador grava a cada minuto o Wi-Fi, as redes à volta, a tampa '
+          'e o que o sistema registra, também entre reinícios. Nunca senhas. '
+          'Só o fundador da escola lê, pelo console do Firebase.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(ctx, 0), child: const Text('Parar')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, kHorasDiagnostico),
+            child: const Text('Gravar $kHorasDiagnostico horas'),
+          ),
+        ],
+      ),
+    );
+    if (horas == null || !mounted) return;
+    final s = _pairing.pcPorId(_id);
+    final ligado = s != null && _pairing.isOnline(s);
+    final erro = await _pairing.diagnosticoPc(_id, horas);
+    if (!mounted) return;
+    if (erro != null) {
+      _snack(erro);
+    } else if (horas == 0) {
+      _snack('$nome para de gravar o diagnóstico.');
+    } else if (!ligado) {
+      _snack('$nome está desligado: começa a gravar quando ligar, por $horas horas.');
+    } else {
+      final ate = DateTime.now().add(Duration(hours: horas));
+      final hora = '${ate.hour.toString().padLeft(2, '0')}:${ate.minute.toString().padLeft(2, '0')}';
+      _snack('$nome grava o diagnóstico até as $hora.');
+    }
+  }
+
   void _alternarPcProfessor(String nome) {
     final ehProfessor = _pairing.ehPcProfessor(_id);
     _pairing.marcarPcProfessor(ehProfessor ? null : _id);
@@ -616,6 +655,8 @@ class _DevicePageState extends State<DevicePage> {
             _alternarPcProfessor(nome);
           case 'atualizar':
             _atualizar(nome);
+          case 'diagnostico':
+            _diagnostico(nome);
           case 'desconectar':
             _desconectar(nome);
         }
@@ -639,6 +680,13 @@ class _DevicePageState extends State<DevicePage> {
               : desatualizado
                   ? 'Este computador está desatualizado'
                   : 'Baixa e instala o que houver de novo',
+        ),
+        item(
+          'diagnostico',
+          Icons.troubleshoot,
+          'Gravar diagnóstico',
+          habilitado: celita,
+          subtitulo: celita ? 'Wi-Fi e tampa, para o suporte' : 'Só nos computadores com Celita OS',
         ),
         const PopupMenuDivider(),
         item('desconectar', Icons.link_off, 'Desconectar este computador', perigo: true),
