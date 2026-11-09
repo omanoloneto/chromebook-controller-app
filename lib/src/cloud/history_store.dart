@@ -89,6 +89,13 @@ class HistoryStore {
     if (existente == null) await _gravarMeta();
   }
 
+  /// Põe o aluno na lista da aula (presença), mesmo sem evento de navegação.
+  Future<void> registrarAluno(String aluno) async {
+    final meta = _metaAtual;
+    if (meta == null || !meta.alunos.add(aluno)) return;
+    await _gravarMeta();
+  }
+
   /// Registra eventos de um aluno na sessão aberta.
   Future<void> registrar(String aluno, List<NavEvent> eventos) async {
     final sid = _sessionId;

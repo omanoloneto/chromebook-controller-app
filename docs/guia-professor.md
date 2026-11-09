@@ -61,13 +61,16 @@ ele que aparece nos avisos e nas travas de aula ("Em aula com Fulano").
    já cadastrou, você já vê).
 2. Aba **Aula → Começar aula** → escolha a turma (ou **Iniciar aula** no
    cartão da turma, na aba Turmas). Abre a **Chamada**.
-3. Na chamada, toque em cada aluno que veio e diga o **número da unidade**
-   em que ele sentou: digite ou toque num dos atalhos das unidades ligadas e
-   livres. Aluno já marcado: toque de novo para trocar de unidade ou marcar
-   falta. Unidade de outro aluno pede confirmação; o botão de pessoa no alto
-   cadastra um aluno novo. Para quem chega depois, botão **Chamada** nas ações
-   da aula. Também dá para vincular pelo botão **Aluno** nas ações de cada PC.
-   Só PCs com aluno recebem os comandos da turma.
+3. Na chamada, toque em cada aluno que veio. Diga o **número da unidade**
+   em que ele sentou (digite ou toque num dos atalhos das unidades ligadas e
+   livres), escolha o computador **na lista** (serve para um PC desligado ou
+   sem número) ou marque **Presente sem computador** (o aluno veio, mas não
+   sentou em nenhum PC, ou o PC dele não aparece). Aluno já marcado: toque de
+   novo para trocar de computador, tirar do computador (continua presente)
+   ou marcar falta. Computador de outro aluno pede confirmação; o botão de
+   pessoa no alto cadastra um aluno novo. Para quem chega depois, botão
+   **Chamada** nas ações da aula. Também dá para vincular pelo botão **Aluno**
+   nas ações de cada PC. Só PCs com aluno recebem os comandos da turma.
 4. As ações da turma ficam no alto da aba **Aula**, a um toque: **Chamada**,
    **Travar**, **Prova**, **Telas** (as telas ao vivo), **Abrir site**,
    **Mensagem**, **Desligar** e **Encerrar**. Bloquear sites fica na aba

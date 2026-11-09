@@ -223,7 +223,7 @@ class _AulaPageState extends State<AulaPage> {
   Widget _tituloDaAula() {
     final t = Theme.of(context).textTheme;
     final inicio = _pairing.inicioDaAula;
-    final presentes = '${_pairing.totalVinculados} de '
+    final presentes = '${_pairing.totalPresentes} de '
         '${_pairing.totalAlunosDaTurma} presentes';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

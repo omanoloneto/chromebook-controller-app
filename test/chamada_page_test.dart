@@ -1,6 +1,7 @@
-// Chamada da aula: tocar no aluno pergunta a unidade; atalhos das ligadas e
-// livres; erro no próprio diálogo; troca com confirmação; falta; aluno novo;
-// e a aula que começa pela chamada.
+// Chamada da aula: tocar no aluno abre a folha de presença (unidade, PC da
+// lista ou sem computador); atalhos das ligadas e livres; erro na própria
+// folha; troca com confirmação; tirar do PC; falta; aluno novo; e a aula que
+// começa pela chamada.
 
 import 'package:controle_de_aula/src/pairing/chamada.dart';
 import 'package:controle_de_aula/src/pairing/students_store.dart';
@@ -82,7 +83,7 @@ void main() {
     final p = await _abrir(tester);
     await tester.tap(find.text('Ana'));
     await tester.pumpAndSettle();
-    expect(find.text('Unidade de Ana'), findsOneWidget);
+    expect(find.text('Presença de Ana'), findsOneWidget);
     // Ligadas e livres: a 3 está desligada.
     expect(_atalho('1'), findsOneWidget);
     expect(_atalho('2'), findsOneWidget);
@@ -105,7 +106,7 @@ void main() {
     expect(p.presencas, isEmpty);
 
     await _digitar(tester, '3');
-    expect(find.text('Unidade de Ana'), findsNothing);
+    expect(find.text('Presença de Ana'), findsNothing);
     expect(p.presencas, [('Ana', 3)]);
     expect(find.text('Unidade 3'), findsOneWidget);
   });
@@ -126,7 +127,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(_atalho('1'), findsNothing, reason: 'a 1 não está livre');
     await _digitar(tester, '1');
-    expect(find.text('Unidade 1 ocupada'), findsOneWidget);
+    expect(find.text('Computador ocupado'), findsOneWidget);
     expect(find.textContaining('A unidade 1 está com Bruno'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(FilledButton, 'Trocar'));
@@ -147,14 +148,14 @@ void main() {
     expect(p.pcDoAluno('Bruno'), 'a');
   });
 
-  testWidgets('aluno presente: trocar de unidade ou marcar falta', (tester) async {
+  testWidgets('aluno presente: trocar de computador ou marcar falta', (tester) async {
     final p = await _abrir(tester, (p) => p.vinculos['a'] = 'Ana');
     await tester.tap(find.text('Ana'));
     await tester.pumpAndSettle();
-    expect(find.text('Presente na unidade 1'), findsOneWidget);
-    await tester.tap(find.text('Trocar de unidade'));
+    expect(find.text('Presente · Unidade 1'), findsOneWidget);
+    await tester.tap(find.text('Trocar de computador'));
     await tester.pumpAndSettle();
-    expect(find.text('Unidade de Ana'), findsOneWidget);
+    expect(find.text('Presença de Ana'), findsOneWidget);
     expect(
       tester.widget<TextField>(find.byType(TextField)).controller!.text,
       '1',
@@ -172,6 +173,88 @@ void main() {
     expect(find.text('0 de 3 presentes'), findsOneWidget);
   });
 
+  testWidgets('presente sem computador conta e depois pode ir para um PC',
+      (tester) async {
+    final p = await _abrir(tester);
+    await tester.tap(find.text('Ana'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Presente sem computador'));
+    await tester.pumpAndSettle();
+    expect(p.presentesFake, {'Ana'});
+    expect(p.pcDoAluno('Ana'), isNull);
+    expect(find.text('1 de 3 presentes'), findsOneWidget);
+    expect(find.text('Sem computador'), findsOneWidget);
+    expect(find.text('Marcar'), findsNWidgets(2));
+
+    await tester.tap(find.text('Ana'));
+    await tester.pumpAndSettle();
+    expect(find.text('Presente, sem computador'), findsOneWidget);
+    expect(find.text('Tirar do computador'), findsNothing);
+    await tester.tap(find.text('Pôr num computador'));
+    await tester.pumpAndSettle();
+    await tester.tap(_atalho('1'));
+    await tester.pumpAndSettle();
+    expect(p.presencas, [('Ana', 1)]);
+    expect(find.text('Unidade 1'), findsOneWidget);
+  });
+
+  testWidgets('lista de computadores: desligado vale, telão e aula de outro não',
+      (tester) async {
+    final p = await _abrir(tester, (p) {
+      p.telaoFake = 'b';
+      p.nomes['c'] = 'PC da janela';
+      p.pc('d', nome: 'Notebook', online: false);
+      p.outrosProfessores['d'] = 'Marcos';
+    });
+    await tester.tap(find.text('Ana'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Escolher o computador na lista'));
+    await tester.pumpAndSettle();
+    expect(find.text('Computador de Ana'), findsOneWidget);
+    expect(find.text('Unidade 3 · PC da janela'), findsOneWidget);
+    expect(find.text('Desligado · vale assim mesmo'), findsOneWidget);
+    expect(find.text('Esse PC é o telão.'), findsOneWidget);
+    expect(find.text('Esse PC está na aula de Marcos.'), findsOneWidget);
+    expect(find.text('Notebook'), findsOneWidget, reason: 'sem número: só o nome');
+
+    await tester.tap(find.text('Esse PC é o telão.'));
+    await tester.pumpAndSettle();
+    expect(p.presencasEmPc, isEmpty, reason: 'telão desabilitado');
+
+    await tester.tap(find.text('Unidade 3 · PC da janela'));
+    await tester.pumpAndSettle();
+    expect(p.presencasEmPc, [('Ana', 'c')]);
+    expect(find.text('Unidade 3'), findsOneWidget);
+    expect(find.text('1 de 3 presentes'), findsOneWidget);
+  });
+
+  testWidgets('PC da lista com outro aluno pede para trocar', (tester) async {
+    final p = await _abrir(tester, (p) => p.vinculos['a'] = 'Bruno');
+    await tester.tap(find.text('Ana'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Escolher o computador na lista'));
+    await tester.pumpAndSettle();
+    expect(find.text('Com Bruno'), findsOneWidget);
+    await tester.tap(find.text('Com Bruno'));
+    await tester.pumpAndSettle();
+    expect(find.text('Computador ocupado'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Trocar'));
+    await tester.pumpAndSettle();
+    expect(p.presencasEmPc, [('Ana', 'a')]);
+    expect(p.pcDoAluno('Bruno'), isNull);
+  });
+
+  testWidgets('tirar do computador mantém a presença', (tester) async {
+    final p = await _abrir(tester, (p) => p.vinculos['a'] = 'Ana');
+    await tester.tap(find.text('Ana'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Tirar do computador'));
+    await tester.pumpAndSettle();
+    expect(p.tirados, ['Ana']);
+    expect(find.text('1 de 3 presentes'), findsOneWidget);
+    expect(find.text('Sem computador'), findsOneWidget);
+  });
+
   testWidgets('aluno novo é cadastrado e já pergunta a unidade', (tester) async {
     final p = await _abrir(tester);
     await tester.tap(find.byTooltip('Aluno novo'));
@@ -180,7 +263,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Cadastrar'));
     await tester.pumpAndSettle();
     expect(p.cadastrados, ['Dani']);
-    expect(find.text('Unidade de Dani'), findsOneWidget);
+    expect(find.text('Presença de Dani'), findsOneWidget);
     await tester.tap(_atalho('1'));
     await tester.pumpAndSettle();
     expect(p.presencas, [('Dani', 1)]);
