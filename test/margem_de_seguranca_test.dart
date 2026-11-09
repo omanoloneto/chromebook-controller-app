@@ -32,7 +32,7 @@ void main() {
       Builder(builder: (ctx) {
         recuo = recuoDaLista(ctx, topo: 4, fundo: 24);
         return const SizedBox();
-      }),
+      },),
     );
     expect(recuo, const EdgeInsets.only(top: 4, bottom: 24 + _barra));
   });
@@ -44,7 +44,9 @@ void main() {
     p.mapa['a']!.maoEm = kAgoraTeste - 60000;
     await _abrir(tester, RecadosPage(pairing: p));
     final lista = tester.widget<ListView>(find.byType(ListView));
-    expect(lista.padding!.resolve(TextDirection.ltr).bottom,
-        greaterThanOrEqualTo(_barra));
+    expect(
+      lista.padding!.resolve(TextDirection.ltr).bottom,
+      greaterThanOrEqualTo(_barra),
+    );
   });
 }

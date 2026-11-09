@@ -1,12 +1,14 @@
-// Chamada da aula: a lista da turma; tocar num aluno marca a presença e já
-// pergunta em qual unidade ele sentou. Abre sozinha ao iniciar a aula e pelo
-// botão Chamada da aula, para quem chega depois.
+// Chamada da aula: a lista da turma; tocar num aluno marca a presença, com
+// ou sem computador (número da unidade, um PC da lista ou nenhum). Abre
+// sozinha ao iniciar a aula e pelo botão Chamada da aula, para quem chega
+// depois.
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../pairing/chamada.dart';
 import '../pairing/pairing_controller.dart';
+import '../util/natural_sort.dart';
 import 'componentes.dart';
 
 Route<void> rotaChamada(PairingController pairing) =>
@@ -49,42 +51,69 @@ class _ChamadaPageState extends State<ChamadaPage> {
     return id == null ? null : _pairing.numeroDe(id);
   }
 
+  /// Onde o aluno está: "Unidade 7", o nome do PC ou "Sem computador".
+  String _ondeEsta(String aluno) {
+    final id = _pairing.pcDoAluno(aluno);
+    if (id == null) return 'Sem computador';
+    final n = _pairing.numeroDe(id);
+    if (n != null) return 'Unidade $n';
+    final s = _pairing.pcPorId(id);
+    return s == null ? 'Computador' : _pairing.nomeDe(s);
+  }
+
   Future<void> _tocar(String aluno) async {
-    if (_pairing.pcDoAluno(aluno) == null) {
-      await _perguntarUnidade(aluno);
-    } else {
+    if (_pairing.alunoPresente(aluno)) {
       await _opcoesDoPresente(aluno);
+    } else {
+      await _escolherPresenca(aluno);
     }
   }
 
-  Future<void> _perguntarUnidade(String aluno) async {
-    final numero = await showDialog<int>(
+  Future<void> _escolherPresenca(String aluno) async {
+    final escolha = await showModalBottomSheet<EscolhaPresenca>(
       context: context,
-      builder: (_) => DialogoUnidade(
+      isScrollControlled: true,
+      builder: (_) => SheetPresenca(
         pairing: _pairing,
         aluno: aluno,
         atual: _unidadeDe(aluno),
       ),
     );
-    if (numero == null || !mounted) return;
-    final deviceId = _pairing.pcDaUnidade(numero);
-    final ocupante = deviceId == null ? null : _pairing.alunoDe(deviceId);
-    if (ocupante != null && ocupante != aluno) {
-      final trocar = await confirmar(
-        context,
-        titulo: 'Unidade $numero ocupada',
-        mensagem: 'A unidade $numero está com $ocupante. Pôr $aluno no lugar? '
-            '$ocupante fica sem PC até você marcar outra unidade.',
-        acao: 'Trocar',
-      );
-      if (!trocar || !mounted) return;
+    if (escolha == null || !mounted) return;
+    final String? erro;
+    switch (escolha) {
+      case PresencaSemPc():
+        erro = await _pairing.marcarPresenteSemPc(aluno);
+      case PresencaNaUnidade(:final numero):
+        final deviceId = _pairing.pcDaUnidade(numero);
+        if (!await _confirmarTroca(aluno, deviceId, 'A unidade $numero')) return;
+        erro = await _pairing.marcarPresente(aluno, numero);
+      case PresencaNoPc(:final deviceId):
+        final s = _pairing.pcPorId(deviceId);
+        final nome = s == null ? 'Esse PC' : _pairing.nomeDe(s);
+        if (!await _confirmarTroca(aluno, deviceId, nome)) return;
+        erro = await _pairing.marcarPresenteNoPc(aluno, deviceId);
     }
-    final erro = await _pairing.marcarPresente(aluno, numero);
     if (erro != null && mounted) _snack(erro);
   }
 
+  /// PC com outro aluno: confirma antes de pôr [aluno] no lugar.
+  Future<bool> _confirmarTroca(String aluno, String? deviceId, String pc) async {
+    final ocupante = deviceId == null ? null : _pairing.alunoDe(deviceId);
+    if (ocupante == null || ocupante == aluno || !mounted) return true;
+    final trocar = await confirmar(
+      context,
+      titulo: 'Computador ocupado',
+      mensagem: '$pc está com $ocupante. Pôr $aluno no lugar? '
+          '$ocupante continua presente, mas sem computador.',
+      acao: 'Trocar',
+    );
+    return trocar && mounted;
+  }
+
   Future<void> _opcoesDoPresente(String aluno) async {
-    final unidade = _unidadeDe(aluno);
+    final temPc = _pairing.pcDoAluno(aluno) != null;
+    final onde = _ondeEsta(aluno);
     final escolha = await showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => SafeArea(
@@ -93,16 +122,21 @@ class _ChamadaPageState extends State<ChamadaPage> {
           children: [
             ListTile(
               title: Text(aluno, style: Theme.of(ctx).textTheme.titleMedium),
-              subtitle: Text(
-                unidade == null ? 'Presente' : 'Presente na unidade $unidade',
-              ),
+              subtitle: Text(temPc ? 'Presente · $onde' : 'Presente, sem computador'),
             ),
             const Divider(height: 1),
             ListTile(
-              leading: const Icon(Icons.swap_horiz),
-              title: const Text('Trocar de unidade'),
-              onTap: () => Navigator.pop(ctx, 'trocar'),
+              leading: Icon(temPc ? Icons.swap_horiz : Icons.computer_outlined),
+              title: Text(temPc ? 'Trocar de computador' : 'Pôr num computador'),
+              onTap: () => Navigator.pop(ctx, 'pc'),
             ),
+            if (temPc)
+              ListTile(
+                leading: const Icon(Icons.no_cell_outlined),
+                title: const Text('Tirar do computador'),
+                subtitle: const Text('Continua presente'),
+                onTap: () => Navigator.pop(ctx, 'tirar'),
+              ),
             ListTile(
               leading: const Icon(Icons.person_off_outlined),
               title: const Text('Marcar falta'),
@@ -113,10 +147,14 @@ class _ChamadaPageState extends State<ChamadaPage> {
         ),
       ),
     );
-    if (escolha == 'trocar') {
-      await _perguntarUnidade(aluno);
-    } else if (escolha == 'falta') {
-      await _pairing.marcarFalta(aluno);
+    if (!mounted) return;
+    switch (escolha) {
+      case 'pc':
+        await _escolherPresenca(aluno);
+      case 'tirar':
+        await _pairing.tirarDoPc(aluno);
+      case 'falta':
+        await _pairing.marcarFalta(aluno);
     }
   }
 
@@ -136,14 +174,14 @@ class _ChamadaPageState extends State<ChamadaPage> {
       _snack(erro);
       return;
     }
-    await _perguntarUnidade(nome);
+    await _escolherPresenca(nome);
   }
 
   @override
   Widget build(BuildContext context) {
     final t = Theme.of(context).textTheme;
     final alunos = _pairing.alunosDaAula;
-    final presentes = alunos.where((a) => _pairing.pcDoAluno(a) != null).length;
+    final presentes = alunos.where(_pairing.alunoPresente).length;
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 68,
@@ -224,7 +262,8 @@ class _ChamadaPageState extends State<ChamadaPage> {
           ),
           const SizedBox(height: 10),
           Text(
-            'Toque no aluno que chegou e diga em qual unidade ele sentou.',
+            'Toque no aluno que chegou. Dá para dizer em qual computador ele '
+            'sentou ou marcar presença sem computador.',
             style: t.textTheme.bodySmall,
           ),
         ],
@@ -235,9 +274,7 @@ class _ChamadaPageState extends State<ChamadaPage> {
   Widget _linha(String aluno) {
     final t = Theme.of(context);
     final s = t.colorScheme;
-    final deviceId = _pairing.pcDoAluno(aluno);
-    final presente = deviceId != null;
-    final unidade = _unidadeDe(aluno);
+    final presente = _pairing.alunoPresente(aluno);
     return InkWell(
       onTap: () => _tocar(aluno),
       child: Padding(
@@ -270,11 +307,7 @@ class _ChamadaPageState extends State<ChamadaPage> {
                     overflow: TextOverflow.ellipsis,
                     style: t.textTheme.titleSmall?.copyWith(fontSize: 15),
                   ),
-                  if (presente)
-                    Text(
-                      unidade == null ? _pairing.nomeDoPc(deviceId) : 'Unidade $unidade',
-                      style: t.textTheme.bodySmall,
-                    ),
+                  if (presente) Text(_ondeEsta(aluno), style: t.textTheme.bodySmall),
                 ],
               ),
             ),
@@ -290,10 +323,11 @@ class _ChamadaPageState extends State<ChamadaPage> {
   }
 }
 
-/// Pergunta em qual unidade o aluno sentou: o número digitado ou um dos
-/// atalhos das unidades ligadas e livres. Devolve o número já conferido.
-class DialogoUnidade extends StatefulWidget {
-  const DialogoUnidade({
+/// Folha de presença de um aluno: o número da unidade (digitado ou um dos
+/// atalhos das ligadas e livres), um PC escolhido na lista completa, ou
+/// presente sem computador. Devolve a [EscolhaPresenca].
+class SheetPresenca extends StatefulWidget {
+  const SheetPresenca({
     super.key,
     required this.pairing,
     required this.aluno,
@@ -305,12 +339,15 @@ class DialogoUnidade extends StatefulWidget {
   final int? atual;
 
   @override
-  State<DialogoUnidade> createState() => _DialogoUnidadeState();
+  State<SheetPresenca> createState() => _SheetPresencaState();
 }
 
-class _DialogoUnidadeState extends State<DialogoUnidade> {
+class _SheetPresencaState extends State<SheetPresenca> {
   late final _ctrl = TextEditingController(text: widget.atual?.toString() ?? '');
   String? _erro;
+  bool _lista = false;
+
+  PairingController get _p => widget.pairing;
 
   @override
   void dispose() {
@@ -318,80 +355,191 @@ class _DialogoUnidadeState extends State<DialogoUnidade> {
     super.dispose();
   }
 
-  void _confirmar(String texto) {
+  void _confirmarUnidade(String texto) {
     final numero = int.tryParse(texto.trim());
-    final deviceId = numero == null ? null : widget.pairing.pcDaUnidade(numero);
+    final deviceId = numero == null ? null : _p.pcDaUnidade(numero);
     final motivo = motivoContraUnidade(
       numero,
       deviceId: deviceId,
-      ehTelao: deviceId != null && widget.pairing.ehPcProfessor(deviceId),
+      ehTelao: deviceId != null && _p.ehPcProfessor(deviceId),
     );
     if (motivo != null) {
       setState(() => _erro = motivo);
       return;
     }
-    Navigator.pop(context, numero);
+    Navigator.pop(context, PresencaNaUnidade(numero!));
   }
 
   @override
   Widget build(BuildContext context) {
-    final livres = widget.pairing.unidadesLivres;
-    return AlertDialog(
-      title: Text('Unidade de ${widget.aluno}'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextField(
-              controller: _ctrl,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                LengthLimitingTextInputFormatter(4),
-              ],
-              decoration: InputDecoration(
-                labelText: 'Número da unidade',
-                hintText: 'Ex.: 7',
-                errorText: _erro,
-              ),
-              onChanged: (_) {
-                if (_erro != null) setState(() => _erro = null);
-              },
-              onSubmitted: _confirmar,
-            ),
-            if (livres.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Text(
-                'Ligadas e livres',
-                style: Theme.of(context).textTheme.labelMedium,
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final n in livres)
-                    ActionChip(
-                      label: Text('$n'),
-                      onPressed: () => _confirmar('$n'),
-                    ),
-                ],
-              ),
-            ],
-          ],
+    final altura = MediaQuery.sizeOf(context).height * 0.85;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: altura),
+        child: SafeArea(
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            alignment: Alignment.topCenter,
+            child: _lista ? _escolherPc() : _principal(),
+          ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancelar'),
+    );
+  }
+
+  Widget _principal() {
+    final t = Theme.of(context).textTheme;
+    final livres = _p.unidadesLivres;
+    return ListView(
+      shrinkWrap: true,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      children: [
+        Text('Presença de ${widget.aluno}', style: t.titleLarge),
+        const SizedBox(height: 4),
+        Text(
+          'Em qual computador ${widget.aluno} sentou?',
+          style: t.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
-        FilledButton(
-          onPressed: () => _confirmar(_ctrl.text),
-          child: const Text('Presente'),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _ctrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(4),
+                ],
+                decoration: InputDecoration(
+                  labelText: 'Número da unidade',
+                  hintText: 'Ex.: 7',
+                  errorText: _erro,
+                ),
+                onChanged: (_) => setState(() => _erro = null),
+                onSubmitted: _confirmarUnidade,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: FilledButton(
+                onPressed: () => _confirmarUnidade(_ctrl.text),
+                child: const Text('Presente'),
+              ),
+            ),
+          ],
         ),
+        if (livres.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Text('Ligadas e livres', style: t.labelMedium),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final n in livres)
+                ActionChip(
+                  label: Text('$n'),
+                  onPressed: () => _confirmarUnidade('$n'),
+                ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 16),
+        const Divider(height: 1),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => setState(() => _lista = true),
+          icon: const Icon(Icons.computer_outlined),
+          label: const Text('Escolher o computador na lista'),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.pop(context, const PresencaSemPc()),
+          icon: const Icon(Icons.how_to_reg_outlined),
+          label: const Text('Presente sem computador'),
+        ),
+      ],
+    );
+  }
+
+  /// Situação de um PC na lista: null quando pode receber o aluno.
+  ({String texto, bool pode}) _situacao(String deviceId) {
+    final motivo = motivoContraPc(
+      conectado: true,
+      ehTelao: _p.ehPcProfessor(deviceId),
+      aulaDeOutro: _p.professorQueTravou(deviceId),
+    );
+    if (motivo != null) return (texto: motivo, pode: false);
+    final aluno = _p.alunoDe(deviceId);
+    if (aluno != null) return (texto: 'Com $aluno', pode: true);
+    final s = _p.pcPorId(deviceId);
+    final ligado = s != null && _p.isOnline(s);
+    return (texto: ligado ? 'Ligado e livre' : 'Desligado · vale assim mesmo', pode: true);
+  }
+
+  Widget _escolherPc() {
+    final t = Theme.of(context);
+    final pcs = [..._p.pcs]..sort((a, b) => compararNatural(_p.nomeDe(a), _p.nomeDe(b)));
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 0, 16, 0),
+          child: Row(
+            children: [
+              IconButton(
+                tooltip: 'Voltar',
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => setState(() => _lista = false),
+              ),
+              Expanded(
+                child: Text('Computador de ${widget.aluno}', style: t.textTheme.titleLarge),
+              ),
+            ],
+          ),
+        ),
+        if (pcs.isEmpty)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Text(
+              'Nenhum computador conectado a este celular. Conecte pelo QR '
+              '(Aula › ⋮ › Conectar computador) ou marque a presença sem '
+              'computador.',
+            ),
+          )
+        else
+          Flexible(
+            child: ListView(
+              shrinkWrap: true,
+              padding: const EdgeInsets.only(bottom: 8),
+              children: [
+                for (final s in pcs)
+                  Builder(builder: (context) {
+                    final n = _p.numeroDe(s.deviceId);
+                    final nome = _p.nomeDe(s);
+                    // PC chamado "Unidade 7" com o número 7: uma vez só.
+                    final titulo = n == null || nome == 'Unidade $n' ? nome : 'Unidade $n · $nome';
+                    final situacao = _situacao(s.deviceId);
+                    final apagado = !_p.isOnline(s) || !situacao.pode;
+                    return ListTile(
+                      enabled: situacao.pode,
+                      leading: Icon(
+                        Icons.computer_outlined,
+                        color: apagado ? t.colorScheme.onSurfaceVariant : t.colorScheme.primary,
+                      ),
+                      title: Text(titulo),
+                      subtitle: Text(situacao.texto),
+                      onTap: () => Navigator.pop(context, PresencaNoPc(s.deviceId)),
+                    );
+                  },),
+              ],
+            ),
+          ),
       ],
     );
   }

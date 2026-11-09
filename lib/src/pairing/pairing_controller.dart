@@ -1367,13 +1367,19 @@ class PairingController extends ChangeNotifier {
 
   int get totalVinculados => _session?.vinculos.length ?? 0;
 
+  /// Presentes na chamada (com ou sem PC) entre os alunos da turma da aula.
+  int get totalPresentes => alunosDaAula.where(alunoPresente).length;
+
   // ---- Chamada -----------------------------------------------------------------------
 
   /// Alunos da turma da aula, na ordem do cadastro.
   List<String> get alunosDaAula =>
       _students?.turmaPorNome(turmaDaAula)?.alunos ?? const [];
 
-  /// PC em que o aluno está nesta aula (null = ainda sem presença).
+  /// Presente na chamada desta aula, com ou sem PC.
+  bool alunoPresente(String aluno) => _session?.presente(aluno) ?? false;
+
+  /// PC em que o aluno está nesta aula (null = sem PC).
   String? pcDoAluno(String aluno) {
     for (final e in (_session?.vinculos ?? const <String, String>{}).entries) {
       if (e.value == aluno) return e.key;
@@ -1410,18 +1416,50 @@ class PairingController extends ChangeNotifier {
       ehTelao: deviceId != null && ehPcProfessor(deviceId),
     );
     if (motivo != null) return motivo;
+    return marcarPresenteNoPc(aluno, deviceId!);
+  }
+
+  /// Presença num PC escolhido na lista (ligado ou não, com ou sem número).
+  /// Null = ok, ou o motivo.
+  Future<String?> marcarPresenteNoPc(String aluno, String deviceId) async {
+    if (!aulaAtiva) return 'Inicie uma aula primeiro.';
+    final motivo = motivoContraPc(
+      conectado: pcPorId(deviceId) != null,
+      ehTelao: ehPcProfessor(deviceId),
+      aulaDeOutro: professorQueTravou(deviceId),
+    );
+    if (motivo != null) return motivo;
     final anterior = pcDoAluno(aluno);
     if (anterior == deviceId) return null;
-    final erro = await vincularAluno(deviceId!, aluno);
+    final erro = await vincularAluno(deviceId, aluno);
     if (erro != null) return erro;
     if (anterior != null) await desvincularAluno(anterior);
+    unawaited(_history?.registrarAluno(aluno) ?? Future.value());
     return null;
   }
 
-  /// Falta: o aluno sai do PC em que estava nesta aula.
+  /// Presença sem PC: o aluno veio, mas não sentou em nenhum computador
+  /// (ou o PC dele não está conectado). Null = ok, ou o motivo.
+  Future<String?> marcarPresenteSemPc(String aluno) async {
+    if (!aulaAtiva) return 'Inicie uma aula primeiro.';
+    await _session?.marcarPresente(aluno);
+    unawaited(_history?.registrarAluno(aluno) ?? Future.value());
+    notifyListeners();
+    return null;
+  }
+
+  /// Tira o aluno do PC; ele continua presente na chamada.
+  Future<void> tirarDoPc(String aluno) async {
+    final deviceId = pcDoAluno(aluno);
+    if (deviceId != null) await desvincularAluno(deviceId);
+  }
+
+  /// Falta: o aluno sai da chamada e do PC em que estava nesta aula.
   Future<void> marcarFalta(String aluno) async {
     final deviceId = pcDoAluno(aluno);
     if (deviceId != null) await desvincularAluno(deviceId);
+    await _session?.marcarFalta(aluno);
+    notifyListeners();
   }
 
   /// Cadastra um aluno na turma da aula, para marcar a presença logo depois.

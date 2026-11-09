@@ -347,6 +347,9 @@ class FakePairing extends PairingController {
   String? telaoFake;
   final List<String> aulasIniciadas = [];
   final List<(String, int)> presencas = [];
+  final Set<String> presentesFake = {}; // presentes sem PC
+  final List<(String, String)> presencasEmPc = []; // (aluno, deviceId)
+  final List<String> tirados = [];
   final List<String> faltas = [];
   final List<String> cadastrados = [];
 
@@ -361,6 +364,11 @@ class FakePairing extends PairingController {
   List<String> get alunosDaAula => alunosFake;
   @override
   int get totalVinculados => vinculos.length;
+  @override
+  int get totalPresentes => alunosFake.where(alunoPresente).length;
+  @override
+  bool alunoPresente(String aluno) =>
+      presentesFake.contains(aluno) || vinculos.containsValue(aluno);
   @override
   int get totalAlunosDaTurma => alunosFake.length;
   @override
@@ -401,8 +409,33 @@ class FakePairing extends PairingController {
   }
 
   @override
+  Future<String?> marcarPresenteNoPc(String aluno, String deviceId) async {
+    presencasEmPc.add((aluno, deviceId));
+    vinculos.removeWhere((_, a) => a == aluno);
+    vinculos[deviceId] = aluno;
+    notifyListeners();
+    return null;
+  }
+
+  @override
+  Future<String?> marcarPresenteSemPc(String aluno) async {
+    presentesFake.add(aluno);
+    notifyListeners();
+    return null;
+  }
+
+  @override
+  Future<void> tirarDoPc(String aluno) async {
+    tirados.add(aluno);
+    vinculos.removeWhere((_, a) => a == aluno);
+    presentesFake.add(aluno);
+    notifyListeners();
+  }
+
+  @override
   Future<void> marcarFalta(String aluno) async {
     faltas.add(aluno);
+    presentesFake.remove(aluno);
     vinculos.removeWhere((_, a) => a == aluno);
     notifyListeners();
   }

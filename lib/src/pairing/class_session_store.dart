@@ -21,6 +21,8 @@ class ClassSessionStore {
   String _turma = '';
   int _inicio = 0;
   final Map<String, String> _vinculos = {}; // deviceId -> aluno
+  // Presentes na chamada, com ou sem PC (quem está num PC também entra aqui).
+  final Set<String> _presentes = {};
   // Liberações de bloqueio: deviceId -> padrões. Não dependem de aula; só o
   // "Encerrar aula" as derruba.
   final Map<String, Set<String>> _excecoes = {};
@@ -50,6 +52,8 @@ class ClassSessionStore {
               }
             });
           }
+          final pr = decoded['presentes'];
+          if (pr is List) store._presentes.addAll(pr.whereType<String>());
           final e = decoded['excecoes'];
           if (e is Map) {
             e.forEach((k, val) {
@@ -84,6 +88,8 @@ class ClassSessionStore {
   Map<String, String> get vinculos => Map.unmodifiable(_vinculos);
 
   String? alunoDe(String deviceId) => _vinculos[deviceId];
+  bool presente(String aluno) => _presentes.contains(aluno);
+  Set<String> get presentes => Set.unmodifiable(_presentes);
 
   /// Padrões de bloqueio liberados para um PC.
   Set<String> excecoesDe(String deviceId) =>
@@ -131,6 +137,7 @@ class ClassSessionStore {
     _turma = turma;
     _inicio = DateTime.now().millisecondsSinceEpoch;
     _vinculos.clear();
+    _presentes.clear();
     await _save();
   }
 
@@ -153,7 +160,22 @@ class ClassSessionStore {
     // Um aluno só pode estar em um PC por vez.
     _vinculos.removeWhere((_, a) => a == aluno);
     _vinculos[deviceId] = aluno;
+    _presentes.add(aluno);
     await _save();
+  }
+
+  /// Presença sem PC (ou antes de escolher um).
+  Future<void> marcarPresente(String aluno) async {
+    if (!_ativa || !_presentes.add(aluno)) return;
+    await _save();
+  }
+
+  /// Falta: sai da chamada e do PC em que estava.
+  Future<void> marcarFalta(String aluno) async {
+    final saiu = _presentes.remove(aluno);
+    final tinhaPc = _vinculos.values.contains(aluno);
+    _vinculos.removeWhere((_, a) => a == aluno);
+    if (saiu || tinhaPc) await _save();
   }
 
   Future<void> desvincular(String deviceId) async {
@@ -165,6 +187,7 @@ class ClassSessionStore {
     _turma = '';
     _inicio = 0;
     _vinculos.clear();
+    _presentes.clear();
     _excecoes.clear();
     _trava = TravaDaAula.desligada;
     _prova = ProvaDaAula.desligada;
@@ -179,6 +202,7 @@ class ClassSessionStore {
         'turma': _turma,
         'inicio': _inicio,
         'vinculos': _vinculos,
+        'presentes': _presentes.toList(),
         'excecoes': _excecoes.map((k, v) => MapEntry(k, v.toList())),
         'trava': _trava.toMap(),
         'prova': _prova.toMap(),
