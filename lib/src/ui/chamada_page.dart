@@ -521,6 +521,9 @@ class _SheetPresencaState extends State<SheetPresenca> {
                 for (final s in pcs)
                   Builder(builder: (context) {
                     final n = _p.numeroDe(s.deviceId);
+                    final nome = _p.nomeDe(s);
+                    // PC chamado "Unidade 7" com o número 7: uma vez só.
+                    final titulo = n == null || nome == 'Unidade $n' ? nome : 'Unidade $n · $nome';
                     final situacao = _situacao(s.deviceId);
                     final apagado = !_p.isOnline(s) || !situacao.pode;
                     return ListTile(
@@ -529,7 +532,7 @@ class _SheetPresencaState extends State<SheetPresenca> {
                         Icons.computer_outlined,
                         color: apagado ? t.colorScheme.onSurfaceVariant : t.colorScheme.primary,
                       ),
-                      title: Text(n == null ? _p.nomeDe(s) : 'Unidade $n · ${_p.nomeDe(s)}'),
+                      title: Text(titulo),
                       subtitle: Text(situacao.texto),
                       onTap: () => Navigator.pop(context, PresencaNoPc(s.deviceId)),
                     );

@@ -203,6 +203,7 @@ void main() {
     final p = await _abrir(tester, (p) {
       p.telaoFake = 'b';
       p.nomes['c'] = 'PC da janela';
+      p.nomes['a'] = 'Unidade 1';
       p.pc('d', nome: 'Notebook', online: false);
       p.outrosProfessores['d'] = 'Marcos';
     });
@@ -216,6 +217,8 @@ void main() {
     expect(find.text('Esse PC é o telão.'), findsOneWidget);
     expect(find.text('Esse PC está na aula de Marcos.'), findsOneWidget);
     expect(find.text('Notebook'), findsOneWidget, reason: 'sem número: só o nome');
+    expect(find.text('Unidade 1'), findsOneWidget, reason: 'nome igual ao número: uma vez só');
+    expect(find.text('Unidade 1 · Unidade 1'), findsNothing);
 
     await tester.tap(find.text('Esse PC é o telão.'));
     await tester.pumpAndSettle();
