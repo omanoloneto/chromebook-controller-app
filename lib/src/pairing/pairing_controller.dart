@@ -1072,6 +1072,13 @@ class PairingController extends ChangeNotifier {
     return null;
   }
 
+  /// Até quando o PC grava o diagnóstico (meta/diag, publicado pelo agente
+  /// do Celita 1.33+); null = não está gravando.
+  DateTime? diagnosticoAte(PcSession s) {
+    final ate = s.diagAte ?? 0;
+    return ate > agoraServidorMs() ? DateTime.fromMillisecondsSinceEpoch(ate) : null;
+  }
+
   // ---- Energia (encerrar a sessão, reiniciar, desligar) ----------------------------
   // Só o agente do Celita OS atende, e age na hora: não há contagem no PC.
 

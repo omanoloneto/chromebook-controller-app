@@ -33,6 +33,10 @@ class PcSession {
   /// Versão do Celita OS (meta/os); null = agente antigo ou PC sem Celita.
   String? versaoOs;
 
+  /// Até quando o PC grava o diagnóstico (meta/diag, ms do relógio do PC);
+  /// null ou 0 = não grava (ou agente anterior ao 1.33, que não publica).
+  int? diagAte;
+
   /// Última presença, em TEMPO DO SERVIDOR (o transporte converte).
   DateTime lastSeen = DateTime.fromMillisecondsSinceEpoch(0);
 
@@ -148,6 +152,7 @@ class SessionRegistry {
       s.lastSeen = old.lastSeen;
       s.versaoExt = old.versaoExt;
       s.versaoOs = old.versaoOs;
+      s.diagAte = old.diagAte;
       s.chat.addAll(old.chat);
       s.naoLidas = old.naoLidas;
       s.pedidos.addAll(old.pedidos);

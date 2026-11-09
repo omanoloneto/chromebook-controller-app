@@ -348,6 +348,7 @@ class FakePairing extends PairingController {
   final List<String> aulasIniciadas = [];
   final List<(String, int)> presencas = [];
   final Set<String> presentesFake = {}; // presentes sem PC
+  final List<(String, int)> diagnosticos = []; // (deviceId, horas)
   final List<(String, String)> presencasEmPc = []; // (aluno, deviceId)
   final List<String> tirados = [];
   final List<String> faltas = [];
@@ -405,6 +406,12 @@ class FakePairing extends PairingController {
     vinculos.removeWhere((_, a) => a == aluno);
     vinculos[id] = aluno;
     notifyListeners();
+    return null;
+  }
+
+  @override
+  Future<String?> diagnosticoPc(String deviceId, int horas) async {
+    diagnosticos.add((deviceId, horas));
     return null;
   }
 

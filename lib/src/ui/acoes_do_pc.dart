@@ -11,6 +11,7 @@ import '../util/versao.dart';
 import 'chat_page.dart';
 import 'componentes.dart';
 import 'device_page.dart';
+import 'diagnostico_controles.dart';
 import 'energia_controles.dart';
 
 /// Grade com as ações do dia a dia de um computador. [contexto] é o da tela
@@ -41,6 +42,7 @@ class AcoesDoPc extends StatelessWidget {
     final celita = temCelita(s.versaoExt);
     final nome = pairing.nomeDoPc(deviceId);
     final aluno = pairing.alunoDe(deviceId);
+    final diagAte = pairing.diagnosticoAte(s);
 
     VoidCallback? se(bool pode, void Function() acao) => pode
         ? () {
@@ -111,6 +113,19 @@ class AcoesDoPc extends StatelessWidget {
           dica: aluno == null ? 'Escolher o aluno deste computador' : 'Trocar o aluno',
           onPressed: se(!deOutro, () => escolherAlunoDoPc(contexto, pairing, deviceId)),
         ),
+      BotaoDeAcao(
+        icone: Icons.troubleshoot,
+        rotulo: diagAte == null ? 'Diagnóstico' : 'Gravando',
+        dica: !celita
+            ? 'Diagnóstico: só com Celita OS'
+            : diagAte == null
+                ? 'Gravar o diagnóstico de Wi-Fi, internet e tampa'
+                : 'Gravando o diagnóstico até as ${horaCurta(diagAte)}',
+        onPressed: se(
+          celita && diagAte == null,
+          () => mostrarDiagnosticoDoPc(contexto, pairing, deviceId, nome),
+        ),
+      ),
       BotaoDeAcao(
         icone: Icons.power_settings_new,
         rotulo: 'Desligar',
