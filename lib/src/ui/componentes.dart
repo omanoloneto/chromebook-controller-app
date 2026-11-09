@@ -332,6 +332,11 @@ class SeloDaUnidade extends StatelessWidget {
   }
 }
 
+/// Recuo de uma lista em tela cheia: o espaço pedido mais a barra de
+/// navegação do Android, que fica por cima do fim do conteúdo.
+EdgeInsets recuoDaLista(BuildContext context, {double topo = 0, double fundo = 24}) =>
+    EdgeInsets.only(top: topo, bottom: fundo + MediaQuery.paddingOf(context).bottom);
+
 /// Estado vazio: ícone, título, texto e uma ação opcional, no centro.
 class EstadoVazio extends StatelessWidget {
   const EstadoVazio({

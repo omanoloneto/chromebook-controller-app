@@ -585,7 +585,7 @@ class _DevicePageState extends State<DevicePage> {
         actions: [_menuMais(s, nome), const SizedBox(width: 4)],
       ),
       body: ListView(
-        padding: const EdgeInsets.only(top: 4, bottom: 24),
+        padding: recuoDaLista(context, topo: 4),
         children: [
           // Confirmação do último envio para este computador ("Ana recebeu").
           Padding(

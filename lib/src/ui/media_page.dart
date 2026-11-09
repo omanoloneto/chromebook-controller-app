@@ -365,7 +365,7 @@ class _MediaPageState extends State<MediaPage> {
             ),
           ),
         ],
-        const SliverToBoxAdapter(child: SizedBox(height: 24)),
+        const SliverSafeArea(top: false, sliver: SliverToBoxAdapter(child: SizedBox(height: 24))),
       ],
     );
   }
