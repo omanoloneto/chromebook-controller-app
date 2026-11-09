@@ -104,7 +104,7 @@ class _StudentsPageState extends State<StudentsPage> {
                   'saber quem está em cada computador durante a aula.',
             )
           : ListView(
-              padding: const EdgeInsets.only(top: 4, bottom: 96),
+              padding: recuoDaLista(context, topo: 4, fundo: 96),
               children: [
                 for (var i = 0; i < turmas.length; i++)
                   Padding(
@@ -303,7 +303,7 @@ class _AlunosPageState extends State<_AlunosPage> {
               texto: 'Cadastre aqui ou na chamada, quando o aluno chegar.',
             )
           : ListView(
-              padding: const EdgeInsets.only(top: 4, bottom: 96),
+              padding: recuoDaLista(context, topo: 4, fundo: 96),
               children: [
                 Card(
                   margin: const EdgeInsets.symmetric(horizontal: 16),

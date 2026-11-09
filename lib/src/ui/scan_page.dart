@@ -108,7 +108,8 @@ class _ScanPageState extends State<ScanPage> {
             child: Container(
               width: double.infinity,
               color: Colors.black54,
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(16) +
+                  EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom),
               child: const Text(
                 'Aponte para o QR no popup da extensão (ou na página '
                 '"QR em tela cheia") de cada Chromebook.',

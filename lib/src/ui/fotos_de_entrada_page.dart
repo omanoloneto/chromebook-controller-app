@@ -279,18 +279,21 @@ class _FotosDeEntradaPageState extends State<FotosDeEntradaPage> {
             ),
           )
         else
-          SliverPadding(
-            padding: const EdgeInsets.all(12),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 200,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                childAspectRatio: 4 / 3,
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, i) => _tile(carga.fotos[i]),
-                childCount: carga.fotos.length,
+          SliverSafeArea(
+            top: false,
+            sliver: SliverPadding(
+              padding: const EdgeInsets.all(12),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 200,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 4 / 3,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, i) => _tile(carga.fotos[i]),
+                  childCount: carga.fotos.length,
+                ),
               ),
             ),
           ),

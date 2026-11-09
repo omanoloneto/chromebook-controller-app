@@ -162,7 +162,7 @@ class _RecadosPageState extends State<RecadosPage> {
       body: vazio
           ? _vazio()
           : ListView(
-              padding: const EdgeInsets.only(bottom: 24),
+              padding: recuoDaLista(context),
               children: [
                 if (pedidos.isNotEmpty) ...[
                   TituloDeSecao('Pedidos de liberação · ${pedidos.length}'),
