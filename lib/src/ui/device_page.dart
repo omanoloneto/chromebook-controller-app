@@ -8,7 +8,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../cloud/session_registry.dart';
-import '../commands/command.dart' show kHorasDiagnostico;
 import '../pairing/pairing_controller.dart';
 import '../util/abrir_no_celular.dart';
 import '../util/versao.dart';
@@ -16,6 +15,7 @@ import 'acoes_do_pc.dart';
 import 'archive_page.dart';
 import 'chat_page.dart';
 import 'componentes.dart';
+import 'diagnostico_controles.dart';
 import 'faixa_entrega.dart';
 import 'fotos_de_entrada_page.dart';
 import 'media_page.dart';
@@ -470,44 +470,6 @@ class _DevicePageState extends State<DevicePage> {
     );
   }
 
-  Future<void> _diagnostico(String nome) async {
-    final horas = await showDialog<int>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Diagnóstico de Wi-Fi e da tampa'),
-        content: const Text(
-          'O computador grava a cada minuto o Wi-Fi, as redes à volta, a tampa '
-          'e o que o sistema registra, também entre reinícios. Nunca senhas. '
-          'Só o fundador da escola lê, pelo console do Firebase.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
-          TextButton(onPressed: () => Navigator.pop(ctx, 0), child: const Text('Parar')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, kHorasDiagnostico),
-            child: const Text('Gravar $kHorasDiagnostico horas'),
-          ),
-        ],
-      ),
-    );
-    if (horas == null || !mounted) return;
-    final s = _pairing.pcPorId(_id);
-    final ligado = s != null && _pairing.isOnline(s);
-    final erro = await _pairing.diagnosticoPc(_id, horas);
-    if (!mounted) return;
-    if (erro != null) {
-      _snack(erro);
-    } else if (horas == 0) {
-      _snack('$nome para de gravar o diagnóstico.');
-    } else if (!ligado) {
-      _snack('$nome está desligado: começa a gravar quando ligar, por $horas horas.');
-    } else {
-      final ate = DateTime.now().add(Duration(hours: horas));
-      final hora = '${ate.hour.toString().padLeft(2, '0')}:${ate.minute.toString().padLeft(2, '0')}';
-      _snack('$nome grava o diagnóstico até as $hora.');
-    }
-  }
-
   void _alternarPcProfessor(String nome) {
     final ehProfessor = _pairing.ehPcProfessor(_id);
     _pairing.marcarPcProfessor(ehProfessor ? null : _id);
@@ -552,8 +514,16 @@ class _DevicePageState extends State<DevicePage> {
     final meuRecado = !telao && _pairing.professorQueTravou(_id) == null;
     final naoLidas = meuRecado ? _pairing.naoLidasDe(_id) : 0;
     void conversar() => abrirConversa(context, _pairing, _id);
+    final diagAte = _pairing.diagnosticoAte(s);
     final sinais = <Widget>[
       if (!telao) ...chipsDeTrava(context, _pairing, _id),
+      if (diagAte != null)
+        Selo(
+          'Diagnóstico até as ${horaCurta(diagAte)}',
+          icone: Icons.troubleshoot,
+          tom: Tom.primario,
+          onTap: () => pararDiagnosticoDoPc(context, _pairing, _id, nome),
+        ),
       if (meuRecado && _pairing.maoLevantada(_id))
         Selo('Mão levantada', icone: Icons.back_hand, tom: Tom.atencao, onTap: conversar),
       if (naoLidas > 0)
@@ -622,6 +592,7 @@ class _DevicePageState extends State<DevicePage> {
     final celita = temCelita(s.versaoExt);
     final telao = _pairing.ehPcProfessor(_id);
     final desatualizado = _pairing.desatualizado(s);
+    final diagAte = _pairing.diagnosticoAte(s);
     PopupMenuItem<String> item(
       String valor,
       IconData icone,
@@ -656,7 +627,7 @@ class _DevicePageState extends State<DevicePage> {
           case 'atualizar':
             _atualizar(nome);
           case 'diagnostico':
-            _diagnostico(nome);
+            pararDiagnosticoDoPc(context, _pairing, _id, nome);
           case 'desconectar':
             _desconectar(nome);
         }
@@ -681,13 +652,13 @@ class _DevicePageState extends State<DevicePage> {
                   ? 'Este computador está desatualizado'
                   : 'Baixa e instala o que houver de novo',
         ),
-        item(
-          'diagnostico',
-          Icons.troubleshoot,
-          'Gravar diagnóstico',
-          habilitado: celita,
-          subtitulo: celita ? 'Wi-Fi e tampa, para o suporte' : 'Só nos computadores com Celita OS',
-        ),
+        if (diagAte != null)
+          item(
+            'diagnostico',
+            Icons.stop_circle_outlined,
+            'Parar o diagnóstico',
+            subtitulo: 'Grava até as ${horaCurta(diagAte)}',
+          ),
         const PopupMenuDivider(),
         item('desconectar', Icons.link_off, 'Desconectar este computador', perigo: true),
       ],

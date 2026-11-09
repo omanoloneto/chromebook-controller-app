@@ -370,6 +370,15 @@ class FirebaseTransport {
           registry.onChange?.call();
         }
       }),
+      _dev(deviceId).child('meta/diag').onValue.listen((e) {
+        final v = e.snapshot.value;
+        final s = registry.byId(deviceId);
+        final ate = v is num ? v.toInt() : null;
+        if (s != null && s.diagAte != ate) {
+          s.diagAte = ate;
+          registry.onChange?.call();
+        }
+      }),
     ]);
   }
 

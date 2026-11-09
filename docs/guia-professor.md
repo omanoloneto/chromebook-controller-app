@@ -83,10 +83,12 @@ ele que aparece nos avisos e nas travas de aula ("Em aula com Fulano").
 
 Toque num PC da lista para abrir a tela dele: as ações do dia a dia ficam no
 alto (**Ver tela**, **Foto**, **Abrir site**, **Conversar**, **Liberar sites**,
-**Fechar abas**, **Aluno** e **Desligar**); embaixo, o que está na tela, as
-abas, os últimos sites e os **Registros**. As raras (renomear, número,
-Computador do Professor, atualizar, gravar diagnóstico, desconectar) ficam no
-**⋮**. Para não sair da lista, segure o PC (ou toque no ⋮ da linha): abrem as
+**Fechar abas**, **Aluno**, **Diagnóstico** e **Desligar**); embaixo, o que
+está na tela, as abas, os últimos sites e os **Registros**. As raras (renomear,
+número, Computador do Professor, atualizar, desconectar) ficam no **⋮**.
+**Diagnóstico** grava Wi-Fi, internet e tampa por 6 horas para o suporte;
+enquanto o PC grava, o botão mostra **Gravando** e fica desabilitado, e o ⋮
+ganha **Parar o diagnóstico**. Para não sair da lista, segure o PC (ou toque no ⋮ da linha): abrem as
 mesmas ações.
 
 **Fotos, telas e vídeos** abrem em tela cheia: pinça ou toque duplo para o
