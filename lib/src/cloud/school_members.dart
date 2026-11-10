@@ -2,9 +2,9 @@
 // A chave é o e-mail em minúsculas com "." trocado por "," (o RTDB não aceita
 // "." em chaves) — a mesma conta das rules e do agente/GTK do Celita.
 
-import 'package:firebase_core/firebase_core.dart' show FirebaseException;
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
+
+import '../backend/backend.dart';
 
 /// "Ana.Silva@escola.com.br" → "ana,silva@escola,com,br".
 String emailKey(String email) => email.toLowerCase().replaceAll('.', ',');
@@ -44,12 +44,12 @@ Future<bool> liberadoAoAbrir(
 }
 
 class SchoolMembers {
-  SchoolMembers({FirebaseDatabase? database})
-      : _db = database ?? FirebaseDatabase.instance;
+  SchoolMembers({RealtimeDb? database})
+      : _db = database ?? Backend.instance.db;
 
-  final FirebaseDatabase _db;
+  final RealtimeDb _db;
 
-  DatabaseReference get _ref => _db.ref('school/members');
+  DbRef get _ref => _db.ref('school/members');
 
   /// A própria entrada existe? permission-denied = não liberado; outras
   /// falhas (rede) sobem.

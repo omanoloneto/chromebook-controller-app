@@ -12,10 +12,10 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart' as c;
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../backend/backend.dart';
 import '../secure/crypto.dart';
 
 /// Chave lógica → arquivo local espelhado.
@@ -33,20 +33,20 @@ class SchoolSync {
   SchoolSync({
     required this.crypto,
     required this.nowServerMs,
-    FirebaseDatabase? database,
+    RealtimeDb? database,
     Directory? dir,
   })  : _db = database,
         _dir = dir;
 
   final SessionCrypto crypto;
   final int Function() nowServerMs;
-  final FirebaseDatabase? _db; // null em teste (só o núcleo puro)
+  final RealtimeDb? _db; // null em teste (só o núcleo puro)
   final Directory? _dir;
 
   final Map<String, num> _lastRev = {};
   final Map<String, String> _lastHash = {};
   final Map<String, Timer> _debounce = {};
-  final List<StreamSubscription<DatabaseEvent>> _subs = [];
+  final List<StreamSubscription<DbEvent>> _subs = [];
 
   /// Chamado só quando o conteúdo remoto difere do local (o controller
   /// recarrega o store). Abrir o app de um colega reenvia o mesmo conteúdo com

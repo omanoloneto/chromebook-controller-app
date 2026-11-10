@@ -8,10 +8,9 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 
-import 'package:firebase_core/firebase_core.dart' show FirebaseException;
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 
+import '../backend/backend.dart';
 import '../commands/command.dart';
 import '../secure/keypair.dart';
 import '../util/ids.dart';
@@ -49,8 +48,8 @@ class FirebaseTransport {
     required this.teacherUid,
     this.schoolUid,
     this.teacherName = 'Professor',
-    FirebaseDatabase? database,
-  }) : _db = database ?? FirebaseDatabase.instance;
+    RealtimeDb? database,
+  }) : _db = database ?? Backend.instance.db;
 
   final DeviceKeyPair teacher;
   final String teacherUid;
@@ -69,7 +68,7 @@ class FirebaseTransport {
   /// para os PRÓXIMOS pareamentos (o bind existente não é reescrito).
   String teacherName;
 
-  final FirebaseDatabase _db;
+  final RealtimeDb _db;
 
   final SessionRegistry registry = SessionRegistry();
 
@@ -135,7 +134,7 @@ class FirebaseTransport {
     return proxima;
   }
 
-  final Map<String, StreamSubscription<DatabaseEvent>> _thumbSubs = {};
+  final Map<String, StreamSubscription<DbEvent>> _thumbSubs = {};
 
   // Época de sessão (anti-replay): amostrada 1x por vida do processo.
   // Multi-remetente (workspace): sid NOVO por mensagem, no relógio do
@@ -151,10 +150,10 @@ class FirebaseTransport {
   }
 
   final RelogioDoServidor _relogio = RelogioDoServidor();
-  StreamSubscription<DatabaseEvent>? _offsetSub;
-  StreamSubscription<DatabaseEvent>? _conexaoSub;
-  StreamSubscription<DatabaseEvent>? _rosterSub;
-  final Map<String, List<StreamSubscription<DatabaseEvent>>> _deviceSubs = {};
+  StreamSubscription<DbEvent>? _offsetSub;
+  StreamSubscription<DbEvent>? _conexaoSub;
+  StreamSubscription<DbEvent>? _rosterSub;
+  final Map<String, List<StreamSubscription<DbEvent>>> _deviceSubs = {};
   final Map<String, bool> _primeiroReport = {};
   bool _rosterRecebido = false;
 
@@ -175,7 +174,7 @@ class FirebaseTransport {
   /// Conclui quando [nowServer] já usa o offset real do servidor.
   Future<void> get relogioPronto => _relogio.pronto;
 
-  DatabaseReference _dev(String deviceId) => _db.ref('devices/$deviceId');
+  DbRef _dev(String deviceId) => _db.ref('devices/$deviceId');
 
   Future<void> start() async {
     _offsetSub = _db

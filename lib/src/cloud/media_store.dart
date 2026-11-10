@@ -11,9 +11,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-
+import '../backend/backend.dart';
 import '../secure/crypto.dart';
 
 /// Parte cifrada: 4 MiB de dados + nonce e tag.
@@ -162,17 +160,17 @@ class MediaStore {
   MediaStore({
     required this.deviceId,
     required this.crypto,
-    FirebaseDatabase? database,
-    FirebaseStorage? storage,
-  })  : _db = database ?? FirebaseDatabase.instance,
-        _storage = storage ?? FirebaseStorage.instance;
+    RealtimeDb? database,
+    BlobStorage? storage,
+  })  : _db = database ?? Backend.instance.db,
+        _storage = storage ?? Backend.instance.storage;
 
   final String deviceId;
   final SessionCrypto crypto;
-  final FirebaseDatabase _db;
-  final FirebaseStorage _storage;
+  final RealtimeDb _db;
+  final BlobStorage _storage;
 
-  DatabaseReference _envio(String mid) => _db.ref('envios/$deviceId/$mid');
+  DbRef _envio(String mid) => _db.ref('envios/$deviceId/$mid');
 
   Stream<List<MediaItem>> watch() =>
       _db.ref('midia/$deviceId').onValue.asyncMap((e) => parseIndice(e.snapshot.value, crypto));
@@ -211,7 +209,7 @@ class MediaStore {
         while (e != null && proxima < e.prontas && !pronto.isCompleted) {
           final List<int>? blob;
           try {
-            blob = await _storage.ref(e.caminho(item.mid, proxima)).getData(kMidiaParteMax);
+            blob = await _storage.getData(e.caminho(item.mid, proxima), kMidiaParteMax);
           } catch (_) {
             throw const MidiaException('download');
           }
@@ -265,7 +263,7 @@ class MediaStore {
   Future<void> limpar(String mid, EnvioMidia envio) async {
     for (var n = 0; n < envio.partes; n++) {
       try {
-        await _storage.ref(envio.caminho(mid, n)).delete();
+        await _storage.delete(envio.caminho(mid, n));
       } catch (_) {}
     }
     try {

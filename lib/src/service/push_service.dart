@@ -8,10 +8,10 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 
+import '../backend/backend.dart';
 import '../cloud/up_router.dart';
 import '../commands/command.dart';
 import '../pairing/class_session_store.dart';
@@ -102,18 +102,18 @@ Future<void> aoPushEmSegundoPlano(RemoteMessage mensagem) async {
 /// Token deste celular em /fcm/{uid}/{chave} = {t, ts}; a Cloud Function lê e
 /// apaga o que o FCM recusar.
 class PushService {
-  PushService({FirebaseMessaging? messaging, FirebaseDatabase? database})
+  PushService({FirebaseMessaging? messaging, RealtimeDb? database})
       : _messaging = messaging,
         _database = database;
 
   final FirebaseMessaging? _messaging;
-  final FirebaseDatabase? _database;
+  final RealtimeDb? _database;
   StreamSubscription<String>? _renovacao;
   String? _uid;
   String? _chave;
 
   FirebaseMessaging get _fcm => _messaging ?? FirebaseMessaging.instance;
-  FirebaseDatabase get _db => _database ?? FirebaseDatabase.instance;
+  RealtimeDb get _db => _database ?? Backend.instance.db;
 
   /// Chamar depois do login. Falha (sem Google Play, sem rede) só fica no log:
   /// o caminho ao vivo continua notificando.

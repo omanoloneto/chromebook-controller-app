@@ -5,9 +5,9 @@
 
 import 'dart:async';
 
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 
+import '../backend/backend.dart';
 import '../cloud/server_clock.dart';
 import '../cloud/session_registry.dart';
 
@@ -42,12 +42,12 @@ class TextoDaBarra {
 }
 
 class PresencaDosPcs {
-  PresencaDosPcs({required this.rosterPath, FirebaseDatabase? database})
-      : _db = database ?? FirebaseDatabase.instance;
+  PresencaDosPcs({required this.rosterPath, RealtimeDb? database})
+      : _db = database ?? Backend.instance.db;
 
   /// school/devices na escola; teachers/{uid}/devices fora dela.
   final String rosterPath;
-  final FirebaseDatabase _db;
+  final RealtimeDb _db;
   final RelogioDoServidor relogio = RelogioDoServidor();
 
   /// O SDK está falando com o servidor (.info/connected)?
@@ -56,8 +56,8 @@ class PresencaDosPcs {
   /// Presença ou roster mudou.
   VoidCallback? onChange;
 
-  final List<StreamSubscription<DatabaseEvent>> _gerais = [];
-  final Map<String, StreamSubscription<DatabaseEvent>> _porPc = {};
+  final List<StreamSubscription<DbEvent>> _gerais = [];
+  final Map<String, StreamSubscription<DbEvent>> _porPc = {};
   final Map<String, int?> _lastSeen = {};
   final Set<String> _aCaminho = {};
   bool _rosterRecebido = false;

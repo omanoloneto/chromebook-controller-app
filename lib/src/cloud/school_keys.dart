@@ -3,8 +3,8 @@
 // leem a chave (school_members.dart). Create-once: nem professor sobrescreve
 // a chave (troca = console).
 
-import 'package:firebase_database/firebase_database.dart';
 
+import '../backend/backend.dart';
 import '../secure/key_store.dart';
 
 class SchoolInfo {
@@ -15,10 +15,10 @@ class SchoolInfo {
 }
 
 class SchoolKeys {
-  SchoolKeys({FirebaseDatabase? database})
-      : _db = database ?? FirebaseDatabase.instance;
+  SchoolKeys({RealtimeDb? database})
+      : _db = database ?? Backend.instance.db;
 
-  final FirebaseDatabase _db;
+  final RealtimeDb _db;
 
   /// Publica a keypair local como a chave da escola (fundador, 1x).
   /// Idempotente: escola já criada com a MESMA chave = ok; com outra = erro.

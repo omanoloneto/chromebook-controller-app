@@ -8,10 +8,10 @@
 
 import 'dart:io';
 
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../backend/backend.dart';
 import '../secure/crypto.dart';
 import '../secure/history_crypto.dart';
 import '../secure/keypair.dart';
@@ -37,8 +37,8 @@ class BackupStore {
     required this.uid,
     required this.historyCrypto,
     this.arquivos = kArquivosDeBackup,
-    FirebaseDatabase? database,
-  }) : _db = database ?? FirebaseDatabase.instance;
+    RealtimeDb? database,
+  }) : _db = database ?? Backend.instance.db;
 
   final String uid;
 
@@ -49,9 +49,9 @@ class BackupStore {
   /// (favoritos/prefs) — o resto vive em /school/stores, sincronizado.
   final List<String> arquivos;
 
-  final FirebaseDatabase _db;
+  final RealtimeDb _db;
 
-  DatabaseReference get _raiz => _db.ref('backup/$uid');
+  DbRef get _raiz => _db.ref('backup/$uid');
 
   /// Existe backup de keypair nesta conta?
   Future<bool> existeNaNuvem() async {
@@ -93,9 +93,9 @@ class BackupStore {
   static Future<void> restaurar({
     required String uid,
     required String pin,
-    FirebaseDatabase? database,
+    RealtimeDb? database,
   }) async {
-    final db = database ?? FirebaseDatabase.instance;
+    final db = database ?? Backend.instance.db;
     final raiz = db.ref('backup/$uid');
 
     final blob = (await raiz.child('keypair').get()).value;

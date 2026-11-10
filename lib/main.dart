@@ -4,11 +4,10 @@
 
 import 'dart:async';
 
-import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
-import 'firebase_options.dart';
+import 'src/backend/open_backend.dart';
 import 'src/pairing/pairing_controller.dart';
 import 'src/pairing/prefs_store.dart';
 import 'src/service/foreground_service.dart';
@@ -24,7 +23,7 @@ import 'src/ui/theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await openBackend();
   FirebaseMessaging.onBackgroundMessage(aoPushEmSegundoPlano);
   prepararServicoAula();
   // Prefs ANTES do runApp: sem flash de tema errado na abertura.

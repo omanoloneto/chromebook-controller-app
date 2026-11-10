@@ -4,9 +4,9 @@
 
 import 'dart:async';
 
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 
+import '../backend/backend.dart';
 import '../secure/keypair.dart';
 import '../secure/wifi_crypto.dart';
 
@@ -14,16 +14,16 @@ class WifiGuardiao {
   WifiGuardiao({
     required this.uid,
     required this.chave,
-    FirebaseDatabase? database,
-  }) : _db = database ?? FirebaseDatabase.instance;
+    RealtimeDb? database,
+  }) : _db = database ?? Backend.instance.db;
 
   final String uid;
 
   /// Par só deste celular (KeyStore.loadOrCreateGuardiao), fora de backup.
   final DeviceKeyPair chave;
-  final FirebaseDatabase _db;
+  final RealtimeDb _db;
 
-  final List<StreamSubscription<DatabaseEvent>> _subs = [];
+  final List<StreamSubscription<DbEvent>> _subs = [];
   final Map<String, Object?> _nos = {};
   List<int>? _frota; // a chave da frota só existe aqui, na memória
   // Muda com o kcv, com o próprio nó e no stop(): a chave aberta antes não
@@ -36,10 +36,10 @@ class WifiGuardiao {
   bool _rodando = false;
   bool _denovo = false;
 
-  DatabaseReference get _wifi => _db.ref('school/wifi');
+  DbRef get _wifi => _db.ref('school/wifi');
 
   void start() {
-    final nos = <String, Query>{
+    final nos = <String, DbQuery>{
       'kcv': _wifi.child('meta/kcv'),
       'meu': _wifi.child('guardioes/$uid'),
       'pubs': _wifi.child('pubs'),
@@ -60,7 +60,7 @@ class WifiGuardiao {
     }
   }
 
-  void _ouvir(String nome, Query no) {
+  void _ouvir(String nome, DbQuery no) {
     _subs.add(
       no.onValue.listen(
         (e) {

@@ -8,9 +8,9 @@
 
 import 'dart:async';
 
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 
+import '../backend/backend.dart';
 import '../secure/crypto.dart';
 
 /// Trava órfã depois disso sem heartbeat (espelhado nas rules: 900000 ms).
@@ -47,8 +47,8 @@ bool telaRenovaReservas({required bool servicoRodando, required bool conectado})
 Transaction reservaRenovada(Object? atual, String uid, int agoraMs) {
   // Sem o nó no cache, abortar encerraria sem perguntar ao servidor e a
   // reserva nunca renovaria: success(null) faz o servidor conferir.
-  if (atual == null) return Transaction.success(null);
-  if (atual is! Map || atual['uid'] != uid) return Transaction.abort();
+  if (atual == null) return const Transaction.success(null);
+  if (atual is! Map || atual['uid'] != uid) return const Transaction.abort();
   return Transaction.success({...atual, 'ts': agoraMs});
 }
 
@@ -58,9 +58,9 @@ Future<void> renovarReservas({
   required String uid,
   required Iterable<String> pcs,
   required int agoraMs,
-  FirebaseDatabase? database,
+  RealtimeDb? database,
 }) async {
-  final db = database ?? FirebaseDatabase.instance;
+  final db = database ?? Backend.instance.db;
   await Future.wait([
     for (final pc in pcs)
       db
@@ -90,16 +90,16 @@ class AulaLocks {
     required this.meuUid,
     required this.crypto,
     required this.nowServerMs,
-    FirebaseDatabase? database,
-  }) : _db = database ?? FirebaseDatabase.instance;
+    RealtimeDb? database,
+  }) : _db = database ?? Backend.instance.db;
 
   final String meuUid;
   final SessionCrypto crypto;
   final int Function() nowServerMs;
-  final FirebaseDatabase _db;
+  final RealtimeDb _db;
 
   final Map<String, TravaDeAula> _travas = {};
-  StreamSubscription<DatabaseEvent>? _sub;
+  StreamSubscription<DbEvent>? _sub;
 
   /// Notifica mudanças (o controller repassa ao notifyListeners).
   VoidCallback? onChange;
@@ -195,7 +195,7 @@ class AulaLocks {
               uid != meuUid &&
               ts is num &&
               !travaExpirada(ts: ts.toInt(), agoraMs: agora);
-          if (viva) return Transaction.abort();
+          if (viva) return const Transaction.abort();
         }
         return Transaction.success({'uid': meuUid, 'ts': agora, 'env': env});
       });

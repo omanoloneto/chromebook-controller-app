@@ -5,13 +5,12 @@
 
 import 'dart:async';
 
-import 'package:firebase_auth/firebase_auth.dart'; // também exporta FirebaseException
-import 'package:firebase_database/firebase_database.dart' show FirebaseDatabase;
 import 'package:crypto/crypto.dart' as c;
 import 'package:flutter/foundation.dart';
 
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../backend/backend.dart';
 import '../cloud/archive_store.dart';
 import '../cloud/backup_store.dart';
 import '../cloud/aula_locks.dart';
@@ -293,11 +292,8 @@ class PairingController extends ChangeNotifier {
       // Auth anônima: o uid identifica este professor nas Security Rules.
       // Persiste entre execuções; some só se o app for reinstalado (recovery:
       // aluno desvincula pelo popup e re-escaneia).
-      final auth = FirebaseAuth.instance;
-      final user = auth.currentUser ?? (await auth.signInAnonymously()).user;
-      if (user == null) {
-        throw StateError('auth_anonima_falhou');
-      }
+      final auth = Backend.instance.auth;
+      final user = auth.currentUser ?? await auth.signInAnonymously();
       // Escola fechada: sem liberação não sobe nada da escola (nem o roster).
       // Não sai da escola nem mexe na keypair — o fundador pode liberar depois.
       if (schoolUid != null && !await _liberadoNaEscola(user)) {
@@ -352,7 +348,7 @@ class PairingController extends ChangeNotifier {
         _schoolSync = SchoolSync(
           crypto: await schoolCryptoFrom(teacher),
           nowServerMs: () => transport.nowServer().millisecondsSinceEpoch,
-          database: FirebaseDatabase.instance,
+          database: Backend.instance.db,
         );
         _schoolSync!.onRemoto = _aplicarStoreRemoto;
         _schoolSync!.start();
@@ -446,22 +442,17 @@ class PairingController extends ChangeNotifier {
       '305628431439-tco3ac2lgab00tu09pnesvhr9l52kbho.apps.googleusercontent.com';
   bool _googleInit = false;
 
-  User? get _usuarioAtual {
+  AuthUser? get _usuarioAtual {
     try {
-      return FirebaseAuth.instance.currentUser;
+      return Backend.instance.auth.currentUser;
     } catch (_) {
-      return null; // Firebase não inicializado (ex.: teste de widget)
+      return null; // servidor não aberto (ex.: teste de widget)
     }
   }
 
-  bool get logadoComGoogle =>
-      _usuarioAtual?.providerData.any((p) => p.providerId == 'google.com') ??
-      false;
+  bool get logadoComGoogle => _usuarioAtual?.hasGoogle ?? false;
 
-  String? get emailGoogle => _usuarioAtual?.providerData
-      .where((p) => p.providerId == 'google.com')
-      .map((p) => p.email)
-      .firstOrNull;
+  String? get emailGoogle => _usuarioAtual?.googleEmail;
 
   /// Entra com Google. Retorna:
   /// - 'linked': conta Google vinculada ao professor atual (uid mantido —
@@ -478,22 +469,11 @@ class PairingController extends ChangeNotifier {
       final conta = await GoogleSignIn.instance.authenticate();
       final idToken = conta.authentication.idToken;
       if (idToken == null) return 'erro:sem_token';
-      final cred = GoogleAuthProvider.credential(idToken: idToken);
-      final auth = FirebaseAuth.instance;
       try {
-        // Vincula à conta anônima atual: o uid NÃO muda (pareamentos e
-        // histórico continuam valendo).
-        await auth.currentUser!.linkWithCredential(cred);
+        final link = await Backend.instance.auth.linkGoogle(idToken);
         notifyListeners();
-        return 'linked';
-      } on FirebaseAuthException catch (e) {
-        if (e.code == 'credential-already-in-use' ||
-            e.code == 'email-already-in-use') {
-          // Conta já existe (outro celular): assume o uid antigo.
-          await auth.signInWithCredential(cred);
-          notifyListeners();
-          return 'switched';
-        }
+        return link.name;
+      } on FirebaseException catch (e) {
         return 'erro:${e.code}';
       }
     } catch (e) {
@@ -548,11 +528,11 @@ class PairingController extends ChangeNotifier {
 
   /// Existe backup na conta atualmente logada? (uso pós-'switched')
   Future<bool> temBackupNaNuvem() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = Backend.instance.auth.currentUser?.uid;
     if (uid == null) return false;
     // Pós-switch o _backup aponta pro uid velho — consulta direta:
     try {
-      final v = await FirebaseDatabase.instance
+      final v = await Backend.instance.db
           .ref('backup/$uid/keypair')
           .get();
       return v.value is String;
@@ -564,7 +544,7 @@ class PairingController extends ChangeNotifier {
   /// Restaura keypair (PIN) + stores da conta logada para o disco local.
   /// Retorna null em sucesso (REINICIAR o app) ou mensagem de erro.
   Future<String?> restaurarBackup(String pin) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final uid = Backend.instance.auth.currentUser?.uid;
     if (uid == null) return 'Entre com o Google primeiro.';
     try {
       await BackupStore.restaurar(uid: uid, pin: pin);
@@ -641,11 +621,11 @@ class PairingController extends ChangeNotifier {
       return 'Entre com Google primeiro (em Conta).';
     }
     try {
-      await user.getIdToken(true); // claim email fresco p/ as rules
+      await user.refreshIdToken(); // claim email fresco p/ as rules
       final erro = await SchoolKeys().publicar(user.uid);
       if (erro != null) return erro;
       // Seed do roster da escola = meus PCs atuais.
-      final db = FirebaseDatabase.instance;
+      final db = Backend.instance.db;
       final roster = (await db.ref('teachers/${user.uid}/devices').get()).value;
       if (roster is Map && roster.isNotEmpty) {
         await db
@@ -677,7 +657,7 @@ class PairingController extends ChangeNotifier {
       }
       final user = _usuarioAtual;
       if (user == null) return 'Não foi possível entrar com o Google. Tente de novo.';
-      await user.getIdToken(true);
+      await user.refreshIdToken();
       const semEscola =
           'A escola ainda não foi criada — peça ao professor fundador.';
       final chaves = SchoolKeys();
@@ -702,7 +682,7 @@ class PairingController extends ChangeNotifier {
     }
   }
 
-  Future<bool> _liberadoNaEscola(User user) async {
+  Future<bool> _liberadoNaEscola(AuthUser user) async {
     if (user.uid == schoolUid) return true;
     final email = user.email ?? emailGoogle;
     if (email == null) return false;
@@ -746,7 +726,7 @@ class PairingController extends ChangeNotifier {
     if (p.ultimaPodaArquivo == hoje) return;
     try {
       final roster =
-          (await FirebaseDatabase.instance.ref('school/devices').get()).value;
+          (await Backend.instance.db.ref('school/devices').get()).value;
       if (roster is Map && roster.isNotEmpty) {
         await ArchiveStore.prune(roster.keys.map((k) => '$k'), agora);
       }

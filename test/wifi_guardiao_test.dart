@@ -6,14 +6,13 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:controle_de_aula/src/backend/backend.dart';
 import 'package:controle_de_aula/src/cloud/backup_store.dart';
 import 'package:controle_de_aula/src/cloud/wifi_guardiao.dart';
 import 'package:controle_de_aula/src/secure/crypto.dart';
 import 'package:controle_de_aula/src/secure/key_store.dart';
 import 'package:controle_de_aula/src/secure/keypair.dart';
 import 'package:controle_de_aula/src/secure/wifi_crypto.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const aD = 'kLHtc7YxBsgOOgdkfgd50vy_eGvUACVycVkOsUiQX3Q';
@@ -482,9 +481,9 @@ void main() {
 }
 
 // RTDB em memória, só o que o guardião usa: onValue, set e remove.
-class _Banco implements FirebaseDatabase {
+class _Banco implements RealtimeDb {
   final Map<String, Object?> _raiz = {};
-  final Map<String, List<StreamController<DatabaseEvent>>> _ouvintes = {};
+  final Map<String, List<StreamController<DbEvent>>> _ouvintes = {};
   final Set<String> negados = {};
   final List<String> ouvidos = [];
   final List<String> escritas = [];
@@ -493,7 +492,7 @@ class _Banco implements FirebaseDatabase {
   int get ouvindo => _ouvintes.values.fold(0, (n, l) => n + l.length);
 
   @override
-  DatabaseReference ref([String? path]) => _Ref(this, path ?? '');
+  DbRef ref([String? path]) => _Ref(this, path ?? '');
 
   Object? ler(String caminho) {
     Object? no = _raiz;
@@ -516,16 +515,16 @@ class _Banco implements FirebaseDatabase {
           ouvido.startsWith('$caminho/') ||
           caminho.startsWith('$ouvido/')) {
         for (final c in lista) {
-          c.add(_Evento(ler(ouvido)));
+          c.add(DbEvent(_Foto(ler(ouvido))));
         }
       }
     }
     aoGravar?.call(caminho);
   }
 
-  Stream<DatabaseEvent> ouvir(String caminho) {
+  Stream<DbEvent> ouvir(String caminho) {
     ouvidos.add(caminho);
-    late final StreamController<DatabaseEvent> c;
+    late final StreamController<DbEvent> c;
     c = StreamController(
       onListen: () {
         if (negados.contains(caminho)) {
@@ -538,7 +537,7 @@ class _Banco implements FirebaseDatabase {
           return;
         }
         _ouvintes.putIfAbsent(caminho, () => []).add(c);
-        c.add(_Evento(ler(caminho)));
+        c.add(DbEvent(_Foto(ler(caminho))));
       },
       // Future da zona do teste: o cancel não escapa do tempo falso.
       onCancel: () async => _ouvintes[caminho]?.remove(c),
@@ -554,17 +553,17 @@ Object? _copia(Object? v) => v is Map
     ? <String, Object?>{for (final e in v.entries) '${e.key}': _copia(e.value)}
     : v;
 
-class _Ref implements DatabaseReference {
+class _Ref implements DbRef {
   _Ref(this._banco, this._caminho);
 
   final _Banco _banco;
   final String _caminho;
 
   @override
-  DatabaseReference child(String path) => _Ref(_banco, '$_caminho/$path');
+  DbRef child(String path) => _Ref(_banco, '$_caminho/$path');
 
   @override
-  Stream<DatabaseEvent> get onValue => _banco.ouvir(_caminho);
+  Stream<DbEvent> get onValue => _banco.ouvir(_caminho);
 
   @override
   Future<void> set(Object? value) async => _banco.gravar(_caminho, value);
@@ -576,17 +575,7 @@ class _Ref implements DatabaseReference {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class _Evento implements DatabaseEvent {
-  _Evento(Object? valor) : snapshot = _Foto(valor);
-
-  @override
-  final DataSnapshot snapshot;
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
-class _Foto implements DataSnapshot {
+class _Foto implements DbSnapshot {
   _Foto(this.value);
 
   @override

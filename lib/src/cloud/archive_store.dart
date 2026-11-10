@@ -8,9 +8,7 @@
 
 import 'dart:math';
 
-import 'package:firebase_database/firebase_database.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-
+import '../backend/backend.dart';
 import '../secure/crypto.dart';
 
 // São Paulo é UTC−3 fixo desde 2019: o dia dos nós não depende do fuso do
@@ -282,8 +280,8 @@ class ArchiveStore implements PhotoIndex {
   ArchiveStore({
     required this.deviceId,
     required this.crypto,
-    FirebaseDatabase? database,
-    FirebaseStorage? storage,
+    RealtimeDb? database,
+    BlobStorage? storage,
   })  : _database = database,
         _storageOverride = storage;
 
@@ -291,12 +289,12 @@ class ArchiveStore implements PhotoIndex {
   final SessionCrypto crypto;
   // Só na primeira consulta: os testes de tela trocam as consultas e não têm
   // Firebase.
-  final FirebaseDatabase? _database;
-  final FirebaseStorage? _storageOverride;
-  FirebaseDatabase get _db => _database ?? FirebaseDatabase.instance;
-  FirebaseStorage get _storage => _storageOverride ?? FirebaseStorage.instance;
+  final RealtimeDb? _database;
+  final BlobStorage? _storageOverride;
+  RealtimeDb get _db => _database ?? Backend.instance.db;
+  BlobStorage get _storage => _storageOverride ?? Backend.instance.storage;
 
-  DatabaseReference _photos(String day) =>
+  DbRef _photos(String day) =>
       _db.ref('archive/$deviceId/fotos/$day');
 
   /// Lança em erro de leitura (rede/permissão).
@@ -305,7 +303,7 @@ class ArchiveStore implements PhotoIndex {
     return parseNavDay(snap.value, crypto);
   }
 
-  PhotoRef? _first(String day, DataSnapshot snap) {
+  PhotoRef? _first(String day, DbSnapshot snap) {
     for (final c in snap.children) {
       return PhotoRef.parse(day, c.key, c.value);
     }
@@ -349,7 +347,7 @@ class ArchiveStore implements PhotoIndex {
   Future<ArchivedPhoto> download(PhotoRef ref) async {
     final List<int>? data;
     try {
-      data = await _storage.ref(ref.path).getData(kMaxPhotoBytes);
+      data = await _storage.getData(ref.path, kMaxPhotoBytes);
     } on FirebaseException catch (e) {
       throw PhotoException(
         e.code == 'object-not-found' ? PhotoFailure.deleted : PhotoFailure.download,
@@ -369,7 +367,7 @@ class ArchiveStore implements PhotoIndex {
   /// do índice. Lança em erro de rede/permissão.
   Future<void> deletePhoto(PhotoRef ref) async {
     try {
-      await _storage.ref(ref.path).delete();
+      await _storage.delete(ref.path);
     } on FirebaseException catch (e) {
       if (e.code != 'object-not-found') rethrow;
     }
@@ -393,9 +391,9 @@ class ArchiveStore implements PhotoIndex {
   static Future<void> prune(
     Iterable<String> deviceIds,
     int nowMs, {
-    FirebaseDatabase? database,
+    RealtimeDb? database,
   }) async {
-    final db = database ?? FirebaseDatabase.instance;
+    final db = database ?? Backend.instance.db;
     for (final id in deviceIds) {
       await db.ref().update(prunePaths([id], nowMs));
     }

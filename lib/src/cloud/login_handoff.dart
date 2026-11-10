@@ -4,8 +4,8 @@
 // entra na mesma conta Firebase e adota a chave — vira o mesmo professor
 // deste celular, sem cliente OAuth no PC.
 
-import 'package:firebase_database/firebase_database.dart';
 
+import '../backend/backend.dart';
 import '../secure/crypto.dart';
 import '../secure/keypair.dart';
 import 'qr_payload.dart';
@@ -34,9 +34,9 @@ class LoginHandoff {
   static Future<void> entregar(
     QrLoginPayload qr,
     Map<String, dynamic> payload, {
-    FirebaseDatabase? database,
+    RealtimeDb? database,
   }) async {
-    final db = database ?? FirebaseDatabase.instance;
+    final db = database ?? Backend.instance.db;
     await db.ref('handoff/${qr.channel}').set({
       ...payload,
       'ts': ServerValue.timestamp,

@@ -7,13 +7,11 @@
 
 import 'dart:async';
 
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
-import '../../firebase_options.dart';
+import '../backend/backend.dart';
+import '../backend/open_backend.dart';
 import '../cloud/aula_locks.dart';
 import '../commands/command.dart';
 import '../pairing/class_session_store.dart';
@@ -84,8 +82,7 @@ void startCallback() {
 }
 
 Future<String?> _abrirConta() async {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  return FirebaseAuth.instance.currentUser?.uid;
+  return (await openBackend()).auth.currentUser?.uid;
 }
 
 /// Tarefa do serviço. [contaAtual] (uid salvo, null = sem conta) e [push]
@@ -99,7 +96,7 @@ class AulaTaskHandler extends TaskHandler {
   final PushService Function() _novoPush;
   final TextoDaBarra _barra = TextoDaBarra();
   PresencaDosPcs? _presenca;
-  StreamSubscription<DatabaseEvent>? _aulas;
+  StreamSubscription<DbEvent>? _aulas;
   PushService? _push;
   String? _uid;
   bool _reservasNoCache = false;
@@ -128,7 +125,7 @@ class AulaTaskHandler extends TaskHandler {
         ..iniciar();
       if (escola != null) {
         // Com o nó no cache, a transação da renovação acerta de primeira.
-        _aulas = FirebaseDatabase.instance.ref('school/aulas').onValue.listen(
+        _aulas = Backend.instance.db.ref('school/aulas').onValue.listen(
           (_) {
             _reservasNoCache = true;
             _talvezRenovar();

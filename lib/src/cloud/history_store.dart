@@ -3,9 +3,9 @@
 // Layout: /history/{uid}/{sessionId}/{meta, ev/{pushId}} — ver protocolo.md.
 // Retenção: para sempre; apagar manual pela UI.
 
-import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 
+import '../backend/backend.dart';
 import '../commands/command.dart';
 import '../secure/crypto.dart';
 
@@ -58,17 +58,17 @@ class HistoryStore {
   HistoryStore({
     required this.teacherUid,
     required this.crypto,
-    FirebaseDatabase? database,
-  }) : _db = database ?? FirebaseDatabase.instance;
+    RealtimeDb? database,
+  }) : _db = database ?? Backend.instance.db;
 
   final String teacherUid;
   final SessionCrypto crypto;
-  final FirebaseDatabase _db;
+  final RealtimeDb _db;
 
   String? _sessionId;
   AulaMeta? _metaAtual;
 
-  DatabaseReference get _raiz => _db.ref('history/$teacherUid');
+  DbRef get _raiz => _db.ref('history/$teacherUid');
 
   // ---- Gravação (durante a aula) --------------------------------------------------
 

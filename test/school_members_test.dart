@@ -2,8 +2,8 @@
 
 import 'dart:async';
 
+import 'package:controle_de_aula/src/backend/backend.dart';
 import 'package:controle_de_aula/src/cloud/school_members.dart';
-import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
