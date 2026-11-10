@@ -35,6 +35,7 @@ import '../commands/command.dart';
 import '../commands/domain_rules.dart';
 import '../commands/filtros.dart';
 import '../commands/liberacao.dart';
+import '../platform/host.dart';
 import '../secure/history_crypto.dart';
 import '../secure/key_store.dart';
 import '../secure/school_crypto.dart';
@@ -403,18 +404,22 @@ class PairingController extends ChangeNotifier {
       // Workspace: histórico compartilhado vive no nó do FUNDADOR (schoolUid
       // == uid dele; a keypair da escola é a dele) — migração zero.
       _history = HistoryStore(teacherUid: schoolUid ?? user.uid, crypto: hCrypto);
-      _backup = BackupStore(
-        uid: user.uid,
-        historyCrypto: hCrypto,
-        // Workspace: turmas/regras/números/nomes vivem em /school/stores;
-        // o backup pessoal carrega só o que é por professor.
-        arquivos: workspaceAtivo
-            ? const ['favorites.json', 'app_prefs.json']
-            : kArquivosDeBackup,
-      );
-      // Workspace: backup de stores pessoais sempre ativo (sem PIN — a chave
-      // vem da escola); modo isolado: ativo se a keypair já subiu (PIN).
-      backupAtivo = workspaceAtivo || await _backup!.existeNaNuvem();
+      // No computador o perfil nasce vazio a cada sessão: subir os stores
+      // dele apagaria o backup que o celular guardou.
+      if (!onComputer) {
+        _backup = BackupStore(
+          uid: user.uid,
+          historyCrypto: hCrypto,
+          // Workspace: turmas/regras/números/nomes vivem em /school/stores;
+          // o backup pessoal carrega só o que é por professor.
+          arquivos: workspaceAtivo
+              ? const ['favorites.json', 'app_prefs.json']
+              : kArquivosDeBackup,
+        );
+        // Workspace: backup de stores pessoais sempre ativo (sem PIN — a
+        // chave vem da escola); modo isolado: ativo se a keypair já subiu.
+        backupAtivo = workspaceAtivo || await _backup!.existeNaNuvem();
+      }
       final session = _session;
       if (session != null && session.ativa) {
         await _history!.abrirSessao(

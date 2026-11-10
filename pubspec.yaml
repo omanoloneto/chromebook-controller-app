@@ -37,6 +37,7 @@ dependencies:
   firebase_messaging: ^16.7.0
   # Tocar em tela cheia os vídeos da Câmera dos PCs.
   video_player: ^2.11.1
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

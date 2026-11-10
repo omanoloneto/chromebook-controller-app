@@ -89,6 +89,19 @@ cifrados. Celular e Chromebooks podem estar em **redes diferentes**.
   card tirado da barra toca de novo. Em série por PC e tipo: recados seguidos
   não leem a mesma foto da barra.
 
+## No computador (Celita OS)
+
+O mesmo código roda como app de mesa no Linux (`linux/`, janela GTK do Flutter). O que muda está atrás de `onComputer` (`lib/src/platform/host.dart`); nada mais pergunta pelo sistema.
+
+- **Perfil por sessão** (`platform/session_profile.dart`). A pasta do app (`~/.local/share/pro.omanoloneto.controle_de_aula`, modo 700) guarda um carimbo com o boot e a sessão gráfica. Abrir o app com outro carimbo apaga tudo antes de qualquer leitura: a conta e a chave do professor não sobrevivem ao logout nem ao desligar, porque o computador é de uso comum.
+- **Entrada pelo celular** (`pairing/computer_login.dart`, `ui/computer_login_page.dart`, protocolo §2.1). Sem conta Google na sessão, o app mostra um QR com um canal e uma chave efêmera, entra como anônimo e escuta `/handoff/{canal}`. O celular grava ali a conta e a chave do professor, cifradas para a chave do QR. O computador confere que a chave fecha com a pública, guarda a chave, **depois** troca de conta, e apaga o nó em qualquer desfecho. Falha na conta gera outro QR com o aviso na tela; falha de rede oferece "Tentar de novo".
+- **Sem backup próprio.** O perfil nasce vazio a cada sessão: se o computador subisse os stores dele, apagaria o que o celular guardou na nuvem. O `BackupStore` não é criado. Favoritos e demais dados pessoais do celular não aparecem no computador.
+- **Sem serviço em primeiro plano e sem push.** O app aberto é quem renova a reserva da turma; as notificações saem pelo serviço de notificação da sessão, sem abrir o app pelo toque.
+- **Sem câmera.** Conectar computador e ler QR ficam só no celular; a Aula vazia manda conectar por lá.
+- **Arquivos.** Fotos, vídeos e a planilha do histórico vão para `Downloads/Controle de Aula`, sem sobrescrever o que já existe. Vídeo abre no reprodutor do sistema.
+
+O Flutter não compila para Linux no macOS: a prova roda num contêiner Debian com o SDK, o binário sob Xvfb e os emuladores do Firebase (`demo-cda`) no lugar da produção.
+
 ## Pontos de atenção
 
 - **Console Firebase:** Auth anônima ON; rules publicadas

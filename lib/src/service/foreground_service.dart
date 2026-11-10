@@ -3,7 +3,8 @@
 // ligados na notificação fixa (o único que escreve esse texto), na escola
 // renova a reserva dos PCs da aula aberta (com ele de pé, o app não renova) e
 // mantém o token do push em /fcm. Sobe também no boot e depois de atualizar o
-// app. Nenhuma chave de cifra é carregada aqui.
+// app. Nenhuma chave de cifra é carregada aqui. No computador não existe: o
+// app fica aberto durante a aula e a própria tela renova a reserva.
 
 import 'dart:async';
 
@@ -16,11 +17,13 @@ import '../cloud/aula_locks.dart';
 import '../commands/command.dart';
 import '../pairing/class_session_store.dart';
 import '../pairing/prefs_store.dart';
+import '../platform/host.dart';
 import 'presenca_dos_pcs.dart';
 import 'push_service.dart';
 
 /// Chamar 1x no main(), antes do runApp.
 void prepararServicoAula() {
+  if (onComputer) return;
   FlutterForegroundTask.initCommunicationPort();
 }
 
@@ -34,6 +37,7 @@ ForegroundTaskOptions _opcoes() => ForegroundTaskOptions(
     );
 
 Future<void> iniciarServicoAula() async {
+  if (onComputer) return;
   FlutterForegroundTask.init(
     androidNotificationOptions: AndroidNotificationOptions(
       channelId: 'servidor_aula',
@@ -68,12 +72,14 @@ Future<void> iniciarServicoAula() async {
 }
 
 Future<void> pararServicoAula() async {
+  if (onComputer) return;
   if (!await FlutterForegroundTask.isRunningService) return;
   await FlutterForegroundTask.stopService();
 }
 
 /// Com o serviço de pé, só ele renova a reserva ([telaRenovaReservas]).
-Future<bool> servicoAulaRodando() => FlutterForegroundTask.isRunningService;
+Future<bool> servicoAulaRodando() async =>
+    !onComputer && await FlutterForegroundTask.isRunningService;
 
 // O handle fica gravado para o boot: não mover nem renomear.
 @pragma('vm:entry-point')

@@ -13,6 +13,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+import '../platform/host.dart';
+
 /// Janela anti-spam por (tipo, deviceId, domínio).
 const Duration kJanelaNotificacao = Duration(minutes: 2);
 
@@ -77,13 +79,16 @@ class NotificationService {
     await _plugin.initialize(
       settings: const InitializationSettings(
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+        linux: LinuxInitializationSettings(defaultActionName: 'Abrir'),
       ),
       onDidReceiveNotificationResponse: (r) {
         final t = lerPayload(r.payload);
         if (t != null) _toques.add(t);
       },
     );
-    final lancamento = await _plugin.getNotificationAppLaunchDetails();
+    // No computador a notificação não abre o app: não há abertura a ler.
+    final lancamento =
+        onComputer ? null : await _plugin.getNotificationAppLaunchDetails();
     if (lancamento?.didNotificationLaunchApp ?? false) {
       _abertura = lerPayload(lancamento!.notificationResponse?.payload);
     }
@@ -310,13 +315,19 @@ class NotificationService {
         category: AndroidNotificationCategory.event,
       ),
     );
-    await _plugin.show(
-      id: _idEstavel(chave),
-      title: titulo,
-      body: corpo,
-      notificationDetails: detalhes,
-      payload: montarPayload(deviceId, ts),
-    );
+    // Sem quem mostre o card (computador sem serviço de notificação), a
+    // decisão continua valendo para o telão.
+    try {
+      await _plugin.show(
+        id: _idEstavel(chave),
+        title: titulo,
+        body: corpo,
+        notificationDetails: detalhes,
+        payload: montarPayload(deviceId, ts),
+      );
+    } catch (e) {
+      debugPrint('[CdA] alerta: $e');
+    }
     return true;
   }
 

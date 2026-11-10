@@ -1,6 +1,8 @@
 // Tela cheia para tudo o que o app abre de foto e vídeo: zoom (pinça e toque
 // duplo) nas fotos; nos vídeos, o player que vira tela cheia ao deitar o
 // celular. Em todos: salvar no celular e excluir de onde estiver guardado.
+// No computador o salvar vai para Downloads e o vídeo abre no player do
+// sistema (não há player embutido no Linux).
 
 import 'dart:async';
 import 'dart:io';
@@ -8,12 +10,21 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:gal/gal.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:video_player/video_player.dart';
 
+import '../platform/computer_files.dart';
+import '../platform/host.dart';
 import 'componentes.dart';
 
 /// Álbum da galeria onde o app salva fotos e vídeos.
 const String kAlbum = 'Controle de Aula';
+
+const String _kComputerSaveFailed = 'Não deu para salvar na pasta Downloads.';
+
+/// Onde o salvar deixa o arquivo, para as mensagens.
+String get destinoDoSalvar =>
+    onComputer ? kSavedOnComputerText : 'na galeria do celular (álbum $kAlbum)';
 
 /// Ação a mais na barra (ex.: "Ver histórico"): fecha a tela cheia e roda.
 class AcaoDaMidia {
@@ -35,6 +46,14 @@ Future<bool> _acessoAGaleria() async {
 
 /// Salva uma imagem na galeria do celular. null = salvou; senão o motivo.
 Future<String?> salvarImagemNaGaleria(Uint8List bytes, String nome) async {
+  if (onComputer) {
+    try {
+      await saveBytesToComputer(bytes, nome.contains('.') ? nome : '$nome.jpg');
+      return null;
+    } catch (_) {
+      return _kComputerSaveFailed;
+    }
+  }
   if (!await _acessoAGaleria()) return 'Sem permissão para salvar na galeria do celular.';
   try {
     await Gal.putImageBytes(bytes, album: kAlbum, name: nome);
@@ -46,6 +65,14 @@ Future<String?> salvarImagemNaGaleria(Uint8List bytes, String nome) async {
 
 /// Salva um arquivo de foto ou vídeo na galeria. null = salvou.
 Future<String?> salvarArquivoNaGaleria(String caminho, {required bool video}) async {
+  if (onComputer) {
+    try {
+      await copyToComputer(caminho);
+      return null;
+    } catch (_) {
+      return _kComputerSaveFailed;
+    }
+  }
   if (!await _acessoAGaleria()) return 'Sem permissão para salvar na galeria do celular.';
   try {
     if (video) {
@@ -96,6 +123,21 @@ Future<bool> abrirVideo(
   Future<String?> Function()? onExcluir,
   String avisoAoExcluir = 'O vídeo some da nuvem e do computador. Não dá para desfazer.',
 }) async {
+  if (onComputer) {
+    final messenger = ScaffoldMessenger.of(context);
+    String text;
+    try {
+      final saved = await copyToComputer(arquivo.path);
+      text = 'Vídeo salvo $kSavedOnComputerText.';
+      await launchUrl(Uri.file(saved.path));
+    } catch (_) {
+      text = _kComputerSaveFailed;
+    }
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(text)));
+    return false;
+  }
   final excluiu = await Navigator.of(context).push<bool>(
     MaterialPageRoute(
       builder: (_) => VisualizadorDeVideo(
@@ -166,7 +208,7 @@ mixin _AcoesDaMidia<T extends StatefulWidget> on State<T> {
             },
           ),
         IconButton(
-          tooltip: 'Salvar no celular',
+          tooltip: onComputer ? 'Salvar em Downloads' : 'Salvar no celular',
           icon: const Icon(Icons.download_outlined),
           onPressed: onSalvar == null || _ocupado ? null : salvar,
         ),
@@ -354,7 +396,7 @@ class _VisualizadorDeImagemState extends State<VisualizadorDeImagem>
         onSalvar: onSalvar,
         salvar: onSalvar == null
             ? null
-            : () => _salvar(onSalvar, 'Foto salva na galeria do celular (álbum $kAlbum).'),
+            : () => _salvar(onSalvar, 'Foto salva $destinoDoSalvar.'),
         excluir: onExcluir == null
             ? null
             : () => _excluir(
@@ -513,7 +555,7 @@ class _VisualizadorDeVideoState extends State<VisualizadorDeVideo>
         onSalvar: onSalvar,
         salvar: onSalvar == null
             ? null
-            : () => _salvar(onSalvar, 'Vídeo salvo na galeria do celular (álbum $kAlbum).'),
+            : () => _salvar(onSalvar, 'Vídeo salvo $destinoDoSalvar.'),
         excluir: onExcluir == null
             ? null
             : () => _excluir(

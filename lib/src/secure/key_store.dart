@@ -46,6 +46,18 @@ class KeyStore {
     return _novo(file);
   }
 
+  /// "priv:pub" íntegro: a pública é a derivada da privada.
+  static Future<bool> validPair(String raw) async {
+    final parts = raw.trim().split(':');
+    if (parts.length != 2) return false;
+    try {
+      final kp = await DeviceKeyPair.fromPrivate(pubFromB64url(parts.first));
+      return pubToB64url(kp.publicBytes) == parts.last;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<DeviceKeyPair> _novo(File file) async {
     final kp = await DeviceKeyPair.generate();
     final priv = await kp.privateBytes();

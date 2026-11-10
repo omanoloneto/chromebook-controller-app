@@ -1,5 +1,6 @@
-// Controle de Aula — app de controle (celular).
+// Controle de Aula — app de controle (celular e computador do professor).
 // Ponto de entrada: Firebase, preferências (tema/nome) e o shell de abas.
+// No computador a conta entra pelo celular antes de qualquer outra tela.
 // O root é o DONO do PairingController (as abas só o observam).
 
 import 'dart:async';
@@ -7,14 +8,18 @@ import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 
+import 'src/backend/backend.dart';
 import 'src/backend/open_backend.dart';
+import 'src/pairing/computer_login.dart';
 import 'src/pairing/pairing_controller.dart';
 import 'src/pairing/prefs_store.dart';
+import 'src/platform/host.dart';
 import 'src/service/foreground_service.dart';
 import 'src/service/notification_service.dart';
 import 'src/service/push_service.dart';
 import 'src/ui/app_shell.dart';
 import 'src/ui/chat_page.dart';
+import 'src/ui/computer_login_page.dart';
 import 'src/ui/device_page.dart';
 import 'src/ui/grade_telas.dart';
 import 'src/ui/recados_page.dart';
@@ -24,8 +29,10 @@ import 'src/ui/theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await openBackend();
-  FirebaseMessaging.onBackgroundMessage(aoPushEmSegundoPlano);
-  prepararServicoAula();
+  if (!onComputer) {
+    FirebaseMessaging.onBackgroundMessage(aoPushEmSegundoPlano);
+    prepararServicoAula();
+  }
   // Prefs ANTES do runApp: sem flash de tema errado na abertura.
   final prefs = await PrefsStore.load();
   runApp(ControleDeAulaApp(prefs: prefs));
@@ -50,12 +57,13 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
   final NotificationService _notificacoes = NotificationService();
   final GlobalKey<NavigatorState> _navigator = GlobalKey<NavigatorState>();
   StreamSubscription<ToqueNotificacao>? _toques;
+  ComputerLogin? _login;
 
   @override
   void initState() {
     super.initState();
     _pairing.notificacoes = _notificacoes;
-    if (widget.autoStart) _pairing.push = PushService();
+    if (widget.autoStart && !onComputer) _pairing.push = PushService();
     _pairing.notificarSites = _settings.notificarSites;
     _pairing.schoolUid = widget.prefs.schoolUid;
     _pairing.prefs = widget.prefs;
@@ -71,8 +79,36 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
         final abertura = _notificacoes.consumirAbertura();
         if (abertura != null) _abrirPc(abertura);
       });
-      _pairing.start();
+      if (onComputer && !_pairing.logadoComGoogle) {
+        _openComputerLogin();
+      } else {
+        _pairing.start();
+      }
     }
+  }
+
+  void _openComputerLogin() {
+    final backend = Backend.instance;
+    _login = ComputerLogin(auth: backend.auth, db: backend.db)
+      ..addListener(_onComputerLogin)
+      ..start();
+  }
+
+  Future<void> _onComputerLogin() async {
+    final login = _login;
+    if (login == null || login.stage != ComputerLoginStage.done) return;
+    login.removeListener(_onComputerLogin);
+    final name = login.teacherName;
+    if (name != null) {
+      await _settings.setNomeProfessor(name);
+      _pairing.deviceName = name;
+    }
+    _pairing.schoolUid = login.schoolUid;
+    await _settings.setSchoolUid(login.schoolUid);
+    if (!mounted) return;
+    setState(() => _login = null);
+    login.dispose();
+    await _pairing.start();
   }
 
   // Toque numa notificação: alerta de site leva à tela do PC; recado de
@@ -122,6 +158,7 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
   @override
   void dispose() {
     _toques?.cancel();
+    _login?.dispose();
     _settings.removeListener(_sincronizarPrefs);
     _pairing.removeListener(_persistirPcProfessor);
     _pairing.stop();
@@ -142,7 +179,10 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
         theme: buildTheme(Brightness.light),
         darkTheme: buildTheme(Brightness.dark),
         themeMode: _settings.themeMode,
-        home: AppShell(pairing: _pairing, settings: _settings),
+        home: switch (_login) {
+          final login? => ComputerLoginPage(login: login),
+          null => AppShell(pairing: _pairing, settings: _settings),
+        },
       ),
     );
   }

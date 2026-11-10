@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../cloud/archive_store.dart';
 import '../pairing/pairing_controller.dart';
+import '../platform/host.dart';
 import 'componentes.dart';
 import 'exportar_historico.dart';
 import 'fleet_health_page.dart';
@@ -298,15 +299,16 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
           GrupoDeOpcoes(
             titulo: 'Computadores',
             children: [
-              ListTile(
-                leading: const Icon(Icons.qr_code_scanner),
-                title: const Text('Conectar computador'),
-                subtitle: const Text('Ler o QR Code do computador ou do app do professor'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => ScanPage(pairing: pairing)),
+              if (!onComputer)
+                ListTile(
+                  leading: const Icon(Icons.qr_code_scanner),
+                  title: const Text('Conectar computador'),
+                  subtitle: const Text('Ler o QR Code do computador ou do app do professor'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => ScanPage(pairing: pairing)),
+                  ),
                 ),
-              ),
               ListTile(
                 leading: const Icon(Icons.system_update_alt),
                 title: const Text('Atualizar os desatualizados'),
@@ -433,7 +435,9 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
                   ),
                   title: Text(pairing.emailGoogle ?? 'Conta Google'),
                   subtitle: Text(
-                    pairing.workspaceAtivo
+                    onComputer
+                        ? 'Conta entregue pelo celular. Vale até sair desta sessão.'
+                        : pairing.workspaceAtivo
                         ? 'Favoritos e preferências sincronizados na nuvem.'
                         : pairing.backupAtivo
                             ? 'Backup ativo: dados sincronizados na nuvem.'
@@ -441,7 +445,7 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
                   ),
                 ),
                 // Na escola a chave vem dela: PIN de backup só no modo isolado.
-                if (!pairing.workspaceAtivo) ...[
+                if (!pairing.workspaceAtivo && !onComputer) ...[
                   if (!pairing.backupAtivo)
                     ListTile(
                       leading: const Icon(Icons.backup_outlined),

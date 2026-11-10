@@ -12,6 +12,8 @@ import 'package:path_provider/path_provider.dart';
 import '../cloud/archive_store.dart';
 import '../cloud/media_store.dart';
 import '../pairing/pairing_controller.dart';
+import '../platform/computer_files.dart';
+import '../platform/host.dart';
 import '../util/versao.dart';
 import 'archive_page.dart';
 import 'componentes.dart';
@@ -138,7 +140,8 @@ class _MediaPageState extends State<MediaPage> {
     setState(() => _baixando = false);
     if (salvos > 0) {
       final quantos = salvos == 1 ? '1 arquivo salvo' : '$salvos arquivos salvos';
-      _snack(erro == null ? '$quantos na galeria (álbum $kAlbum).' : '$quantos. $erro');
+      final onde = onComputer ? kSavedOnComputerText : 'na galeria (álbum $kAlbum)';
+      _snack(erro == null ? '$quantos $onde.' : '$quantos. $erro');
     } else if (erro != null) {
       _snack(erro);
     }

@@ -58,4 +58,43 @@ void main() {
     final errada = await outro.deriveSessionKey(pubFromB64url(payload['pub'] as String));
     await expectLater(SessionCrypto(errada).open(payload['env'] as String), throwsA(anything));
   });
+
+  test('o pedido do computador abre o que o celular montou para o QR dele', () async {
+    final request = await LoginRequest.create();
+    final qr = QrLoginPayload.parse(request.qrPayload)!;
+    expect(qr.channel, request.channel);
+    expect(request.path, 'handoff/${request.channel}');
+    expect(request.channel.length, greaterThanOrEqualTo(22));
+    expect((await LoginRequest.create()).channel, isNot(request.channel));
+
+    final node = await LoginHandoff.montar(
+      qr: qr,
+      idToken: 'id.tok.en',
+      keys: 'priv:pub',
+      teacherName: '  ${'N' * 60}  ',
+      schoolUid: 'uid-escola',
+    );
+    final grant = await request.open({...node, 'ts': 1});
+    expect(grant!.idToken, 'id.tok.en');
+    expect(grant.keys, 'priv:pub');
+    expect(grant.teacherName, 'N' * kMaxTeacherName);
+    expect(grant.schoolUid, 'uid-escola');
+
+    final alone = await request.open(
+      await LoginHandoff.montar(qr: qr, idToken: 't', keys: 'k', teacherName: ' '),
+    );
+    expect(alone!.teacherName, isNull);
+    expect(alone.schoolUid, isNull);
+
+    // Fora do contrato: nó torto, chave de outro pedido, campos vazios ou grandes.
+    final other = await LoginRequest.create();
+    expect(await other.open(node), isNull);
+    for (final bad in [null, 'texto', {'pub': node['pub']}, {'pub': 1, 'env': node['env']}]) {
+      expect(await request.open(bad), isNull);
+    }
+    for (final (idToken, keys) in [('', 'k'), ('t', ''), ('t', 'k' * (kMaxHandoffKeys + 1))]) {
+      final torto = await LoginHandoff.montar(qr: qr, idToken: idToken, keys: keys, teacherName: 'Ana');
+      expect(await request.open(torto), isNull);
+    }
+  });
 }

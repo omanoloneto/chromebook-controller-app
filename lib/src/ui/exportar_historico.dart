@@ -1,6 +1,8 @@
 // Exportar o histórico guardado (até 15 dias) numa planilha, de um PC ou de
-// todos, pelo compartilhar do Android (Drive, WhatsApp, e-mail...).
+// todos, pelo compartilhar do Android (Drive, WhatsApp, e-mail...). No
+// computador a planilha vai para Downloads.
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -10,6 +12,8 @@ import 'package:share_plus/share_plus.dart';
 import '../cloud/archive_export.dart';
 import '../cloud/archive_store.dart';
 import '../pairing/pairing_controller.dart';
+import '../platform/computer_files.dart';
+import '../platform/host.dart';
 import 'componentes.dart';
 
 String _diaMes(String dia) => '${dia.substring(8, 10)}/${dia.substring(5, 7)}';
@@ -83,6 +87,21 @@ Future<void> exportarHistorico(
     unit: umPc?.unit,
     pc: umPc?.name,
   );
+  final avisos = [
+    if (resultado.failed.isNotEmpty)
+      'Ficou de fora o que não deu para ler de: ${resultado.failed.join(', ')}.',
+    if (resultado.unreadable > 0) 'Parte do histórico não pôde ser aberta.',
+  ];
+  if (onComputer) {
+    try {
+      await saveBytesToComputer(utf8.encode(archiveCsv(resultado.rows)), nome);
+    } catch (_) {
+      avisar('Não deu para criar a planilha.');
+      return;
+    }
+    avisar(['Planilha salva $kSavedOnComputerText.', ...avisos].join(' '));
+    return;
+  }
   Directory? pasta;
   try {
     pasta = Directory('${(await getTemporaryDirectory()).path}/exportacoes');
@@ -110,11 +129,6 @@ Future<void> exportarHistorico(
       }
     } catch (_) {}
   }
-  final avisos = [
-    if (resultado.failed.isNotEmpty)
-      'Ficou de fora o que não deu para ler de: ${resultado.failed.join(', ')}.',
-    if (resultado.unreadable > 0) 'Parte do histórico não pôde ser aberta.',
-  ];
   if (avisos.isNotEmpty) avisar(avisos.join(' '));
 }
 

@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import '../cloud/entrega.dart';
 import '../cloud/session_registry.dart';
 import '../pairing/pairing_controller.dart';
+import '../platform/host.dart';
 import 'acoes_do_pc.dart';
 import 'chamada_page.dart';
 import 'chat_page.dart';
@@ -263,14 +264,15 @@ class _AulaPageState extends State<AulaPage> {
         if (v == 'fotos') _abrirFotosDeEntrada();
       },
       itemBuilder: (_) => [
-        const PopupMenuItem(
-          value: 'conectar',
-          child: ListTile(
-            leading: Icon(Icons.qr_code_scanner),
-            title: Text('Conectar computador'),
-            contentPadding: EdgeInsets.zero,
+        if (!onComputer)
+          const PopupMenuItem(
+            value: 'conectar',
+            child: ListTile(
+              leading: Icon(Icons.qr_code_scanner),
+              title: Text('Conectar computador'),
+              contentPadding: EdgeInsets.zero,
+            ),
           ),
-        ),
         if (_pairing.workspaceAtivo)
           const PopupMenuItem(
             value: 'fotos',
@@ -428,12 +430,13 @@ class _AulaPageState extends State<AulaPage> {
               dica: 'Abrir um site em todos os computadores',
               onPressed: _abrirSiteNaTurma,
             ),
-            BotaoDeAcao(
-              icone: Icons.qr_code_scanner,
-              rotulo: 'Conectar',
-              dica: 'Conectar um computador',
-              onPressed: _abrirScanner,
-            ),
+            if (!onComputer)
+              BotaoDeAcao(
+                icone: Icons.qr_code_scanner,
+                rotulo: 'Conectar',
+                dica: 'Conectar um computador',
+                onPressed: _abrirScanner,
+              ),
             BotaoDeAcao(
               icone: Icons.play_arrow_rounded,
               rotulo: 'Começar aula',
@@ -496,6 +499,15 @@ class _AulaPageState extends State<AulaPage> {
   }
 
   Widget _semComputadores() {
+    // Sem câmera para ler o QR: o computador só mostra o que o celular conectou.
+    if (onComputer) {
+      return const EstadoVazio(
+        icone: Icons.devices_other,
+        titulo: 'Nenhum computador conectado',
+        texto: 'Conecte os computadores pelo app no celular. '
+            'Eles aparecem aqui em seguida.',
+      );
+    }
     return EstadoVazio(
       icone: Icons.devices_other,
       titulo: 'Nenhum computador conectado',

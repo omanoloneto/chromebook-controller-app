@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 
 import '../pairing/pairing_controller.dart';
+import '../platform/host.dart';
 import 'aula_page.dart';
 import 'settings_controller.dart';
 import 'settings_page.dart';
@@ -42,7 +43,10 @@ class _AppShellState extends State<AppShell> {
   void initState() {
     super.initState();
     // Boas-vindas (1x): professor novo entra no workspace com um toque.
-    if (!widget.settings.onboardingVisto && !widget.pairing.workspaceAtivo) {
+    // No computador a conta e a escola já vieram do celular.
+    if (!onComputer &&
+        !widget.settings.onboardingVisto &&
+        !widget.pairing.workspaceAtivo) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _boasVindas());
     }
   }
