@@ -13,6 +13,7 @@ import '../cloud/conversa.dart';
 import '../commands/command.dart';
 import '../pairing/pairing_controller.dart';
 import '../util/versao.dart';
+import 'layout.dart';
 import 'theme.dart';
 
 /// Nome de rota da conversa de um PC: o toque numa notificação volta a ela em
@@ -350,9 +351,10 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   Widget _lista(List<ChatItem> itens, String? ext) {
     // Lista invertida: a mensagem mais nova fica embaixo, perto do campo, e
     // a tela acompanha quem chega sem precisar rolar.
+    final lateral = 12 + contentSideMargin(context);
     return ListView.builder(
       reverse: true,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+      padding: EdgeInsets.fromLTRB(lateral, 12, lateral, 8),
       itemCount: itens.length,
       itemBuilder: (context, i) {
         final idx = itens.length - 1 - i;
@@ -379,10 +381,11 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
   Widget _campo() {
     final scheme = Theme.of(context).colorScheme;
     final temTexto = _ctrl.text.trim().isNotEmpty;
+    final lateral = contentSideMargin(context);
     return SafeArea(
       top: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+        padding: EdgeInsets.fromLTRB(12 + lateral, 8, 8 + lateral, 8),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [

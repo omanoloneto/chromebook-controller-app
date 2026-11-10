@@ -293,6 +293,23 @@ ThemeData buildTheme(Brightness brightness) {
         ),
       ),
     ),
+    navigationRailTheme: NavigationRailThemeData(
+      backgroundColor: p.superficie,
+      elevation: 0,
+      indicatorColor: p.primariaSuave,
+      indicatorShape: cantos(kRaioBotao),
+      labelType: NavigationRailLabelType.all,
+      selectedIconTheme: IconThemeData(color: p.noPrimariaSuave),
+      unselectedIconTheme: IconThemeData(color: p.textoSecundario),
+      selectedLabelTextStyle: textos.labelSmall?.copyWith(
+        fontWeight: FontWeight.w600,
+        color: p.texto,
+      ),
+      unselectedLabelTextStyle: textos.labelSmall?.copyWith(
+        fontWeight: FontWeight.w500,
+        color: p.textoSecundario,
+      ),
+    ),
     tabBarTheme: TabBarThemeData(
       labelColor: p.primaria,
       unselectedLabelColor: p.textoSecundario,

@@ -100,6 +100,19 @@ O mesmo código roda como app de mesa no Linux (`linux/`, janela GTK do Flutter)
 - **Sem câmera.** Conectar computador e ler QR ficam só no celular; a Aula vazia manda conectar por lá.
 - **Arquivos.** Fotos, vídeos e a planilha do histórico vão para `Downloads/Controle de Aula`, sem sobrescrever o que já existe. Vídeo abre no reprodutor do sistema.
 
+### Janela larga
+
+Quem decide o desenho é a largura da janela, não a plataforma (`lib/src/ui/layout.dart`): o celular deitado e o tablet ganham o mesmo que o computador.
+
+- A partir de 840 px (`kWideLayoutWidth`) a navegação sai de baixo e vai para uma barra lateral (`NavigationRail`). As quatro abas são as mesmas e não perdem o estado quando a janela cruza o corte.
+- As listas ficam numa coluna central de 880 px (`kContentMaxWidth`). A margem entra no recuo da própria lista (`recuoDaLista`), e não em volta dela: a roda do mouse e a barra de rolagem valem na janela toda. Tela nova com lista usa `recuoDaLista` e já sai certa.
+- Ao lado da barra lateral, as páginas enxergam como janela só o que sobra (o shell ajusta o `MediaQuery`), e a coluna fica centralizada nesse espaço.
+- A grade de ações (`GradeDeAcoes`), a partir de 720 px, espalha as ações numa linha só; quando não cabem, divide em linhas de tamanho parecido.
+- Grades de miniaturas (telas ao vivo, fotos, vídeos) usam a largura inteira.
+- No Linux a janela abre maximizada (`linux/runner/my_application.cc`): a tela da frota é de 1366x768.
+- Os textos que citam o aparelho do professor saem de `ofThisDeviceText` e `openHereText`.
+- "Abrir neste computador" só entrega ao sistema URL `http` ou `https` com host (`webUriOf`): o endereço vem do histórico do aluno e não pode abrir arquivo nem outro programa.
+
 O Flutter não compila para Linux no macOS: a prova roda num contêiner Debian com o SDK, o binário sob Xvfb e os emuladores do Firebase (`demo-cda`) no lugar da produção.
 
 ## Pontos de atenção

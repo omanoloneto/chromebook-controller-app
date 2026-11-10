@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../cloud/archive_store.dart';
 import '../pairing/pairing_controller.dart';
+import '../platform/host.dart';
 import '../secure/crypto.dart';
 import '../util/versao.dart';
 import 'componentes.dart';
@@ -54,9 +55,9 @@ String mensagemDaFoto(Object erro) => erro is PhotoException
         PhotoFailure.deleted => 'Esta foto já foi apagada (as fotos ficam guardadas 15 dias).',
         PhotoFailure.unreadable => 'Não dá para abrir esta foto.',
         PhotoFailure.download =>
-          'Não deu para baixar a foto. Confira a internet do celular e tente de novo.',
+          'Não deu para baixar a foto. Confira a internet $ofThisDeviceText e tente de novo.',
       }
-    : 'Não deu para baixar a foto. Confira a internet do celular e tente de novo.';
+    : 'Não deu para baixar a foto. Confira a internet $ofThisDeviceText e tente de novo.';
 
 /// Exclui uma foto do arquivo (Storage e índice). null = ok; senão o motivo.
 Future<String?> excluirFotoDoArquivo(ArchiveStore store, PhotoRef ref) async {
@@ -64,7 +65,7 @@ Future<String?> excluirFotoDoArquivo(ArchiveStore store, PhotoRef ref) async {
     await store.deletePhoto(ref);
     return null;
   } catch (_) {
-    return 'Não deu para excluir a foto. Confira a internet do celular e tente de novo.';
+    return 'Não deu para excluir a foto. Confira a internet $ofThisDeviceText e tente de novo.';
   }
 }
 
@@ -287,8 +288,8 @@ class _ArchivePageState extends State<ArchivePage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Text(
-                          'Não deu para carregar. Confira a internet do celular.',
+                        Text(
+                          'Não deu para carregar. Confira a internet $ofThisDeviceText.',
                           textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 16),
@@ -322,6 +323,7 @@ class _ArchivePageState extends State<ArchivePage> {
           ];
     final vazio = sessoes.every((s) => s.events.isEmpty);
     return ListView(
+      padding: recuoDaLista(context),
       children: [
         if (so != null)
           Material(

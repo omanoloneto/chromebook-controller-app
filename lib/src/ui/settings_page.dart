@@ -294,7 +294,7 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
     return Scaffold(
       appBar: AppBar(title: const Text('Ajustes')),
       body: ListView(
-        padding: const EdgeInsets.only(bottom: 32),
+        padding: recuoDaLista(context, fundo: 32),
         children: [
           GrupoDeOpcoes(
             titulo: 'Computadores',

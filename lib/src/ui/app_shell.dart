@@ -1,4 +1,5 @@
-// Shell de navegação: 4 abas fixas (Aula · Turmas · Sites · Ajustes).
+// Shell de navegação: 4 abas fixas (Aula · Turmas · Sites · Ajustes), na barra
+// de baixo ou, na janela larga, na lateral.
 // IndexedStack preserva o estado de cada aba (ex.: o campo de URL da Aula).
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../pairing/pairing_controller.dart';
 import '../platform/host.dart';
 import 'aula_page.dart';
+import 'layout.dart';
 import 'settings_controller.dart';
 import 'settings_page.dart';
 import 'sites_page.dart';
@@ -24,6 +26,9 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _index = 0;
+
+  // Mudar de barra (janela redimensionada, celular girado) não pode zerar as abas.
+  final GlobalKey _pagesKey = GlobalKey();
 
   // "Editar sites" do modo prova: abre a aba Sites já na lista da prova.
   final ValueNotifier<int?> _abaDosSites = ValueNotifier<int?>(null);
@@ -97,80 +102,121 @@ class _AppShellState extends State<AppShell> {
     );
   }
 
+  static const _destinations = [
+    (icon: Icons.monitor_outlined, selected: Icons.monitor, label: 'Aula'),
+    (icon: Icons.school_outlined, selected: Icons.school, label: 'Turmas'),
+    (icon: Icons.language_outlined, selected: Icons.language, label: 'Sites'),
+    (icon: Icons.settings_outlined, selected: Icons.settings, label: 'Ajustes'),
+  ];
+
+  void _select(int index) => setState(() => _index = index);
+
+  // Badge glanceável: PCs online com alerta de site.
+  int get _alerts => widget.pairing.pcs
+      .where((s) => widget.pairing.isOnline(s) && s.alerta != null)
+      .length;
+
+  Widget _icon(IconData icon, int index) {
+    if (index != 0) return Icon(icon);
+    final alerts = _alerts;
+    return Badge.count(
+      count: alerts,
+      isLabelVisible: alerts > 0,
+      child: Icon(icon),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final pages = IndexedStack(
+      key: _pagesKey,
+      index: _index,
+      children: [
+        AulaPage(
+          pairing: widget.pairing,
+          visivel: _index == 0,
+          onIrParaSites: () => _select(2),
+          onIrParaSitesDaProva: _irParaSitesDaProva,
+          onIrParaTurmas: () => _select(1),
+        ),
+        StudentsPage(
+          pairing: widget.pairing,
+          onAulaIniciada: () => _select(0),
+        ),
+        SitesPage(pairing: widget.pairing, abaPedida: _abaDosSites),
+        SettingsPage(pairing: widget.pairing, settings: widget.settings),
+      ],
+    );
+    if (isWideLayout(context)) return _wide(context, pages);
     return Scaffold(
-      body: IndexedStack(
-        index: _index,
-        children: [
-          AulaPage(
-            pairing: widget.pairing,
-            visivel: _index == 0,
-            onIrParaSites: () => setState(() => _index = 2),
-            onIrParaSitesDaProva: _irParaSitesDaProva,
-            onIrParaTurmas: () => setState(() => _index = 1),
-          ),
-          StudentsPage(
-            pairing: widget.pairing,
-            onAulaIniciada: () => setState(() => _index = 0),
-          ),
-          SitesPage(pairing: widget.pairing, abaPedida: _abaDosSites),
-          SettingsPage(pairing: widget.pairing, settings: widget.settings),
-        ],
-      ),
+      body: pages,
       bottomNavigationBar: ListenableBuilder(
         listenable: widget.pairing,
-        builder: (context, _) {
-          // Badge glanceável: PCs online com alerta de site.
-          final alertas = widget.pairing.pcs
-              .where((s) => widget.pairing.isOnline(s) && s.alerta != null)
-              .length;
-          return DecoratedBox(
-            // Hairline no topo da barra (estilo IG).
-            decoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: hairline(Theme.of(context).brightness),
-                  width: 0.5,
+        builder: (context, _) => DecoratedBox(
+          // Hairline no topo da barra (estilo IG).
+          decoration: BoxDecoration(
+            border: Border(top: _hairline(context)),
+          ),
+          child: NavigationBar(
+            selectedIndex: _index,
+            onDestinationSelected: _select,
+            destinations: [
+              for (final (i, d) in _destinations.indexed)
+                NavigationDestination(
+                  icon: _icon(d.icon, i),
+                  selectedIcon: _icon(d.selected, i),
+                  label: d.label,
                 ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  BorderSide _hairline(BuildContext context) => BorderSide(
+        color: hairline(Theme.of(context).brightness),
+        width: 0.5,
+      );
+
+  Widget _wide(BuildContext context, Widget pages) {
+    final media = MediaQuery.of(context);
+    return Scaffold(
+      body: Row(
+        children: [
+          ListenableBuilder(
+            listenable: widget.pairing,
+            builder: (context, _) => DecoratedBox(
+              decoration: BoxDecoration(
+                border: Border(right: _hairline(context)),
+              ),
+              child: NavigationRail(
+                selectedIndex: _index,
+                onDestinationSelected: _select,
+                destinations: [
+                  for (final (i, d) in _destinations.indexed)
+                    NavigationRailDestination(
+                      icon: _icon(d.icon, i),
+                      selectedIcon: _icon(d.selected, i),
+                      label: Text(d.label),
+                    ),
+                ],
               ),
             ),
-            child: NavigationBar(
-              selectedIndex: _index,
-              onDestinationSelected: (i) => setState(() => _index = i),
-              destinations: [
-              NavigationDestination(
-                icon: Badge.count(
-                  count: alertas,
-                  isLabelVisible: alertas > 0,
-                  child: const Icon(Icons.monitor_outlined),
-                ),
-                selectedIcon: Badge.count(
-                  count: alertas,
-                  isLabelVisible: alertas > 0,
-                  child: const Icon(Icons.monitor),
-                ),
-                label: 'Aula',
+          ),
+          Expanded(
+            child: LayoutBuilder(
+              // As páginas centralizam o conteúdo pela largura da janela:
+              // aqui a janela delas é o que sobra ao lado da barra.
+              builder: (context, box) => MediaQuery(
+                data: media
+                    .removePadding(removeLeft: true)
+                    .copyWith(size: Size(box.maxWidth, media.size.height)),
+                child: pages,
               ),
-              const NavigationDestination(
-                icon: Icon(Icons.school_outlined),
-                selectedIcon: Icon(Icons.school),
-                label: 'Turmas',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.language_outlined),
-                selectedIcon: Icon(Icons.language),
-                label: 'Sites',
-              ),
-                const NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  selectedIcon: Icon(Icons.settings),
-                  label: 'Ajustes',
-                ),
-              ],
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
   }

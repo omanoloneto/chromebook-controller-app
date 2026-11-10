@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../pairing/home_store.dart';
 import '../pairing/pairing_controller.dart';
+import 'componentes.dart';
 import 'theme.dart';
 
 class HomePageView extends StatelessWidget {
@@ -28,7 +29,7 @@ class HomePageView extends StatelessWidget {
     final erro = pairing.erroPaginaInicial;
 
     return ListView(
-      padding: const EdgeInsets.only(bottom: 88),
+      padding: recuoDaLista(context, fundo: 88),
       children: [
         if (erro != null)
           Container(

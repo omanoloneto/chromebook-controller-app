@@ -73,7 +73,7 @@ Future<void> exportarHistorico(
   if (resultado.rows.isEmpty) {
     avisar(
       resultado.failed.isNotEmpty
-          ? 'Não deu para ler o histórico. Confira a internet do celular e '
+          ? 'Não deu para ler o histórico. Confira a internet $ofThisDeviceText e '
               'tente de novo.'
           : 'Nenhum site visitado nesses dias.',
     );

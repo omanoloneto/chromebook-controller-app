@@ -25,7 +25,7 @@ class FavoritesView extends StatelessWidget {
       );
     }
     return ReorderableListView.builder(
-      padding: const EdgeInsets.only(bottom: 88),
+      padding: recuoDaLista(context, fundo: 88),
       itemCount: itens.length,
       onReorder: (de, para) => pairing.moverFavorito(de, para),
       itemBuilder: (context, i) {

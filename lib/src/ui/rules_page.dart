@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../commands/domain_rules.dart';
 import '../commands/filtros.dart';
 import '../pairing/pairing_controller.dart';
+import 'componentes.dart';
 import 'theme.dart';
 
 class RulesView extends StatelessWidget {
@@ -22,7 +23,7 @@ class RulesView extends StatelessWidget {
     final f = pairing.filtros;
     void mudar(Filtros novos) => pairing.definirFiltros(novos);
     return ListView(
-      padding: const EdgeInsets.only(bottom: 88),
+      padding: recuoDaLista(context, fundo: 88),
       children: [
         const _Titulo('Vídeos curtos e IAs'),
         SwitchListTile(

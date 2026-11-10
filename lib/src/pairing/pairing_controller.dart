@@ -200,7 +200,7 @@ class PairingController extends ChangeNotifier {
       await t.apagarCaptura(deviceId);
       return null;
     } catch (_) {
-      return 'Não deu para excluir. Confira a internet do celular e tente de novo.';
+      return 'Não deu para excluir. Confira a internet $ofThisDeviceText e tente de novo.';
     }
   }
 

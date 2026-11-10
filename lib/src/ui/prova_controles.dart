@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../pairing/pairing_controller.dart';
 import '../util/versao.dart';
+import 'componentes.dart';
 
 /// Linha de ajuda da lista (limites declarados do modo prova).
 const String kAjudaProva =
@@ -201,7 +202,7 @@ class ProvaSitesView extends StatelessWidget {
           color: scheme.onSurfaceVariant,
         );
     return ListView(
-      padding: const EdgeInsets.only(bottom: 88),
+      padding: recuoDaLista(context, fundo: 88),
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),

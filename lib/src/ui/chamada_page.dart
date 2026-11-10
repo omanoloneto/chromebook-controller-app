@@ -8,8 +8,10 @@ import 'package:flutter/services.dart';
 
 import '../pairing/chamada.dart';
 import '../pairing/pairing_controller.dart';
+import '../platform/host.dart';
 import '../util/natural_sort.dart';
 import 'componentes.dart';
+import 'layout.dart';
 
 Route<void> rotaChamada(PairingController pairing) =>
     MaterialPageRoute(builder: (_) => ChamadaPage(pairing: pairing));
@@ -182,6 +184,7 @@ class _ChamadaPageState extends State<ChamadaPage> {
     final t = Theme.of(context).textTheme;
     final alunos = _pairing.alunosDaAula;
     final presentes = alunos.where(_pairing.alunoPresente).length;
+    final lateral = contentSideMargin(context);
     return Scaffold(
       appBar: AppBar(
         toolbarHeight: 68,
@@ -216,7 +219,7 @@ class _ChamadaPageState extends State<ChamadaPage> {
               ),
             )
           : ListView(
-              padding: const EdgeInsets.only(top: 4, bottom: 24),
+              padding: recuoDaLista(context, topo: 4),
               children: [
                 _resumo(presentes, alunos.length),
                 const SizedBox(height: 12),
@@ -235,7 +238,7 @@ class _ChamadaPageState extends State<ChamadaPage> {
             ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          padding: EdgeInsets.fromLTRB(16 + lateral, 8, 16 + lateral, 12),
           child: FilledButton(
             onPressed: () => Navigator.of(context).maybePop(),
             child: const Text('Concluir chamada'),
@@ -504,12 +507,15 @@ class _SheetPresencaState extends State<SheetPresenca> {
           ),
         ),
         if (pcs.isEmpty)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 16),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             child: Text(
-              'Nenhum computador conectado a este celular. Conecte pelo QR '
-              '(Aula › ⋮ › Conectar computador) ou marque a presença sem '
-              'computador.',
+              onComputer
+                  ? 'Nenhum computador conectado. Conecte pelo app no celular '
+                      'ou marque a presença sem computador.'
+                  : 'Nenhum computador conectado a este celular. Conecte pelo QR '
+                      '(Aula › ⋮ › Conectar computador) ou marque a presença sem '
+                      'computador.',
             ),
           )
         else

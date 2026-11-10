@@ -10,3 +10,7 @@ import 'package:flutter/foundation.dart';
 bool? onComputerOverride;
 
 bool get onComputer => onComputerOverride ?? Platform.isLinux;
+
+/// Como os textos chamam o aparelho onde o app está aberto ("Confira a
+/// internet do celular" / "deste computador").
+String get ofThisDeviceText => onComputer ? 'deste computador' : 'do celular';

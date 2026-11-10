@@ -43,9 +43,9 @@ String mensagemDeMidia(Object erro) {
   if (erro is! MidiaException) return 'Não deu para baixar. Tente de novo.';
   return switch (erro.motivo) {
     'pc_falhou' => 'O PC não conseguiu enviar este arquivo. Tente de novo.',
-    'sem_progresso' => 'O envio parou. Confira a internet do PC e do celular.',
+    'sem_progresso' => 'O envio parou. Confira a internet do PC e $ofThisDeviceText.',
     'parte_ilegivel' => 'O arquivo chegou corrompido. Tente de novo.',
-    'download' => 'Não deu para baixar. Confira a internet do celular.',
+    'download' => 'Não deu para baixar. Confira a internet $ofThisDeviceText.',
     _ => erro.motivo,
   };
 }
@@ -321,7 +321,7 @@ class _MediaPageState extends State<MediaPage> {
     if (!widget.pairing.workspaceAtivo) {
       return _mensagem('As fotos e vídeos da Câmera chegam só dos PCs da escola.');
     }
-    if (snap.hasError) return _mensagem('Não deu para carregar. Confira a internet do celular.');
+    if (snap.hasError) return _mensagem('Não deu para carregar. Confira a internet $ofThisDeviceText.');
     if (!snap.hasData) return const Center(child: CircularProgressIndicator());
     if (itens.isEmpty) {
       return _mensagem('Nenhuma foto ou vídeo tirado na Câmera deste PC.');

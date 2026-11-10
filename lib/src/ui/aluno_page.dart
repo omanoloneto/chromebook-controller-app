@@ -8,6 +8,7 @@ import '../cloud/history_store.dart';
 import '../commands/command.dart';
 import '../pairing/pairing_controller.dart';
 import '../util/abrir_no_celular.dart';
+import 'componentes.dart';
 import 'device_page.dart' show dominioDe;
 
 String _data(DateTime d) {
@@ -147,6 +148,7 @@ class _AlunoPageState extends State<AlunoPage> {
           return RefreshIndicator(
             onRefresh: () async => _recarregar(),
             child: ListView.separated(
+              padding: recuoDaLista(context),
               itemCount: aulas.length,
               separatorBuilder: (_, __) => const Divider(height: 1),
               itemBuilder: (_, i) {
@@ -246,6 +248,7 @@ class AulaHistoricoPage extends StatelessWidget {
             );
           }
           return ListView.builder(
+            padding: recuoDaLista(context),
             itemCount: eventos.length,
             itemBuilder: (_, i) {
               final e = eventos[i];
@@ -278,12 +281,12 @@ class AulaHistoricoPage extends StatelessWidget {
                     }
                   },
                   itemBuilder: (_) => [
-                    const PopupMenuItem(
+                    PopupMenuItem(
                       value: 'celular',
                       child: ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.smartphone),
-                        title: Text('Abrir no meu celular'),
+                        leading: Icon(openHereIcon),
+                        title: Text(openHereText),
                       ),
                     ),
                     PopupMenuItem(

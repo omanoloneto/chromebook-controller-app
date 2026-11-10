@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 
 import '../cloud/archive_store.dart';
 import '../pairing/pairing_controller.dart';
+import '../platform/host.dart';
 import '../secure/crypto.dart';
 import '../util/versao.dart';
 import 'archive_page.dart';
@@ -243,7 +244,7 @@ class _FotosDeEntradaPageState extends State<FotosDeEntradaPage> {
               }
               final carga = snap.data;
               if (carga == null) {
-                return _mensagem('Não deu para carregar. Confira a internet do celular.');
+                return _mensagem('Não deu para carregar. Confira a internet $ofThisDeviceText.');
               }
               return _grade(carga);
             },
@@ -264,8 +265,8 @@ class _FotosDeEntradaPageState extends State<FotosDeEntradaPage> {
               leading: Icon(Icons.info_outline, color: tema.colorScheme.onSurfaceVariant),
               title: Text(
                 carga.falhas == 1
-                    ? 'As fotos de 1 PC não carregaram. Confira a internet do celular.'
-                    : 'As fotos de ${carga.falhas} PCs não carregaram. Confira a internet do celular.',
+                    ? 'As fotos de 1 PC não carregaram. Confira a internet $ofThisDeviceText.'
+                    : 'As fotos de ${carga.falhas} PCs não carregaram. Confira a internet $ofThisDeviceText.',
               ),
             ),
           ),

@@ -324,7 +324,7 @@ class _AulaPageState extends State<AulaPage> {
     }
     final recados = _pairing.recadosCount;
     return ListView(
-      padding: const EdgeInsets.only(bottom: 24),
+      padding: recuoDaLista(context),
       children: [
         if (aula) _acoesDaAula() else _acoesForaDaAula(),
         ...faixas,

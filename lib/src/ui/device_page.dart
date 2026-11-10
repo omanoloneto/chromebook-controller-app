@@ -704,12 +704,12 @@ class _DevicePageState extends State<DevicePage> {
         }
       },
       itemBuilder: (_) => [
-        const PopupMenuItem(
+        PopupMenuItem(
           value: 'celular',
           child: ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.smartphone),
-            title: Text('Abrir no meu celular'),
+            leading: Icon(openHereIcon),
+            title: Text(openHereText),
           ),
         ),
         PopupMenuItem(

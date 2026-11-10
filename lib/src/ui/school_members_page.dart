@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 
 import '../cloud/school_members.dart';
+import '../platform/host.dart';
+import 'componentes.dart';
 
 class SchoolMembersPage extends StatefulWidget {
   const SchoolMembersPage({super.key, this.emailFundador});
@@ -57,7 +59,7 @@ class _SchoolMembersPageState extends State<SchoolMembersPage> {
       final erro = await _members.adicionar(email);
       _snack(erro ?? 'Pronto! ${normalizarEmail(email)} já pode entrar na escola.');
     } catch (_) {
-      _snack('Não deu para salvar. Confira a internet do celular.');
+      _snack('Não deu para salvar. Confira a internet $ofThisDeviceText.');
     }
   }
 
@@ -88,7 +90,7 @@ class _SchoolMembersPageState extends State<SchoolMembersPage> {
       await _members.remover(email);
       _snack('$email saiu da escola.');
     } catch (_) {
-      _snack('Não deu para salvar. Confira a internet do celular.');
+      _snack('Não deu para salvar. Confira a internet $ofThisDeviceText.');
     }
   }
 
@@ -102,6 +104,7 @@ class _SchoolMembersPageState extends State<SchoolMembersPage> {
         builder: (context, snap) {
           final emails = snap.data ?? const <String>[];
           return ListView(
+            padding: recuoDaLista(context),
             children: [
               ListTile(
                 leading: const Icon(Icons.person_add_alt),
@@ -115,8 +118,8 @@ class _SchoolMembersPageState extends State<SchoolMembersPage> {
                 subtitle: const Text('Criou a escola: sempre tem acesso'),
               ),
               if (snap.hasError)
-                const ListTile(
-                  title: Text('Não deu para carregar. Confira a internet do celular.'),
+                ListTile(
+                  title: Text('Não deu para carregar. Confira a internet $ofThisDeviceText.'),
                 )
               else if (!snap.hasData)
                 const Padding(

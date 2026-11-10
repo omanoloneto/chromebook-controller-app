@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'layout.dart';
 import 'theme.dart';
 
 /// Tom de um selo ou botão; as cores saem do tema.
@@ -249,18 +250,29 @@ class BotaoDeAcao extends StatelessWidget {
   }
 }
 
+const double kWideActionsWidth = 720;
+const double kWideActionMinWidth = 88;
+
 /// Botões de ação em colunas iguais (4 no celular), quebrando em linhas.
+/// Com largura de sobra, quantas couberem, em linhas de tamanho parecido.
 class GradeDeAcoes extends StatelessWidget {
   const GradeDeAcoes({super.key, required this.acoes, this.colunas = 4});
 
   final List<BotaoDeAcao> acoes;
   final int colunas;
 
+  int _columns(double width) {
+    if (width < kWideActionsWidth || acoes.isEmpty) return colunas;
+    final fit = (width / kWideActionMinWidth).floor();
+    final rows = (acoes.length / fit).ceil();
+    return (acoes.length / rows).ceil();
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, restricoes) {
-        final largura = restricoes.maxWidth / colunas;
+        final largura = restricoes.maxWidth / _columns(restricoes.maxWidth);
         return Wrap(
           children: [
             for (final a in acoes)
@@ -333,9 +345,17 @@ class SeloDaUnidade extends StatelessWidget {
 }
 
 /// Recuo de uma lista em tela cheia: o espaço pedido mais a barra de
-/// navegação do Android, que fica por cima do fim do conteúdo.
-EdgeInsets recuoDaLista(BuildContext context, {double topo = 0, double fundo = 24}) =>
-    EdgeInsets.only(top: topo, bottom: fundo + MediaQuery.paddingOf(context).bottom);
+/// navegação do Android, que fica por cima do fim do conteúdo. Na janela
+/// larga, também a margem que deixa a lista numa coluna central.
+EdgeInsets recuoDaLista(BuildContext context, {double topo = 0, double fundo = 24}) {
+  final lateral = contentSideMargin(context);
+  return EdgeInsets.fromLTRB(
+    lateral,
+    topo,
+    lateral,
+    fundo + MediaQuery.paddingOf(context).bottom,
+  );
+}
 
 /// Estado vazio: ícone, título, texto e uma ação opcional, no centro.
 class EstadoVazio extends StatelessWidget {
