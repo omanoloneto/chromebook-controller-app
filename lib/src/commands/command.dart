@@ -62,6 +62,7 @@ class MessageType {
   static const String ping = 'ping';
   static const String pong = 'pong';
   static const String tabReport = 'tab_report';
+  static const String healthReport = 'health_report'; // agente Celita -> app: saúde do PC
   static const String closeTabs = 'close_tabs';
   static const String closeAllTabs = 'close_all_tabs';
   static const String setRules = 'set_rules';

@@ -8,6 +8,7 @@ import '../cloud/archive_store.dart';
 import '../pairing/pairing_controller.dart';
 import 'componentes.dart';
 import 'exportar_historico.dart';
+import 'fleet_health_page.dart';
 import 'scan_page.dart';
 import 'school_members_page.dart';
 import 'settings_controller.dart';
@@ -287,6 +288,8 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
     final pairing = widget.pairing;
     final velhos = pairing.desatualizadosOnline;
     final maisNova = pairing.versaoPublicada;
+    final frota = pairing.fleetHealth;
+    final comAtencao = frota.where((e) => e.needsAttention).length;
     return Scaffold(
       appBar: AppBar(title: const Text('Ajustes')),
       body: ListView(
@@ -318,6 +321,23 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
                 ),
                 enabled: velhos.isNotEmpty,
                 onTap: _atualizarDesatualizados,
+              ),
+              ListTile(
+                leading: const Icon(Icons.monitor_heart_outlined),
+                title: const Text('Saúde da frota'),
+                subtitle: Text(
+                  frota.isEmpty
+                      ? 'Bateria, disco, firmware e atualização dos computadores com Celita OS'
+                      : comAtencao == 0
+                          ? 'Nenhum computador precisa de atenção.'
+                          : comAtencao == 1
+                              ? '1 computador precisa de atenção.'
+                              : '$comAtencao computadores precisam de atenção.',
+                ),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => FleetHealthPage(pairing: pairing)),
+                ),
               ),
               ListTile(
                 leading: const Icon(Icons.wallpaper),

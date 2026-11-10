@@ -6,6 +6,7 @@
 import '../commands/command.dart';
 import '../secure/crypto.dart';
 import 'conversa.dart';
+import 'pc_health.dart';
 import 'replay_guard.dart';
 
 /// Máximo de eventos de navegação guardados por PC (em memória).
@@ -37,12 +38,19 @@ class PcSession {
   /// null ou 0 = não grava (ou agente anterior ao 1.33, que não publica).
   int? diagAte;
 
+  /// Saúde publicada pelo agente do Celita OS (health); null = agente antigo.
+  PcHealth? health;
+
+  /// Quando o PC publicou a saúde (tempo do servidor).
+  DateTime? healthAt;
+
   /// Última presença, em TEMPO DO SERVIDOR (o transporte converte).
   DateTime lastSeen = DateTime.fromMillisecondsSinceEpoch(0);
 
   // Anti-replay dos canais de entrada (PC -> professor).
   final ReplayGuard reportGuard = ReplayGuard();
   final ReplayGuard ackGuard = ReplayGuard();
+  final ReplayGuard healthGuard = ReplayGuard();
 
   /// Canal up/ (aluno -> professor): 12 h no passado, 120 s no futuro.
   final ReplayGuard upGuard =
@@ -153,6 +161,8 @@ class SessionRegistry {
       s.versaoExt = old.versaoExt;
       s.versaoOs = old.versaoOs;
       s.diagAte = old.diagAte;
+      s.health = old.health;
+      s.healthAt = old.healthAt;
       s.chat.addAll(old.chat);
       s.naoLidas = old.naoLidas;
       s.pedidos.addAll(old.pedidos);
@@ -179,6 +189,15 @@ class SessionRegistry {
       s.lastSeen = DateTime.fromMillisecondsSinceEpoch(serverMs);
       onChange?.call();
     }
+  }
+
+  /// Guarda a saúde publicada pelo PC. `at` = timestamp (servidor) do nó.
+  void applyHealth(String deviceId, PcHealth health, {required DateTime at}) {
+    final s = _byId[deviceId];
+    if (s == null) return;
+    s.health = health;
+    s.healthAt = at;
+    onChange?.call();
   }
 
   /// Aplica um relatório de abas. `reportAt` = timestamp (servidor) do nó.

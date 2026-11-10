@@ -130,6 +130,16 @@ tela cheia.
   **Aula**. Vale na hora, sem aviso no PC: quem estiver usando perde o que
   não salvou. Se o PC estiver instalando uma atualização, ele termina antes de
   desligar. Só nos PCs com Celita OS 1.30 ou mais novo.
+- **Saúde da frota** — em **Ajustes → Computadores → Saúde da frota**, os PCs
+  com Celita OS que precisam de atenção aparecem primeiro, com o motivo:
+  atualização que falhou ou que espera um reinício, Celita OS antigo, senha
+  errada de um Wi-Fi salvo, disco quase cheio, armazenamento desgastado,
+  bateria com menos de 60% da capacidade, firmware mais antigo que o dos PCs
+  do mesmo modelo, ou mais de 7 dias sem aparecer. Toque num PC para ver os
+  números (bateria, disco, firmware) e, com ele ligado, **Reiniciar** ou
+  **Atualizar** dali mesmo. Os números vêm dos PCs com Celita OS 1.38 ou mais
+  novo; dos outros o app mostra só a versão do sistema e há quantos dias não
+  aparecem.
 - **Mensagens dos alunos** — no Celita OS o aluno fala com você pelo ícone
   **Falar com o professor** da Área de Trabalho ou pelo notebook com o número
   da unidade, ao lado do relógio. Mensagem, pedido de liberação e mão

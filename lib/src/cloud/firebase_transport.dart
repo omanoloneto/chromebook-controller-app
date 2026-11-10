@@ -15,6 +15,7 @@ import 'package:flutter/foundation.dart';
 import '../commands/command.dart';
 import '../secure/keypair.dart';
 import '../util/ids.dart';
+import 'pc_health.dart';
 import 'qr_payload.dart';
 import 'server_clock.dart';
 import 'session_registry.dart';
@@ -313,6 +314,10 @@ class FirebaseTransport {
         final v = e.snapshot.value;
         if (v is Map) _onReport(deviceId, v);
       }),
+      _dev(deviceId).child('health').onValue.listen((e) {
+        final v = e.snapshot.value;
+        if (v is Map) _onHealth(deviceId, v);
+      }),
       _dev(deviceId).child('snapshot').onValue.listen((e) {
         final v = e.snapshot.value;
         if (v is Map) _onSnapshot(deviceId, v);
@@ -425,6 +430,36 @@ class FirebaseTransport {
       deviceId,
       report,
       reportAt: serverTs != null ? DateTime.fromMillisecondsSinceEpoch(serverTs) : null,
+    );
+  }
+
+  Future<void> _onHealth(String deviceId, Map<dynamic, dynamic> node) async {
+    final s = registry.byId(deviceId);
+    final env = node['env'];
+    if (s == null || env is! String) return;
+    Map<String, dynamic> msg;
+    try {
+      msg = await s.crypto.open(env);
+    } catch (_) {
+      return; // ilegível (raça de re-pareamento) — ignora
+    }
+    // A saúde repousa no banco por até 24 h: vale só sid/seq, sem janela de
+    // ts. A idade mostrada sai do ts do nó.
+    final agora = DateTime.now().millisecondsSinceEpoch;
+    final ok = s.healthGuard.accept(
+      sid: (msg['sid'] as num?)?.toInt() ?? 0,
+      seq: (msg['seq'] as num?)?.toInt() ?? 0,
+      ts: agora,
+      nowMs: agora,
+    );
+    if (!ok) return;
+    final health = PcHealth.fromMap(msg);
+    if (health == null) return;
+    final serverTs = (node['ts'] as num?)?.toInt();
+    registry.applyHealth(
+      deviceId,
+      health,
+      at: serverTs != null ? DateTime.fromMillisecondsSinceEpoch(serverTs) : nowServer(),
     );
   }
 

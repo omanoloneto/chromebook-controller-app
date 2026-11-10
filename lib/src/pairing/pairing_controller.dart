@@ -18,6 +18,7 @@ import '../cloud/aula_locks.dart';
 import '../cloud/broadcast_target.dart';
 import '../cloud/conversa.dart';
 import '../cloud/entrega.dart';
+import '../cloud/fleet_health.dart';
 import '../cloud/firebase_transport.dart';
 import '../cloud/history_store.dart';
 import '../cloud/login_handoff.dart';
@@ -1040,6 +1041,18 @@ class PairingController extends ChangeNotifier {
         for (final s in _transport?.registry.all ?? const <PcSession>[])
           if (isOnline(s) && desatualizado(s)) s,
       ];
+
+  /// Saúde dos PCs com Celita OS, por nome. Agente antigo entra só com a
+  /// versão do sistema e os dias sem aparecer.
+  List<FleetHealthEntry> get fleetHealth => buildFleetHealth(
+        [
+          for (final s in pcs)
+            if (temCelita(s.versaoExt)) s,
+        ],
+        osOutdated: desatualizado,
+        nameOf: nomeDe,
+        nowMs: agoraServidorMs(),
+      );
 
   /// Pede ao PC para atualizar o sistema agora. null = pedido enviado.
   Future<String?> atualizarPc(String deviceId) async {

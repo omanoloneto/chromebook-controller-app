@@ -409,6 +409,14 @@ class FakePairing extends PairingController {
     return null;
   }
 
+  final List<String> atualizados = [];
+
+  @override
+  Future<String?> atualizarPc(String deviceId) async {
+    atualizados.add(deviceId);
+    return null;
+  }
+
   @override
   Future<String?> diagnosticoPc(String deviceId, int horas) async {
     diagnosticos.add((deviceId, horas));

@@ -26,6 +26,7 @@ cifrados. Celular e Chromebooks podem estar em **redes diferentes**.
 |--------|---------|------------------|
 | **Transporte** | `lib/src/cloud/firebase_transport.dart` | Listener do roster + listeners por PC (report/presence/ack/bind/label); sela comandos `{sid,seq,ts}` p/ `cmd/` e `state/`; `pairDevice` (QR), `forgetDevice`, `publishWallpaper`. |
 | **Sessões** | `lib/src/cloud/session_registry.dart` | Mapa de PCs (chave de sessão, guards anti-replay, **abas/histórico por PC**, presença). |
+| **Saúde da frota** | `lib/src/cloud/pc_health.dart`, `fleet_health.dart` | `health_report` de `/devices/{id}/health` revalidado (tipos e tetos) e as regras puras do que põe um PC em "Precisa de atenção" (`test/pc_health_test.dart`, `test/fleet_health_test.dart`). |
 | **Anti-replay** | `lib/src/cloud/replay_guard.dart` | Épocas `sid`/`seq` (paridade com `replay.js`; teste `test/replay_test.dart`). |
 | **QR** | `lib/src/cloud/qr_payload.dart` | Parse/validação do QR de pareamento (v4). |
 | **Cripto** | `lib/src/secure/` | `crypto.dart` (AES-256-GCM), `keypair.dart` (X25519+HKDF), `key_store.dart` (persiste o par do professor). **Inalterados do v3.** |
