@@ -12,6 +12,7 @@ import 'exportar_historico.dart';
 import 'fleet_health_page.dart';
 import 'scan_page.dart';
 import 'school_members_page.dart';
+import 'school_monitoras_page.dart';
 import 'settings_controller.dart';
 import 'theme.dart';
 
@@ -185,6 +186,17 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
     if (!mounted) return;
     _snack(erro ?? 'Pronto! Você entrou na escola.');
     setState(() {});
+  }
+
+  Future<void> _entrarComoMonitora() async {
+    _snack('Entrando como monitora…');
+    final erro = await widget.pairing.entrarComoMonitora();
+    if (!mounted) return;
+    if (erro != null) {
+      _snack(erro);
+      return;
+    }
+    await widget.settings.setModoMonitora(true);
   }
 
   Future<void> _entrarComGoogle() async {
@@ -389,6 +401,16 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
                       ),
                     ),
                   ),
+                if (pairing.souFundador)
+                  ListTile(
+                    leading: const Icon(Icons.support_agent_outlined),
+                    title: const Text('Monitoras da escola'),
+                    subtitle: const Text('Quem ajuda na sala e cuida do carrinho'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SchoolMonitorasPage()),
+                    ),
+                  ),
               ] else ...[
                 ListTile(
                   leading: const Icon(Icons.group_add_outlined),
@@ -407,6 +429,15 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
                     'dados viram os da escola.',
                   ),
                   onTap: _criarWorkspace,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.support_agent_outlined),
+                  title: const Text('Entrar como monitora'),
+                  subtitle: const Text(
+                    'Com a conta Google liberada pela coordenação: só a sala '
+                    'e o carrinho.',
+                  ),
+                  onTap: _entrarComoMonitora,
                 ),
               ],
             ],

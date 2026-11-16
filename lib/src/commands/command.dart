@@ -87,6 +87,7 @@ class MessageType {
   static const String setExam = 'set_exam'; // state/exam: modo prova
   static const String setMonitor = 'set_monitor'; // state/monitor: grade ao vivo
   static const String thumbSnapshot = 'thumb_snapshot'; // /thumbs/{id}: miniatura
+  static const String cargaReport = 'carga_report'; // mon/carga: bateria para a monitora
 }
 
 /// Tipos do canal `up/` (aluno -> professor).

@@ -20,6 +20,7 @@ class PrefsStore {
   String? _teacherPcId; // deviceId do "PC do professor" (null = nenhum)
   String? _schoolUid; // workspace da escola ativo (null = modo isolado)
   bool _onboardingVisto = false; // sheet de boas-vindas já exibida?
+  bool _modoMonitora = false; // app aberto no modo monitora (só sala e carrinho)
   String? _ultimaPodaArquivo; // dia (UTC−3) da última poda de /archive
 
   /// `dir` é injetável para testes; por padrão usa o diretório do app.
@@ -54,6 +55,9 @@ class PrefsStore {
           if (poda is String && poda.isNotEmpty) {
             store._ultimaPodaArquivo = poda;
           }
+          if (decoded['modoMonitora'] is bool) {
+            store._modoMonitora = decoded['modoMonitora'] as bool;
+          }
           if (decoded['onboardingVisto'] is bool) {
             store._onboardingVisto = decoded['onboardingVisto'] as bool;
           }
@@ -71,6 +75,12 @@ class PrefsStore {
   String? get teacherPcId => _teacherPcId;
   String? get schoolUid => _schoolUid;
   bool get onboardingVisto => _onboardingVisto;
+  bool get modoMonitora => _modoMonitora;
+
+  Future<void> setModoMonitora(bool valor) async {
+    _modoMonitora = valor;
+    await _save();
+  }
   String? get ultimaPodaArquivo => _ultimaPodaArquivo;
 
   Future<void> setUltimaPodaArquivo(String dia) async {
@@ -122,6 +132,7 @@ class PrefsStore {
         if (_teacherPcId != null) 'teacherPcId': _teacherPcId,
         if (_schoolUid != null) 'schoolUid': _schoolUid,
         'onboardingVisto': _onboardingVisto,
+        if (_modoMonitora) 'modoMonitora': true,
         if (_ultimaPodaArquivo != null) 'ultimaPodaArquivo': _ultimaPodaArquivo,
       }),
     );

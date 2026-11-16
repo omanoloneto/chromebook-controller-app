@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'src/backend/backend.dart';
 import 'src/backend/open_backend.dart';
 import 'src/pairing/computer_login.dart';
+import 'src/pairing/monitora_controller.dart';
 import 'src/pairing/pairing_controller.dart';
 import 'src/pairing/prefs_store.dart';
 import 'src/platform/host.dart';
@@ -22,6 +23,7 @@ import 'src/ui/chat_page.dart';
 import 'src/ui/computer_login_page.dart';
 import 'src/ui/device_page.dart';
 import 'src/ui/grade_telas.dart';
+import 'src/ui/monitora_shell.dart';
 import 'src/ui/recados_page.dart';
 import 'src/ui/settings_controller.dart';
 import 'src/ui/theme.dart';
@@ -58,6 +60,8 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
   final GlobalKey<NavigatorState> _navigator = GlobalKey<NavigatorState>();
   StreamSubscription<ToqueNotificacao>? _toques;
   ComputerLogin? _login;
+  MonitoraController? _monitora;
+  bool _pairingIniciado = false;
 
   @override
   void initState() {
@@ -79,11 +83,35 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
         final abertura = _notificacoes.consumirAbertura();
         if (abertura != null) _abrirPc(abertura);
       });
-      if (onComputer && !_pairing.logadoComGoogle) {
+      if (_settings.modoMonitora) {
+        _abrirMonitora();
+      } else if (onComputer && !_pairing.logadoComGoogle) {
         _openComputerLogin();
       } else {
-        _pairing.start();
+        _iniciarPairing();
       }
+    }
+  }
+
+  void _iniciarPairing() {
+    _pairingIniciado = true;
+    _pairing.start();
+  }
+
+  void _abrirMonitora() {
+    _monitora = MonitoraController()..start();
+  }
+
+  // Ajustes ligou ou desligou o modo monitora: troca a tela inteira.
+  void _trocarModo() {
+    if (!widget.autoStart) return;
+    if (_settings.modoMonitora && _monitora == null) {
+      setState(_abrirMonitora);
+    } else if (!_settings.modoMonitora && _monitora != null) {
+      final antiga = _monitora!;
+      setState(() => _monitora = null);
+      antiga.dispose();
+      if (!_pairingIniciado) _iniciarPairing();
     }
   }
 
@@ -108,7 +136,7 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
     if (!mounted) return;
     setState(() => _login = null);
     login.dispose();
-    await _pairing.start();
+    _iniciarPairing();
   }
 
   // Toque numa notificação: alerta de site leva à tela do PC; recado de
@@ -143,6 +171,7 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
 
   void _sincronizarPrefs() {
     _pairing.notificarSites = _settings.notificarSites;
+    _trocarModo();
   }
 
   void _persistirPcProfessor() {
@@ -159,6 +188,7 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
   void dispose() {
     _toques?.cancel();
     _login?.dispose();
+    _monitora?.dispose();
     _settings.removeListener(_sincronizarPrefs);
     _pairing.removeListener(_persistirPcProfessor);
     _pairing.stop();
@@ -179,9 +209,13 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
         theme: buildTheme(Brightness.light),
         darkTheme: buildTheme(Brightness.dark),
         themeMode: _settings.themeMode,
-        home: switch (_login) {
-          final login? => ComputerLoginPage(login: login),
-          null => AppShell(pairing: _pairing, settings: _settings),
+        home: switch ((_login, _monitora)) {
+          (final login?, _) => ComputerLoginPage(login: login),
+          (null, final monitora?) => MonitoraShell(
+              controller: monitora,
+              onSair: () => _settings.setModoMonitora(false),
+            ),
+          _ => AppShell(pairing: _pairing, settings: _settings),
         },
       ),
     );

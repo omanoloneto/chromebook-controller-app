@@ -155,6 +155,24 @@ tela cheia.
 - A **ficha do aluno** (aba Turmas → aluno) guarda as aulas e os sites
   acessados — visível a todos os professores, sempre criptografado no banco.
 
+## 4.1 Monitoras
+
+A monitora usa o mesmo app numa versão simples: **Sala** e **Carrinho**.
+
+- **Liberar:** quem criou a escola abre Ajustes → Monitoras da escola →
+  Liberar uma monitora e digita o e-mail da conta Google dela.
+- **Entrar:** no celular da monitora, Ajustes → Entrar como monitora.
+- **Sala:** ver a tela, mandar mensagem, fechar abas, sair da conta, reiniciar
+  e desligar, num computador ou em todos os ligados.
+- **Carrinho:** quais computadores estão fora da tomada e com bateria baixa, e
+  quais ainda estão ligados.
+- **O que ela não faz:** câmera, fotos de entrada, histórico, bloqueios, Wi-Fi,
+  papel de parede, parear computador, atualizar ou diagnóstico. Quem recusa é o
+  próprio computador, não só o app.
+- Só funciona nos computadores com Celita OS 1.40.0 ou mais novo. Cada
+  computador recebe o acesso das monitoras quando algum professor abre o app.
+- **Tirar o acesso:** Ajustes → Monitoras da escola → Tirar o acesso. Vale na hora.
+
 ## 5. Extensão nos Chromebooks
 
 Se os Chromebooks da escola são **gerenciados** (Google Admin Console), peça

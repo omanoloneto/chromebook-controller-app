@@ -16,6 +16,12 @@ class SettingsController extends ChangeNotifier {
   String? get teacherPcId => _prefs.teacherPcId;
   String? get schoolUid => _prefs.schoolUid;
   bool get onboardingVisto => _prefs.onboardingVisto;
+  bool get modoMonitora => _prefs.modoMonitora;
+
+  Future<void> setModoMonitora(bool valor) async {
+    await _prefs.setModoMonitora(valor);
+    notifyListeners();
+  }
 
   Future<void> setOnboardingVisto() async {
     await _prefs.setOnboardingVisto();

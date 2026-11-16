@@ -22,6 +22,7 @@ import '../cloud/firebase_transport.dart';
 import '../cloud/history_store.dart';
 import '../cloud/login_handoff.dart';
 import '../cloud/media_store.dart';
+import '../cloud/monitoras.dart';
 import '../cloud/qr_payload.dart';
 import '../cloud/school_keys.dart';
 import '../cloud/school_members.dart';
@@ -304,6 +305,7 @@ class PairingController extends ChangeNotifier {
       }
       naoLiberadoNaEscola = false;
       unawaited(push?.registrar(user.uid));
+      _publicarChaveDasMonitoras();
 
       final transport = FirebaseTransport(
         teacher: teacher,
@@ -683,6 +685,38 @@ class PairingController extends ChangeNotifier {
       return null;
     } catch (e) {
       debugPrint('[CdA] entrar na escola: $e');
+      return 'Não foi possível acessar a escola agora. Tente de novo.';
+    }
+  }
+
+  // PC novo da escola recebe a pub da monitora; sem monitoras, não faz nada.
+  void _publicarChaveDasMonitoras() {
+    if (schoolUid == null) return;
+    unawaited(SchoolMonitoras().publicarNosPcs().then((_) {}, onError: (Object e) {
+      debugPrint('[CdA] chave das monitoras nos PCs: $e');
+    },),);
+  }
+
+  /// Entra no modo monitora: conta Google com o e-mail em /school/monitores.
+  /// Null = liberada; senão, o texto para mostrar.
+  Future<String?> entrarComoMonitora() async {
+    try {
+      if (!logadoComGoogle) {
+        final r = await entrarComGoogle();
+        if (r.startsWith('erro:')) return 'Não foi possível entrar com o Google. Tente de novo.';
+      }
+      final user = _usuarioAtual;
+      final email = user?.email ?? emailGoogle;
+      if (user == null || email == null) return 'Não foi possível entrar com o Google. Tente de novo.';
+      await user.refreshIdToken();
+      if (!await SchoolMonitoras().liberada(email)) {
+        return 'Seu e-mail ($email) ainda não foi liberado como monitora. Peça '
+            'ao professor que criou a escola para liberar em Ajustes → '
+            'Monitoras da escola.';
+      }
+      return null;
+    } catch (e) {
+      debugPrint('[CdA] entrar como monitora: $e');
       return 'Não foi possível acessar a escola agora. Tente de novo.';
     }
   }
@@ -1165,6 +1199,7 @@ class PairingController extends ChangeNotifier {
       } else {
         transport.clearState(qr.deviceId, 'classview').catchError((_) {});
       }
+      _publicarChaveDasMonitoras();
       _scheduleNotify();
       return null;
     } on FirebaseException catch (e) {
