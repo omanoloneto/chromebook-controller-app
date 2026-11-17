@@ -270,6 +270,7 @@ Map<String, Object?> prunePaths(Iterable<String> deviceIds, int nowMs) {
     for (var k = kArchiveDays; k <= 45; k++) {
       final d = dayOf(nowMs - k * _kDiaMs);
       paths['archive/$id/nav/$d'] = null;
+      paths['archive/$id/navmon/$d'] = null;
       paths['archive/$id/fotos/$d'] = null;
     }
   }

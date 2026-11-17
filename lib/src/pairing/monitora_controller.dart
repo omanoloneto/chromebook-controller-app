@@ -1,6 +1,7 @@
 // Modo monitora (docs/protocolo.md §3.1): a sala e o carrinho, pelo canal
-// devices/{id}/mon com a chave da monitora. Nada aqui lê ou decifra o que é
-// do professor: as rules negam e o PC recusa o que não é da monitora.
+// devices/{id}/mon com a chave da monitora, e o histórico em
+// archive/{id}/navmon. Nada aqui lê ou decifra o que é do professor: as rules
+// negam e o PC recusa o que não é da monitora.
 
 import 'dart:async';
 import 'dart:convert';
@@ -8,6 +9,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../backend/backend.dart';
+import '../cloud/archive_store.dart';
 import '../cloud/monitoras.dart';
 import '../cloud/server_clock.dart';
 import '../cloud/session_registry.dart' show kJanelaOnline;
@@ -20,6 +22,8 @@ const int kBateriaBaixa = 30;
 
 const Duration kEsperaDoPc = Duration(seconds: 25);
 
+final RegExp _rotuloDaUnidade = RegExp(r'^Unidade ([0-9]{1,4})$');
+
 enum EstadoMonitora { carregando, semAcesso, pronto }
 
 class PcDaMonitora {
@@ -27,7 +31,7 @@ class PcDaMonitora {
 
   final String id;
   String? nome;
-  int? numero;
+  int? numeroDoBind;
   int? lastSeen;
   int? bateria;
   bool? naTomada;
@@ -35,6 +39,15 @@ class PcDaMonitora {
   int? cargaEm;
   String? _pub;
   SessionCrypto? _cripto;
+
+  // O PC regrava "Unidade N" no rótulo a cada troca de número; bind/numero é
+  // o do pareamento e fica velho.
+  int? get numero {
+    final m = _rotuloDaUnidade.firstMatch(nome ?? '');
+    return m != null ? int.parse(m.group(1)!) : numeroDoBind;
+  }
+
+  bool get temChave => _cripto != null;
 
   String get titulo => numero != null ? 'Unidade $numero' : (nome ?? 'Computador');
 }
@@ -76,15 +89,13 @@ class MonitoraController extends ChangeNotifier {
     return lista;
   }
 
-  bool ligado(PcDaMonitora pc) =>
-      pc.lastSeen != null && agoraMs - pc.lastSeen! < kJanelaOnline.inMilliseconds;
+  bool ligado(PcDaMonitora pc) => pc.lastSeen != null && agoraMs - pc.lastSeen! < kJanelaOnline.inMilliseconds;
 
   Future<void> start() async {
     _parado = false;
-    _gerais.add(_db
-        .ref('.info/serverTimeOffset')
-        .onValue
-        .listen((e) => _relogio.aoReceberOffset(e.snapshot.value)),);
+    _gerais.add(
+      _db.ref('.info/serverTimeOffset').onValue.listen((e) => _relogio.aoReceberOffset(e.snapshot.value)),
+    );
     _gerais.add(_db.ref('.info/connected').onValue.listen((e) => _relogio.aoMudarConexao(e.snapshot.value)));
     try {
       _chave = await _monitoras.baixarChave();
@@ -97,13 +108,15 @@ class MonitoraController extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    _gerais.add(_db.ref('school/devices').onValue.listen(
-      (e) => _sincronizarRoster(e.snapshot.value),
-      onError: (Object e) {
-        estado = EstadoMonitora.semAcesso;
-        notifyListeners();
-      },
-    ),);
+    _gerais.add(
+      _db.ref('school/devices').onValue.listen(
+        (e) => _sincronizarRoster(e.snapshot.value),
+        onError: (Object e) {
+          estado = EstadoMonitora.semAcesso;
+          notifyListeners();
+        },
+      ),
+    );
   }
 
   Future<void> stop() async {
@@ -148,7 +161,7 @@ class MonitoraController extends ChangeNotifier {
             await _abrirCarga(pc, (await _db.ref('devices/$id/mon/carga').get()).value);
           }
         }),
-        _ouvir('devices/$id/bind/numero', (v) async => pc.numero = v is num ? v.toInt() : null),
+        _ouvir('devices/$id/bind/numero', (v) async => pc.numeroDoBind = v is num ? v.toInt() : null),
         _ouvir('devices/$id/presence/lastSeen', (v) async => pc.lastSeen = v is num ? v.toInt() : null),
         _ouvir('devices/$id/mon/carga', (v) => _abrirCarga(pc, v)),
       ];
@@ -216,9 +229,7 @@ class MonitoraController extends ChangeNotifier {
     }
     final ackRef = _db.ref('devices/${pc.id}/mon/ack/${cmd.key}');
     try {
-      final evento = await ackRef.onValue
-          .firstWhere((e) => e.snapshot.value is String)
-          .timeout(espera);
+      final evento = await ackRef.onValue.firstWhere((e) => e.snapshot.value is String).timeout(espera);
       unawaited(ackRef.remove().catchError((Object _) {}));
       final ack = await cripto.open(evento.snapshot.value as String);
       if (ack['id'] != id) return (ok: false, erro: 'payload_invalido');
@@ -250,6 +261,18 @@ class MonitoraController extends ChangeNotifier {
     } catch (_) {
       return (jpeg: null, erro: 'snapshot_upload');
     }
+  }
+
+  /// Dias do histórico (hoje e os 14 anteriores), pelo relógio do servidor.
+  List<String> diasDoHistorico() => recentDays(agoraMs);
+
+  /// Histórico de um dia pela cópia da monitora. null = PC ainda sem a chave
+  /// dela; lança em erro de leitura (rede/permissão).
+  Future<ArchivedDay?> historico(PcDaMonitora pc, String dia) async {
+    final cripto = pc._cripto;
+    if (cripto == null) return null;
+    final snap = await _db.ref('archive/${pc.id}/navmon/$dia').get();
+    return parseNavDay(snap.value, cripto);
   }
 
   Future<RespostaDoPc> mensagem(PcDaMonitora pc, String texto) =>

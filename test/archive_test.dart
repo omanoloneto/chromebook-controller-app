@@ -18,8 +18,7 @@ List<int> _hex(String h) => [
     ];
 
 final Map<String, dynamic> _fixture =
-    jsonDecode(File('test/fixtures/foto-v1.json').readAsStringSync())
-        as Map<String, dynamic>;
+    jsonDecode(File('test/fixtures/foto-v1.json').readAsStringSync()) as Map<String, dynamic>;
 
 class _FakeIndex implements PhotoIndex {
   final Map<String, SplayTreeMap<int, PhotoRef>> byDay = {};
@@ -239,10 +238,11 @@ void main() {
       expect(PhotoRef.parse('2026-09-28', '1790000000123', null), isNull);
     });
 
-    test('poda de reserva: hoje−15 a hoje−45, nav e fotos, por PC', () {
+    test('poda de reserva: hoje−15 a hoje−45, nav, navmon e fotos, por PC', () {
       final agora = DateTime.utc(2026, 9, 28, 12).millisecondsSinceEpoch;
       final p = prunePaths(['pc1', 'pc2'], agora);
-      expect(p.length, 2 * 2 * 31);
+      expect(p.length, 2 * 3 * 31);
+      expect(p.containsKey('archive/pc2/navmon/2026-09-13'), isTrue);
       expect(p.values.every((v) => v == null), isTrue);
       expect(p.containsKey('archive/pc1/nav/2026-09-13'), isTrue);
       expect(p.containsKey('archive/pc2/fotos/2026-08-14'), isTrue);

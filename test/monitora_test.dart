@@ -82,6 +82,29 @@ void main() {
       expect(c.ligado(lido), isTrue);
     });
 
+    test('o número vem do rótulo que o PC atualiza, não do bind do pareamento', () async {
+      banco.gravar('devices/pc1/meta/label', 'Unidade 12');
+      await _ate(() => c.pcs.single.numero == 12);
+      expect(c.pcs.single.titulo, 'Unidade 12');
+      banco.gravar('devices/pc1/meta/label', 'celita-u7');
+      await _ate(() => c.pcs.single.numero == 7);
+    });
+
+    test('histórico abre a cópia da monitora e ignora o lote da escola', () async {
+      final dia = c.diasDoHistorico().first;
+      final login = DateTime.now().millisecondsSinceEpoch - 600000;
+      await pc.publicarHistorico(dia, login, [
+        {'ts': login + 1000, 'url': 'https://a.com/x', 'title': 'A', 'acao': 'bloqueado'},
+      ]);
+      banco.gravar('archive/pc1/nav/$dia/p9', {'env': 'da escola', 'ts': 1});
+      final lido = await c.historico(c.pcs.single, dia);
+      expect(lido!.sessions.single.user, 'aluno');
+      expect(lido.sessions.single.events.single.url, 'https://a.com/x');
+      expect(lido.sessions.single.events.single.action, 'bloqueado');
+      expect(lido.unreadable, 0);
+      expect((await c.historico(c.pcs.single, c.diasDoHistorico()[1]))!.isEmpty, isTrue);
+    });
+
     test('desligar vai pelo mon/cmd com a chave da monitora', () async {
       final r = await c.energia(c.pcs.single, AcaoEnergia.desligar);
       expect(r.ok, isTrue);
@@ -123,7 +146,8 @@ void main() {
       await _ate(() => c.pcs.isNotEmpty && c.pcs.first.bateria != null);
       return c;
     });
-    await tester.pumpWidget(MaterialApp(theme: buildTheme(Brightness.light), home: MonitoraShell(controller: c!, onSair: () async {})));
+    await tester.pumpWidget(
+        MaterialApp(theme: buildTheme(Brightness.light), home: MonitoraShell(controller: c!, onSair: () async {}),),);
     await tester.pump();
     expect(find.text('Unidade 7'), findsOneWidget);
     expect(find.text('Desligar todos'), findsOneWidget);
@@ -134,6 +158,36 @@ void main() {
     await tester.pump();
     expect(find.text('Fora da tomada'), findsOneWidget);
     expect(find.text('1 com bateria baixa'), findsOneWidget);
+    await tester.runAsync(c.stop);
+  });
+
+  testWidgets('histórico da monitora lista os sites sem nada de foto', (tester) async {
+    final c = await tester.runAsync(() async {
+      final banco = _Banco();
+      final chave = await SchoolMonitoras(database: banco).garantirChave();
+      final pc = await _PcDeMentira.criar(banco, 'pc1', chave);
+      banco.gravar('school/devices', {'pc1': true});
+      final c = MonitoraController(database: banco);
+      await c.start();
+      await _ate(() => c.pcs.isNotEmpty && c.pcs.first.temChave);
+      final login = DateTime.now().millisecondsSinceEpoch - 600000;
+      await pc.publicarHistorico(c.diasDoHistorico().first, login, [
+        {'ts': login + 1000, 'url': 'https://www.wikipedia.org/', 'title': 'Wikipédia'},
+      ]);
+      return c;
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(Brightness.light),
+        home: HistoricoDaMonitora(controller: c!, pc: c.pcs.single),
+      ),
+    );
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 50)));
+    await tester.pump();
+    expect(find.text('Wikipédia'), findsOneWidget);
+    expect(find.text('Hoje'), findsOneWidget);
+    expect(find.textContaining('Foto'), findsNothing);
+    expect(find.byIcon(Icons.photo_camera_outlined), findsNothing);
     await tester.runAsync(c.stop);
   });
 
@@ -189,6 +243,12 @@ class _PcDeMentira {
         'ts': 1,
       });
 
+  Future<void> publicarHistorico(String dia, int login, List<Map<String, dynamic>> eventos) async =>
+      banco.gravar('archive/$id/navmon/$dia/p${++_seq}', {
+        'env': await cripto.seal({'v': 1, 'type': 'archived_nav', 'user': 'aluno', 'login': login, 'events': eventos}),
+        'ts': 1,
+      });
+
   Future<void> _atender(Object? fila) async {
     if (fila is! Map || mudo) return;
     for (final entry in fila.entries.toList()) {
@@ -197,7 +257,8 @@ class _PcDeMentira {
       recebidos.add(msg);
       if (msg['type'] == MessageType.captureScreen && !recusar) {
         banco.gravar('devices/$id/mon/snapshot', {
-          'env': await _selar({'type': MessageType.screenSnapshot, 'id': msg['id'], 'jpegB64': base64.encode(utf8.encode('jpeg'))}),
+          'env': await _selar(
+              {'type': MessageType.screenSnapshot, 'id': msg['id'], 'jpegB64': base64.encode(utf8.encode('jpeg'))},),
           'ts': 1,
         });
       }
@@ -272,8 +333,7 @@ class _Banco implements RealtimeDb {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-Object? _copia(Object? v) =>
-    v is Map ? <String, Object?>{for (final e in v.entries) '${e.key}': _copia(e.value)} : v;
+Object? _copia(Object? v) => v is Map ? <String, Object?>{for (final e in v.entries) '${e.key}': _copia(e.value)} : v;
 
 class _Ref implements DbRef {
   _Ref(this._banco, this._caminho);

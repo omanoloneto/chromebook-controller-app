@@ -1,13 +1,17 @@
-// App da monitora: Sala (ajudar o aluno, sair das contas, desligar) e
-// Carrinho (bateria e tomada). Sem câmera, fotos, histórico nem bloqueios.
+// App da monitora: Sala (ajudar o aluno, histórico, sair das contas, desligar)
+// e Carrinho (bateria e tomada). Sem câmera, fotos nem bloqueios.
 
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
+import '../cloud/archive_store.dart';
 import '../commands/command.dart';
 import '../pairing/monitora_controller.dart';
+import '../platform/host.dart';
+import 'archive_page.dart' show rotuloDoDia;
 import 'componentes.dart';
+import 'device_page.dart' show dominioDe;
 import 'textos_erro.dart';
 
 String textoDaMonitora(String? erro) => switch (erro) {
@@ -270,8 +274,7 @@ class _Carrinho extends StatelessWidget {
         ],
         if (semNoticia.isNotEmpty) ...[
           const TituloDeSecao('Sem notícia da bateria'),
-          for (final pc in semNoticia)
-            _LinhaDoPc(controller: controller, pc: pc, detalhe: 'ligue para atualizar'),
+          for (final pc in semNoticia) _LinhaDoPc(controller: controller, pc: pc, detalhe: 'ligue para atualizar'),
         ],
         if (naTomada.isNotEmpty) ...[
           const TituloDeSecao('Na tomada'),
@@ -360,9 +363,7 @@ Future<void> abrirPcDaMonitora(BuildContext context, MonitoraController c, PcDaM
                       BotaoDeAcao(
                         icone: Icons.tab_unselected,
                         rotulo: 'Fechar abas',
-                        onPressed: ligado
-                            ? () => pedir('Fechando…', 'Abas fechadas.', () => c.fecharAbas(pc))
-                            : null,
+                        onPressed: ligado ? () => pedir('Fechando…', 'Abas fechadas.', () => c.fecharAbas(pc)) : null,
                       ),
                       BotaoDeAcao(
                         icone: Icons.logout,
@@ -408,6 +409,15 @@ Future<void> abrirPcDaMonitora(BuildContext context, MonitoraController c, PcDaM
                       padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
                       child: Text('Ligue o computador pelo botão para usar estas ações.'),
                     ),
+                  ListTile(
+                    leading: const Icon(Icons.history),
+                    title: const Text('Histórico de navegação'),
+                    subtitle: const Text('Sites dos últimos 15 dias'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(sheet).push(
+                      MaterialPageRoute<void>(builder: (_) => HistoricoDaMonitora(controller: c, pc: pc)),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -464,12 +474,153 @@ class _TelaDoPcState extends State<_TelaDoPc> {
       body: Column(
         children: [
           if (_buscando) const LinearProgressIndicator(),
-          if (_erro != null)
-            Padding(padding: const EdgeInsets.all(16), child: Text(_erro!)),
+          if (_erro != null) Padding(padding: const EdgeInsets.all(16), child: Text(_erro!)),
           Expanded(
             child: _jpeg == null
                 ? const SizedBox.shrink()
                 : InteractiveViewer(child: Center(child: Image.memory(_jpeg!, gaplessPlayback: true))),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class HistoricoDaMonitora extends StatefulWidget {
+  const HistoricoDaMonitora({super.key, required this.controller, required this.pc});
+
+  final MonitoraController controller;
+  final PcDaMonitora pc;
+
+  @override
+  State<HistoricoDaMonitora> createState() => _HistoricoDaMonitoraState();
+}
+
+class _HistoricoDaMonitoraState extends State<HistoricoDaMonitora> {
+  late final List<String> _dias = widget.controller.diasDoHistorico();
+  late String _dia = _dias.first;
+  late Future<ArchivedDay?> _carga = widget.controller.historico(widget.pc, _dia);
+
+  void _carregar() => setState(() {
+        _carga = widget.controller.historico(widget.pc, _dia);
+      });
+
+  String _hora(int ts) {
+    final d = DateTime.fromMillisecondsSinceEpoch(ts);
+    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _aviso(String texto, {bool tentarDeNovo = false}) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(texto, textAlign: TextAlign.center),
+              if (tentarDeNovo) ...[
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: _carregar,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Tentar de novo'),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+
+  Widget _lista(ArchivedDay dia) {
+    final tema = Theme.of(context);
+    if (dia.isEmpty) return _aviso('Nenhum site visitado neste dia.');
+    return ListView(
+      padding: recuoDaLista(context),
+      children: [
+        if (dia.unreadable > 0)
+          const ListTile(
+            dense: true,
+            leading: Icon(Icons.info_outline),
+            title: Text('Parte do histórico deste dia não pôde ser aberta.'),
+          ),
+        for (final sessao in dia.sessions)
+          if (sessao.events.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: Text(
+                'Conta ${sessao.user} · entrou às ${_hora(sessao.login)}',
+                style: tema.textTheme.labelLarge?.copyWith(color: tema.colorScheme.primary),
+              ),
+            ),
+            for (final e in sessao.events)
+              ListTile(
+                dense: true,
+                leading: Text(_hora(e.ts), style: const TextStyle(fontFamily: 'monospace')),
+                title: Text(
+                  e.title.isEmpty ? dominioDe(e.url) : e.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  [
+                    if (e.action == 'bloqueado') 'Bloqueado',
+                    if (e.action == 'alerta') 'Aviso',
+                    dominioDe(e.url),
+                  ].join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('Histórico da ${widget.pc.titulo}')),
+      body: Column(
+        children: [
+          SizedBox(
+            height: 52,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              children: [
+                for (var i = 0; i < _dias.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                      label: Text(rotuloDoDia(_dias[i], i)),
+                      selected: _dias[i] == _dia,
+                      onSelected: (_) {
+                        _dia = _dias[i];
+                        _carregar();
+                      },
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: FutureBuilder<ArchivedDay?>(
+              future: _carga,
+              builder: (context, snap) {
+                if (snap.connectionState != ConnectionState.done) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snap.hasError) {
+                  return _aviso(
+                    'Não deu para carregar. Confira a internet $ofThisDeviceText.',
+                    tentarDeNovo: true,
+                  );
+                }
+                final dia = snap.data;
+                if (dia == null) return _aviso(textoDaMonitora('sem_chave'));
+                return _lista(dia);
+              },
+            ),
           ),
         ],
       ),

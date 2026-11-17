@@ -164,9 +164,11 @@ A monitora usa o mesmo app numa versão simples: **Sala** e **Carrinho**.
 - **Entrar:** no celular da monitora, Ajustes → Entrar como monitora.
 - **Sala:** ver a tela, mandar mensagem, fechar abas, sair da conta, reiniciar
   e desligar, num computador ou em todos os ligados.
+- **Histórico de navegação:** os sites de cada computador nos últimos 15 dias,
+  sem fotos. Só o que foi visitado depois do Celita OS 1.41.0.
 - **Carrinho:** quais computadores estão fora da tomada e com bateria baixa, e
   quais ainda estão ligados.
-- **O que ela não faz:** câmera, fotos de entrada, histórico, bloqueios, Wi-Fi,
+- **O que ela não faz:** câmera, fotos de entrada, bloqueios, Wi-Fi,
   papel de parede, parear computador, atualizar ou diagnóstico. Quem recusa é o
   próprio computador, não só o app.
 - Só funciona nos computadores com Celita OS 1.40.0 ou mais novo. Cada
