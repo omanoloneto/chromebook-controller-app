@@ -52,9 +52,35 @@ class _StudentsPageState extends State<StudentsPage> {
     if (nome == null) return;
     if (indice == null) {
       await _pairing.adicionarTurma(nome);
+      final nova = _pairing.turmas.indexWhere((t) => t.nome == nome.trim());
+      if (nova >= 0 && mounted) await _dialogoAno(nova);
     } else {
       await _pairing.renomearTurma(indice, nome);
     }
+  }
+
+  // O ano vai para o chat do aluno junto com o nome, pela chamada.
+  Future<void> _dialogoAno(int indice) async {
+    final atual = _pairing.turmas[indice].ano;
+    final escolhido = await showDialog<int>(
+      context: context,
+      builder: (dialogo) => SimpleDialog(
+        title: const Text('Ano da turma'),
+        children: [
+          for (var ano = 1; ano <= 9; ano++)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogo, ano),
+              child: Text('$anoº ano', style: TextStyle(fontWeight: ano == atual ? FontWeight.w700 : null)),
+            ),
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(dialogo, 0),
+            child: const Text('Sem ano'),
+          ),
+        ],
+      ),
+    );
+    if (escolhido == null) return;
+    await _pairing.definirAnoDaTurma(indice, escolhido == 0 ? null : escolhido);
   }
 
   Future<void> _removerTurma(int indice) async {
@@ -109,14 +135,14 @@ class _StudentsPageState extends State<StudentsPage> {
                 for (var i = 0; i < turmas.length; i++)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
-                    child: _cartaoDaTurma(i, turmas[i].nome, turmas[i].alunos.length),
+                    child: _cartaoDaTurma(i, turmas[i].nome, turmas[i].alunos.length, turmas[i].ano),
                   ),
               ],
             ),
     );
   }
 
-  Widget _cartaoDaTurma(int indice, String nome, int alunos) {
+  Widget _cartaoDaTurma(int indice, String nome, int alunos, int? ano) {
     final t = Theme.of(context);
     final aula = _pairing.aulaAtiva;
     final estaEmAula = aula && _pairing.turmaDaAula == nome;
@@ -144,7 +170,10 @@ class _StudentsPageState extends State<StudentsPage> {
                   children: [
                     Text(nome, style: t.textTheme.titleMedium),
                     const SizedBox(height: 2),
-                    Text(_alunos(alunos), style: t.textTheme.bodySmall),
+                    Text(
+                      '${ano != null ? '$anoº ano' : 'Sem ano'} · ${_alunos(alunos)}',
+                      style: t.textTheme.bodySmall,
+                    ),
                   ],
                 ),
               ),
@@ -153,6 +182,7 @@ class _StudentsPageState extends State<StudentsPage> {
                 tooltip: 'Opções da turma',
                 onSelected: (v) {
                   if (v == 'renomear') _dialogoTurma(indice: indice);
+                  if (v == 'ano') _dialogoAno(indice);
                   if (v == 'remover') _removerTurma(indice);
                 },
                 itemBuilder: (_) => [
@@ -162,6 +192,14 @@ class _StudentsPageState extends State<StudentsPage> {
                       contentPadding: EdgeInsets.zero,
                       leading: Icon(Icons.edit_outlined),
                       title: Text('Renomear'),
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'ano',
+                    child: ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.format_list_numbered),
+                      title: Text('Ano da turma'),
                     ),
                   ),
                   PopupMenuItem(

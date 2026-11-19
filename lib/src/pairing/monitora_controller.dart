@@ -10,6 +10,8 @@ import 'package:flutter/foundation.dart';
 
 import '../backend/backend.dart';
 import '../cloud/archive_store.dart';
+import '../cloud/conversa.dart' show quemEscreveu;
+import '../cloud/equipe.dart';
 import '../cloud/monitoras.dart';
 import '../cloud/server_clock.dart';
 import '../cloud/session_registry.dart' show kJanelaOnline;
@@ -26,6 +28,25 @@ final RegExp _rotuloDaUnidade = RegExp(r'^Unidade ([0-9]{1,4})$');
 
 enum EstadoMonitora { carregando, semAcesso, pronto }
 
+/// Uma linha da conversa da monitora com o aluno de um PC.
+class MensagemDaMonitora {
+  const MensagemDaMonitora({
+    required this.id,
+    required this.doAluno,
+    required this.texto,
+    required this.ts,
+    this.quem,
+    this.para,
+  });
+
+  final String id;
+  final bool doAluno;
+  final String texto;
+  final int ts;
+  final String? quem;
+  final String? para;
+}
+
 class PcDaMonitora {
   PcDaMonitora(this.id);
 
@@ -37,6 +58,10 @@ class PcDaMonitora {
   bool? naTomada;
   bool? contaAberta;
   int? cargaEm;
+  final List<MensagemDaMonitora> conversa = [];
+
+  /// Mensagens do aluno para esta monitora ainda não abertas.
+  int naoLidas = 0;
   String? _pub;
   SessionCrypto? _cripto;
 
@@ -61,7 +86,11 @@ class MonitoraController extends ChangeNotifier {
     SchoolMonitoras? monitoras,
     RelogioDoServidor? relogio,
     this.espera = kEsperaDoPc,
-  })  : _db = database ?? Backend.instance.db,
+    this.presenca,
+    this.meuUid,
+    String Function()? nome,
+  })  : _nome = nome ?? (() => 'Monitora'),
+        _db = database ?? Backend.instance.db,
         _monitoras = monitoras ?? SchoolMonitoras(database: database),
         _relogio = relogio ?? RelogioDoServidor();
 
@@ -69,6 +98,11 @@ class MonitoraController extends ChangeNotifier {
   final SchoolMonitoras _monitoras;
   final RelogioDoServidor _relogio;
   final Duration espera;
+
+  /// Entrada na equipe da escola: o aluno passa a ver esta monitora no chat.
+  final PresencaNaEquipe? presenca;
+  final String? meuUid;
+  final String Function() _nome;
 
   EstadoMonitora estado = EstadoMonitora.carregando;
   final Map<String, PcDaMonitora> _pcs = {};
@@ -108,6 +142,7 @@ class MonitoraController extends ChangeNotifier {
       notifyListeners();
       return;
     }
+    unawaited(presenca?.iniciar());
     _gerais.add(
       _db.ref('school/devices').onValue.listen(
         (e) => _sincronizarRoster(e.snapshot.value),
@@ -121,6 +156,7 @@ class MonitoraController extends ChangeNotifier {
 
   Future<void> stop() async {
     _parado = true;
+    presenca?.parar();
     for (final s in [..._gerais, for (final l in _porPc.values) ...l]) {
       await s.cancel();
     }
@@ -164,6 +200,7 @@ class MonitoraController extends ChangeNotifier {
         _ouvir('devices/$id/bind/numero', (v) async => pc.numeroDoBind = v is num ? v.toInt() : null),
         _ouvir('devices/$id/presence/lastSeen', (v) async => pc.lastSeen = v is num ? v.toInt() : null),
         _ouvir('devices/$id/mon/carga', (v) => _abrirCarga(pc, v)),
+        _ouvir('devices/$id/mon/up', (v) => _abrirUp(pc, v)),
       ];
     }
     estado = EstadoMonitora.pronto;
@@ -203,6 +240,58 @@ class MonitoraController extends ChangeNotifier {
     } catch (_) {
       // Envelope de outra chave (troca em andamento): espera o próximo.
     }
+  }
+
+  // Mensagens do aluno para uma monitora (o PC só copia para cá as que são
+  // de monitora). Todas aparecem; só as para mim contam como não lidas.
+  Future<void> _abrirUp(PcDaMonitora pc, Object? valor) async {
+    final cripto = pc._cripto;
+    if (cripto == null || valor is! Map) return;
+    final vistos = {for (final m in pc.conversa) m.id};
+    for (final env in valor.values) {
+      if (env is! String) continue;
+      try {
+        final msg = await cripto.open(env);
+        final payload = msg['payload'];
+        final mid = msg['mid'];
+        if (msg['type'] != 'chat' || payload is! Map || mid is! String || !vistos.add(mid)) continue;
+        final texto = payload['texto'];
+        if (texto is! String || texto.trim().isEmpty) continue;
+        final nome = payload['nome'];
+        final ano = payload['ano'];
+        final para = payload['para'] is String ? payload['para'] as String : null;
+        pc.conversa.add(MensagemDaMonitora(
+          id: mid,
+          doAluno: true,
+          texto: texto.trim(),
+          ts: msg['ts'] is num ? (msg['ts'] as num).toInt() : agoraMs,
+          quem: quemEscreveu(nome is String ? nome : null, ano is int ? ano : null),
+          para: para,
+        ),);
+        if (para == null || para == meuUid) pc.naoLidas++;
+      } catch (_) {
+        // Envelope de outra chave (troca em andamento): ignora.
+      }
+    }
+    pc.conversa.sort((a, b) => a.ts.compareTo(b.ts));
+  }
+
+  void marcarLidas(PcDaMonitora pc) {
+    if (pc.naoLidas == 0) return;
+    pc.naoLidas = 0;
+    notifyListeners();
+  }
+
+  /// Responde ao aluno: a mensagem aparece no chat do PC com o nome dela.
+  Future<RespostaDoPc> responder(PcDaMonitora pc, String texto) async {
+    final t = texto.trim();
+    if (t.isEmpty) return (ok: false, erro: 'payload_invalido');
+    final r = await enviar(pc, MessageType.chatMessage, {'texto': t, 'de': _nome()});
+    if (r.ok) {
+      pc.conversa.add(MensagemDaMonitora(id: 'eu$_ultimoSid', doAluno: false, texto: t, ts: agoraMs));
+      notifyListeners();
+    }
+    return r;
   }
 
   /// Manda um pedido pelo canal da monitora e espera o ack do PC.

@@ -18,6 +18,7 @@ const int kProtocolVersion = 1;
 const int kUpMaxEnvelope = 4096; // rules: cada filho de up/ < 4096 caracteres
 const int kMaxChatTexto = 500; // code points
 const int kMaxChatDe = 60;
+const int kMaxChatNome = 60;
 const int kMaxPedidoSite = 100;
 const int kMaxPedidoUrl = 500;
 const int kMaxPedidoMotivo = 200;
@@ -70,6 +71,7 @@ class MessageType {
   static const String showMessage = 'show_message';
   static const String setClassView = 'set_class_view';
   static const String setUnit = 'set_unit';
+  static const String setAluno = 'set_aluno'; // state/aluno: nome e ano da chamada
   static const String captureCamera = 'capture_camera'; // app -> ext: foto da webcam
   static const String cameraSnapshot = 'camera_snapshot'; // ext -> app: foto cifrada
   static const String captureScreen = 'capture_screen'; // app -> agente Celita: tela
@@ -407,6 +409,17 @@ Map<String, dynamic> buildLiberarIas({required bool liberar}) {
 
 /// Monta o comando `set_unit` — número da unidade editado pós-pareamento
 /// (estado, não fila: sobrevive a PC offline; requer extensão >= 0.4.6).
+/// `set_aluno` em state/aluno: o aluno da chamada no PC, para o chat não
+/// perguntar. Nome vazio apaga.
+Map<String, dynamic> buildSetAluno({required int rev, required String nome, int? ano}) {
+  return {
+    'v': kProtocolVersion,
+    'type': MessageType.setAluno,
+    'id': _nextId(),
+    'payload': {'rev': rev, 'nome': cortarCodePoints(nome, kMaxChatNome), 'ano': ano},
+  };
+}
+
 Map<String, dynamic> buildSetUnit({required int rev, required int numero}) {
   return {
     'v': kProtocolVersion,
@@ -475,6 +488,7 @@ class Ack {
 // revalida: tipo/mid/site inválido = item descartado calado.
 
 final RegExp _formatoMid = RegExp(r'^[A-Za-z0-9_-]{1,32}$');
+final RegExp _formatoUid = RegExp(r'^[A-Za-z0-9_-]{1,128}$');
 
 /// Um item do `up/` já decifrado e validado.
 class UpMessage {
@@ -485,6 +499,9 @@ class UpMessage {
     required this.seq,
     required this.ts,
     this.texto,
+    this.para,
+    this.nome,
+    this.ano,
     this.site,
     this.url,
     this.motivo,
@@ -499,6 +516,12 @@ class UpMessage {
 
   /// `chat`: texto 1..500 code points.
   final String? texto;
+
+  /// `chat` (Celita >= 1.41): uid de quem o aluno escolheu na equipe, e o
+  /// nome e o ano (1..9) que ele informou ou que vieram da chamada.
+  final String? para;
+  final String? nome;
+  final int? ano;
 
   /// `unblock_request`: host validado, URL ≤ 500, motivo ≤ 200 e o tipo do
   /// bloqueio ('regra' | 'prova').
@@ -524,7 +547,20 @@ class UpMessage {
         if (t is! String) return null;
         final texto = cortarCodePoints(t.trim(), kMaxChatTexto);
         if (texto.isEmpty) return null;
-        return UpMessage._(type: type, mid: mid, sid: sid, seq: seq, ts: ts, texto: texto);
+        final para = p['para'];
+        final nome = p['nome'];
+        final ano = p['ano'];
+        return UpMessage._(
+          type: type,
+          mid: mid,
+          sid: sid,
+          seq: seq,
+          ts: ts,
+          texto: texto,
+          para: para is String && _formatoUid.hasMatch(para) ? para : null,
+          nome: nome is String && nome.trim().isNotEmpty ? cortarCodePoints(nome.trim(), kMaxChatNome) : null,
+          ano: ano is int && ano >= 1 && ano <= 9 ? ano : null,
+        );
       case UpType.unblockRequest:
         final site = p['site'];
         if (site is! String || !siteValido(site)) return null;

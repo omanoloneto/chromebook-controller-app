@@ -5,6 +5,7 @@
 
 import 'dart:convert';
 
+import 'package:controle_de_aula/src/cloud/conversa.dart';
 import 'package:controle_de_aula/src/commands/command.dart';
 import 'package:controle_de_aula/src/util/ids.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -128,6 +129,36 @@ void main() {
       expect(m.texto, 'não consigo abrir o site');
       expect(m.sid, 1767369500000);
       expect(m.seq, 3);
+    });
+
+    test('chat com para quem, nome e ano (Celita >= 1.41)', () {
+      final m = UpMessage.fromMap(_up('chat', {'texto': 'oi', 'para': 'uid-Bia_1', 'nome': '  Ana Lima ', 'ano': 5}))!;
+      expect((m.para, m.nome, m.ano), ('uid-Bia_1', 'Ana Lima', 5));
+      final torto = UpMessage.fromMap(_up('chat', {'texto': 'oi', 'para': '../x', 'nome': ' ', 'ano': 10}))!;
+      expect((torto.texto, torto.para, torto.nome, torto.ano), ('oi', null, null, null));
+      expect(UpMessage.fromMap(_up('chat', {'texto': 'oi', 'ano': true}))!.ano, isNull);
+      expect(UpMessage.fromMap(_up('chat', {'texto': 'oi', 'nome': 'x' * 90}))!.nome, hasLength(60));
+    });
+
+    test('legenda do aluno: quem escreveu e para quem', () {
+      ChatItem item(String? para) =>
+          ChatItem(id: 'a', autor: AutorChat.aluno, texto: 'oi', ts: 1, quem: quemEscreveu('Ana', 5), para: para);
+      String? nomes(String uid) => {'uid-bia': 'Bia'}[uid];
+      expect(legendaDoAluno(item('uid-bia'), nomeDe: nomes, meuUid: 'uid-eu'), 'Ana · 5º ano · para Bia');
+      expect(legendaDoAluno(item('uid-eu'), nomeDe: nomes, meuUid: 'uid-eu'), 'Ana · 5º ano · para você');
+      expect(legendaDoAluno(item('uid-sumiu'), nomeDe: nomes), 'Ana · 5º ano');
+      expect(legendaDoAluno(ChatItem(id: 'b', autor: AutorChat.aluno, texto: 'oi', ts: 1)), '');
+      expect(quemEscreveu('Ana', null), 'Ana');
+      expect(quemEscreveu(null, 3), isNull);
+    });
+
+    test('set_aluno leva nome cortado e ano', () {
+      final c = buildSetAluno(rev: 7, nome: 'x' * 90, ano: 3);
+      expect(c['type'], 'set_aluno');
+      expect((c['payload'] as Map)['rev'], 7);
+      expect(((c['payload'] as Map)['nome'] as String).length, 60);
+      expect((c['payload'] as Map)['ano'], 3);
+      expect((buildSetAluno(rev: 8, nome: '')['payload'] as Map)['ano'], isNull);
     });
 
     test('chat vazio, sem texto ou longo', () {

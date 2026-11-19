@@ -17,6 +17,7 @@ import '../cloud/aula_locks.dart';
 import '../cloud/broadcast_target.dart';
 import '../cloud/conversa.dart';
 import '../cloud/entrega.dart';
+import '../cloud/equipe.dart';
 import '../cloud/fleet_health.dart';
 import '../cloud/firebase_transport.dart';
 import '../cloud/history_store.dart';
@@ -306,6 +307,7 @@ class PairingController extends ChangeNotifier {
       naoLiberadoNaEscola = false;
       unawaited(push?.registrar(user.uid));
       _publicarChaveDasMonitoras();
+      _entrarNaEquipe(user);
 
       final transport = FirebaseTransport(
         teacher: teacher,
@@ -687,6 +689,40 @@ class PairingController extends ChangeNotifier {
       debugPrint('[CdA] entrar na escola: $e');
       return 'Não foi possível acessar a escola agora. Tente de novo.';
     }
+  }
+
+  PresencaNaEquipe? _equipe;
+  StreamSubscription<DbEvent>? _equipeSub;
+  final Map<String, String> _nomesDaEquipe = {};
+
+  String? get meuUid => _usuarioAtual?.uid;
+
+  /// Nome de alguém da equipe pelo uid (para "para Bia" na conversa).
+  String? nomeNaEquipe(String uid) => _nomesDaEquipe[uid];
+
+  // Professor da escola aparece na lista do chat do aluno.
+  void _entrarNaEquipe(AuthUser user) {
+    final email = user.email ?? emailGoogle;
+    if (schoolUid == null || email == null) return;
+    _equipe?.parar();
+    _equipe = PresencaNaEquipe(papel: PapelNaEquipe.professor, uid: user.uid, email: email, nome: () => deviceName);
+    unawaited(_equipe!.iniciar());
+    unawaited(_equipeSub?.cancel());
+    _equipeSub = Backend.instance.db.ref('school/equipe').onValue.listen(
+      (e) {
+        final v = e.snapshot.value;
+        _nomesDaEquipe
+          ..clear()
+          ..addAll({
+            if (v is Map)
+              for (final entry in v.entries)
+                if (entry.value is Map && (entry.value as Map)['nome'] is String)
+                  '${entry.key}': (entry.value as Map)['nome'] as String,
+          });
+        notifyListeners();
+      },
+      onError: (Object e) => debugPrint('[CdA] equipe: $e'),
+    );
   }
 
   // PC novo da escola recebe a pub da monitora; sem monitoras, não faz nada.
@@ -1355,6 +1391,12 @@ class PairingController extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> definirAnoDaTurma(int indice, int? ano) async {
+    await _students?.definirAno(indice, ano);
+    _schoolSync?.push('turmas');
+    notifyListeners();
+  }
+
   Future<void> removerTurma(int indice) async {
     await _students?.removerTurma(indice);
     _schoolSync?.push('turmas');
@@ -1540,6 +1582,7 @@ class PairingController extends ChangeNotifier {
       if (erro != null) return erro;
     }
     await _session?.vincular(deviceId, aluno);
+    _enviarAluno(deviceId, aluno);
     // PC que entra na aula depois herda a trava e a prova vigentes.
     unawaited(_herdarEstadoDaTurma(deviceId));
     notifyListeners();
@@ -1570,7 +1613,17 @@ class PairingController extends ChangeNotifier {
     await _desligarEstadoNoPc(deviceId);
     await _aulaLocks?.destravar(deviceId);
     await _session?.desvincular(deviceId);
+    _enviarAluno(deviceId, '');
     notifyListeners();
+  }
+
+  /// Nome e ano do aluno da chamada no PC (state/aluno), para o chat do aluno
+  /// não perguntar. Nome vazio apaga. Best-effort, como o set_unit.
+  void _enviarAluno(String deviceId, String aluno) {
+    final ano = _students?.turmaPorNome(turmaDaAula)?.ano;
+    _transport
+        ?.setStateOne(deviceId, buildSetAluno(rev: _proximoRev(), nome: aluno, ano: ano))
+        .catchError((e) => debugPrint('set_aluno falhou: $e'));
   }
 
   /// Encerra a aula, nesta ordem: desliga trava e prova (todo PC com o
@@ -1588,6 +1641,9 @@ class PairingController extends ChangeNotifier {
       (_) => buildCloseAllTabs(closeWindows: true, fimDeAula: true),
     );
     await _limparRecadosDe(alvo);
+    for (final deviceId in alvo) {
+      if (alunoDe(deviceId) != null) _enviarAluno(deviceId, '');
+    }
     await _history?.fecharSessao();
     final comExcecao = _session?.devicesComExcecao ?? const <String>[];
     await _session?.encerrar();
@@ -2315,10 +2371,18 @@ class PairingController extends ChangeNotifier {
         if (s.chat.any((c) => c.autor == AutorChat.aluno && c.id == msg.mid)) break;
         _anexarChat(
           s,
-          ChatItem(id: msg.mid, autor: AutorChat.aluno, texto: msg.texto!, ts: ms),
+          ChatItem(
+            id: msg.mid,
+            autor: AutorChat.aluno,
+            texto: msg.texto!,
+            ts: ms,
+            quem: quemEscreveu(msg.nome, msg.ano),
+            para: msg.para,
+          ),
         );
         s.naoLidas++;
-        if (notificar) {
+        // Todos veem a conversa; só quem o aluno escolheu é avisado.
+        if (notificar && (msg.para == null || msg.para == meuUid)) {
           unawaited(notifs.notificarRecado(
             k: 'chat',
             deviceId: deviceId,
@@ -3043,6 +3107,8 @@ class PairingController extends ChangeNotifier {
   }
 
   Future<void> stop() async {
+    _equipe?.parar();
+    await _equipeSub?.cancel();
     await _wifiGuardiao?.stop();
     _wifiGuardiao = null;
     await fecharGrade();
@@ -3052,6 +3118,7 @@ class PairingController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _equipe?.parar();
     _gradeTimer?.cancel();
     _entregaTimer?.cancel();
     _entregaTravaTimer?.cancel();

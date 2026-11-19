@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 
 import 'src/backend/backend.dart';
 import 'src/backend/open_backend.dart';
+import 'src/cloud/equipe.dart';
 import 'src/pairing/computer_login.dart';
 import 'src/pairing/monitora_controller.dart';
 import 'src/pairing/pairing_controller.dart';
@@ -99,7 +100,17 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
   }
 
   void _abrirMonitora() {
-    _monitora = MonitoraController()..start();
+    final user = Backend.instance.auth.currentUser;
+    final email = user?.email ?? user?.googleEmail;
+    // Sem nome em Ajustes, o aluno vê "Monitora" (e não "Professor").
+    String nome() => _settings.nomeProfessor == 'Professor' ? 'Monitora' : _settings.nomeProfessor;
+    _monitora = MonitoraController(
+      meuUid: user?.uid,
+      nome: nome,
+      presenca: user != null && email != null
+          ? PresencaNaEquipe(papel: PapelNaEquipe.monitora, uid: user.uid, email: email, nome: nome)
+          : null,
+    )..start();
   }
 
   // Ajustes ligou ou desligou o modo monitora: troca a tela inteira.

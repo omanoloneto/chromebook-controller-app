@@ -31,6 +31,8 @@ class ChatItem {
     this.codigoErro,
     this.paraTurma = false,
     this.versaoAntiga = false,
+    this.quem,
+    this.para,
   });
 
   /// `mid` da mensagem (dedup por PC).
@@ -49,8 +51,25 @@ class ChatItem {
   /// Enviada pelo "Mensagem para a turma".
   final bool paraTurma;
 
+  /// Aluno (Celita >= 1.41): "Ana Lima · 5º ano", e o uid de quem ele escolheu.
+  final String? quem;
+  final String? para;
+
   /// PC antigo: foi como `show_message` e o aluno não tem como responder.
   final bool versaoAntiga;
+}
+
+/// Quem escreveu, do jeito do chat do aluno: "Ana Lima · 5º ano".
+String? quemEscreveu(String? nome, int? ano) =>
+    nome == null ? null : (ano == null ? nome : '$nome · $anoº ano');
+
+/// Legenda do balão do aluno: quem escreveu e para quem ([nomeDe] resolve o
+/// uid pela equipe da escola; [meuUid] vira "para você").
+String legendaDoAluno(ChatItem item, {String? Function(String uid)? nomeDe, String? meuUid}) {
+  final para = item.para;
+  final nome = para == null ? null : nomeDe?.call(para);
+  final destino = para == null ? null : (para == meuUid ? 'para você' : (nome != null ? 'para $nome' : null));
+  return [if (item.quem != null) item.quem!, if (destino != null) destino].join(' · ');
 }
 
 /// Legenda do balão do professor (§3.6). [ext] = meta/ext do PC.

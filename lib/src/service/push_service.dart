@@ -6,10 +6,12 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../backend/backend.dart';
 import '../cloud/up_router.dart';
@@ -40,6 +42,7 @@ Future<RecadoDoPush?> abrirRecado(
   required DeviceKeyPair professor,
   required String Function(String deviceId, String label) nome,
   required int agoraMs,
+  String? meuUid,
 }) async {
   final deviceId = dados['d'], pushId = dados['k'], env = dados['e'], pub = dados['p'];
   if (dados['t'] != 'up' || deviceId is! String || deviceId.isEmpty || pushId is! String) return null;
@@ -54,6 +57,8 @@ Future<RecadoDoPush?> abrirRecado(
     return null;
   }
   if (up == null) return null;
+  // Chat para outra pessoa da equipe: aparece no app, mas não toca aqui.
+  if (up.para != null && meuUid != null && up.para != meuUid) return null;
   final label = dados['l'];
   final quem = nome(deviceId, label is String ? label : '');
   return switch (up.type) {
@@ -86,6 +91,7 @@ Future<void> aoPushEmSegundoPlano(RemoteMessage mensagem) async {
     professor: professor,
     nome: await nomesLocais(),
     agoraMs: DateTime.now().millisecondsSinceEpoch,
+    meuUid: await lerUidDoPush(),
   );
   if (recado == null) return;
   final notificacoes = NotificationService();
@@ -97,6 +103,26 @@ Future<void> aoPushEmSegundoPlano(RemoteMessage mensagem) async {
     titulo: recado.titulo,
     corpo: recado.corpo,
   );
+}
+
+// O isolate do push não tem o Firebase Auth: o uid fica num arquivo do app.
+const _arquivoUid = 'push_uid.txt';
+
+Future<String?> lerUidDoPush() async {
+  try {
+    final dir = await getApplicationSupportDirectory();
+    final texto = (await File('${dir.path}/$_arquivoUid').readAsString()).trim();
+    return texto.isEmpty ? null : texto;
+  } catch (_) {
+    return null;
+  }
+}
+
+Future<void> _gravarUidDoPush(String uid) async {
+  try {
+    final dir = await getApplicationSupportDirectory();
+    await File('${dir.path}/$_arquivoUid').writeAsString(uid);
+  } catch (_) {}
 }
 
 /// Token deste celular em /fcm/{uid}/{chave} = {t, ts}; a Cloud Function lê e
@@ -121,6 +147,7 @@ class PushService {
     try {
       if (_uid != uid) await esquecer();
       _uid = uid;
+      await _gravarUidDoPush(uid);
       final token = await _fcm.getToken();
       if (token != null) await _gravar(token);
       _renovacao ??= _fcm.onTokenRefresh.listen((t) => unawaited(_gravar(t).catchError((_) {})));

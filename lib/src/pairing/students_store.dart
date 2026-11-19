@@ -7,12 +7,15 @@ import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 
 class Turma {
-  Turma({required this.nome, List<String>? alunos}) : alunos = alunos ?? [];
+  Turma({required this.nome, List<String>? alunos, this.ano}) : alunos = alunos ?? [];
 
   String nome;
   final List<String> alunos;
 
-  Map<String, dynamic> toMap() => {'nome': nome, 'alunos': alunos};
+  /// Ano escolar (1..9), que vai para o chat do aluno pela chamada.
+  int? ano;
+
+  Map<String, dynamic> toMap() => {'nome': nome, 'alunos': alunos, if (ano != null) 'ano': ano};
 
   static Turma? fromMap(dynamic m) {
     if (m is! Map) return null;
@@ -25,7 +28,8 @@ class Turma {
         if (a is String && a.isNotEmpty) alunos.add(a);
       }
     }
-    return Turma(nome: nome, alunos: alunos);
+    final ano = m['ano'];
+    return Turma(nome: nome, alunos: alunos, ano: ano is int && ano >= 1 && ano <= 9 ? ano : null);
   }
 }
 
@@ -78,6 +82,12 @@ class StudentsStore {
     if (indice < 0 || indice >= _turmas.length || n.isEmpty) return;
     if (turmaPorNome(n) != null && _turmas[indice].nome != n) return;
     _turmas[indice].nome = n;
+    await _save();
+  }
+
+  Future<void> definirAno(int indice, int? ano) async {
+    if (indice < 0 || indice >= _turmas.length) return;
+    _turmas[indice].ano = ano != null && ano >= 1 && ano <= 9 ? ano : null;
     await _save();
   }
 

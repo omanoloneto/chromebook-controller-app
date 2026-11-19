@@ -5,6 +5,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:controle_de_aula/src/backend/backend.dart';
+import 'package:controle_de_aula/src/cloud/equipe.dart';
 import 'package:controle_de_aula/src/cloud/monitoras.dart';
 import 'package:controle_de_aula/src/commands/command.dart';
 import 'package:controle_de_aula/src/pairing/monitora_controller.dart';
@@ -64,7 +65,19 @@ void main() {
       pc = await _PcDeMentira.criar(banco, 'pc1', chave);
       banco.gravar('school/devices', {'pc1': true});
       await pc.publicarCarga(level: 23, plugged: false, session: true);
-      c = MonitoraController(database: banco, espera: const Duration(milliseconds: 300));
+      c = MonitoraController(
+        database: banco,
+        espera: const Duration(milliseconds: 300),
+        meuUid: 'uid-mon',
+        nome: () => 'Bia',
+        presenca: PresencaNaEquipe(
+          papel: PapelNaEquipe.monitora,
+          uid: 'uid-mon',
+          email: 'Bia@Escola.com',
+          nome: () => 'Bia',
+          database: banco,
+        ),
+      );
       await c.start();
       await _ate(() => c.pcs.isNotEmpty && c.pcs.first.bateria != null);
     });
@@ -103,6 +116,35 @@ void main() {
       expect(lido.sessions.single.events.single.action, 'bloqueado');
       expect(lido.unreadable, 0);
       expect((await c.historico(c.pcs.single, c.diasDoHistorico()[1]))!.isEmpty, isTrue);
+    });
+
+    test('mensagens do aluno para monitora chegam; só as para mim contam', () async {
+      await pc.publicarUp('a' * 16, {'texto': 'Bia, ajuda', 'para': 'uid-mon', 'nome': 'Ana', 'ano': 5});
+      await pc.publicarUp('b' * 16, {'texto': 'Para a outra', 'para': 'uid-outra'});
+      await _ate(() => c.pcs.single.conversa.length == 2);
+      final lido = c.pcs.single;
+      expect(lido.conversa.first.quem, 'Ana · 5º ano');
+      expect(lido.naoLidas, 1, reason: 'c é a monitora uid-mon');
+      await pc.publicarUp('a' * 16, {'texto': 'Bia, ajuda', 'para': 'uid-mon'});
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(lido.conversa, hasLength(2), reason: 'mesmo mid não repete');
+      c.marcarLidas(lido);
+      expect(lido.naoLidas, 0);
+    });
+
+    test('responder vai como chat_message com o nome dela', () async {
+      final r = await c.responder(c.pcs.single, '  Já vou aí  ');
+      expect(r.ok, isTrue);
+      expect(pc.recebidos.single['type'], MessageType.chatMessage);
+      expect(pc.recebidos.single['payload'], {'texto': 'Já vou aí', 'de': 'Bia'});
+      expect(c.pcs.single.conversa.single.doAluno, isFalse);
+      expect((await c.responder(c.pcs.single, '  ')).erro, 'payload_invalido');
+    });
+
+    test('ao entrar, a monitora grava a própria entrada na equipe', () async {
+      expect(banco.ler('school/equipe/uid-mon'), isA<Map>());
+      expect((banco.ler('school/equipe/uid-mon') as Map)['papel'], 'monitora');
+      expect((banco.ler('school/equipe/uid-mon') as Map)['ek'], 'bia@escola,com');
     });
 
     test('desligar vai pelo mon/cmd com a chave da monitora', () async {
@@ -191,6 +233,60 @@ void main() {
     await tester.runAsync(c.stop);
   });
 
+  testWidgets('conversa da monitora mostra o aluno e zera as não lidas', (tester) async {
+    final c = await tester.runAsync(() async {
+      final banco = _Banco();
+      final chave = await SchoolMonitoras(database: banco).garantirChave();
+      final pc = await _PcDeMentira.criar(banco, 'pc1', chave);
+      banco.gravar('school/devices', {'pc1': true});
+      final c = MonitoraController(database: banco, meuUid: 'uid-mon');
+      await c.start();
+      await _ate(() => c.pcs.isNotEmpty && c.pcs.first.temChave);
+      await pc.publicarUp('a' * 16, {'texto': 'Bia, ajuda', 'para': 'uid-mon', 'nome': 'Ana', 'ano': 5});
+      await _ate(() => c.pcs.first.naoLidas == 1);
+      return c;
+    });
+    await tester.pumpWidget(MaterialApp(
+      theme: buildTheme(Brightness.light),
+      home: ConversaDaMonitora(controller: c!, pc: c.pcs.single),
+    ),);
+    await tester.pump();
+    expect(find.text('Bia, ajuda'), findsOneWidget);
+    expect(find.textContaining('Ana · 5º ano'), findsOneWidget);
+    expect(c.pcs.single.naoLidas, 0);
+    await tester.runAsync(c.stop);
+  });
+
+  test('o fundador tira alguém e a entrada dele some da equipe', () async {
+    final banco = _Banco()
+      ..gravar('school/equipe', {
+        'u1': {'nome': 'Bia', 'papel': 'monitora', 'ek': 'bia@escola,com', 'visto': 1},
+        'u2': {'nome': 'Caio', 'papel': 'professor', 'ek': 'caio@escola,com', 'visto': 1},
+      })
+      ..gravar('school/monitores', {'bia@escola,com': true});
+    await SchoolMonitoras(database: banco).remover('Bia@Escola.com');
+    expect(banco.ler('school/monitores'), isNull);
+    expect((banco.ler('school/equipe') as Map).keys, ['u2']);
+  });
+
+  test('nome vazio vai como Monitora e o nome é cortado em 60', () async {
+    final banco = _Banco();
+    var nome = '  ';
+    final p = PresencaNaEquipe(
+      papel: PapelNaEquipe.monitora,
+      uid: 'u',
+      email: 'a@b.com',
+      nome: () => nome,
+      database: banco,
+    );
+    await p.gravar();
+    expect((banco.ler('school/equipe/u') as Map)['nome'], 'Monitora');
+    nome = 'x' * 80;
+    await p.gravar();
+    expect(((banco.ler('school/equipe/u') as Map)['nome'] as String).length, 60);
+    p.parar();
+  });
+
   test('sem a chave da monitora (acesso negado) o app diz sem acesso', () async {
     final banco = _Banco()..negados.add('school/monitorKey/keys');
     final c = MonitoraController(database: banco);
@@ -248,6 +344,9 @@ class _PcDeMentira {
         'env': await cripto.seal({'v': 1, 'type': 'archived_nav', 'user': 'aluno', 'login': login, 'events': eventos}),
         'ts': 1,
       });
+
+  Future<void> publicarUp(String mid, Map<String, dynamic> payload) async =>
+      banco.gravar('devices/$id/mon/up/u$mid', await _selar({'type': 'chat', 'mid': mid, 'payload': payload}));
 
   Future<void> _atender(Object? fila) async {
     if (fila is! Map || mudo) return;

@@ -370,7 +370,7 @@ class _ChatPageState extends State<ChatPage> with WidgetsBindingObserver {
           item: item,
           legenda: item.autor == AutorChat.professor
               ? legendaDoBalao(item, ext: ext)
-              : '',
+              : legendaDoAluno(item, nomeDe: _p.nomeNaEquipe, meuUid: _p.meuUid),
           inicioDoGrupo: !mesmoGrupo(item, anterior),
           fimDoGrupo: !mesmoGrupo(item, proximo),
         );
@@ -463,7 +463,8 @@ class BolhaDoChat extends StatelessWidget {
 
   final ChatItem item;
 
-  /// Legenda do professor ("✓ Entregue · para a turma"); vazia no aluno.
+  /// Legenda do professor ("✓ Entregue · para a turma"); no aluno, quem
+  /// escreveu e para quem.
   final String legenda;
   final bool inicioDoGrupo;
   final bool fimDoGrupo;

@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../backend/backend.dart';
 import '../secure/keypair.dart';
+import 'equipe.dart';
 import 'school_members.dart';
 
 /// "priv:pub" em base64url, o mesmo formato da chave da escola.
@@ -62,8 +63,10 @@ class SchoolMonitoras {
     return null;
   }
 
-  Future<void> remover(String email) =>
-      _lista.child(emailKey(email.trim().toLowerCase())).remove();
+  Future<void> remover(String email) async {
+    await _lista.child(emailKey(email.trim().toLowerCase())).remove();
+    await tirarDaEquipe(email, database: _db);
+  }
 
   Future<DeviceKeyPair?> baixarChave() async =>
       chaveDoTexto((await _chave.child('keys').get()).value);

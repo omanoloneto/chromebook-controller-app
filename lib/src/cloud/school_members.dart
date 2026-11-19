@@ -5,6 +5,7 @@
 import 'package:flutter/foundation.dart' show debugPrint;
 
 import '../backend/backend.dart';
+import 'equipe.dart';
 
 /// "Ana.Silva@escola.com.br" → "ana,silva@escola,com,br".
 String emailKey(String email) => email.toLowerCase().replaceAll('.', ',');
@@ -81,5 +82,8 @@ class SchoolMembers {
     return null;
   }
 
-  Future<void> remover(String email) => _ref.child(emailKey(email)).remove();
+  Future<void> remover(String email) async {
+    await _ref.child(emailKey(email)).remove();
+    await tirarDaEquipe(email, database: _db);
+  }
 }

@@ -21,6 +21,18 @@ void main() {
   });
 
   group('StudentsStore', () {
+    test('ano da turma persiste; fora de 1..9 vira sem ano', () async {
+      var store = await StudentsStore.load(dir: tmp);
+      await store.adicionarTurma('5º A');
+      expect(store.turmas[0].ano, isNull);
+      await store.definirAno(0, 5);
+      store = await StudentsStore.load(dir: tmp);
+      expect(store.turmas[0].ano, 5);
+      await store.definirAno(0, 12);
+      store = await StudentsStore.load(dir: tmp);
+      expect(store.turmas[0].ano, isNull);
+    });
+
     test('CRUD de turmas e alunos persiste entre loads', () async {
       var store = await StudentsStore.load(dir: tmp);
       await store.adicionarTurma('2º ano A');

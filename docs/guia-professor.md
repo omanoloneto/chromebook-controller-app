@@ -166,6 +166,9 @@ A monitora usa o mesmo app numa versão simples: **Sala** e **Carrinho**.
   e desligar, num computador ou em todos os ligados.
 - **Histórico de navegação:** os sites de cada computador nos últimos 15 dias,
   sem fotos. Só o que foi visitado depois do Celita OS 1.41.0.
+- **Mensagens do aluno:** o aluno pode escolher a monitora no chat do
+  computador; a mensagem aparece em "Mensagens do aluno" no computador, e ela
+  responde por ali. O nome que o aluno vê é o de Ajustes → Seu nome.
 - **Carrinho:** quais computadores estão fora da tomada e com bateria baixa, e
   quais ainda estão ligados.
 - **O que ela não faz:** câmera, fotos de entrada, bloqueios, Wi-Fi,
@@ -174,6 +177,20 @@ A monitora usa o mesmo app numa versão simples: **Sala** e **Carrinho**.
 - Só funciona nos computadores com Celita OS 1.40.0 ou mais novo. Cada
   computador recebe o acesso das monitoras quando algum professor abre o app.
 - **Tirar o acesso:** Ajustes → Monitoras da escola → Tirar o acesso. Vale na hora.
+
+## 4.2 Chat do aluno (Celita OS 1.41.0)
+
+- O aluno escreve pelo "Falar com o professor" no computador. Antes da
+  primeira mensagem ele diz o nome e o ano. Se você já ligou o aluno ao
+  computador na chamada, o nome e o ano vêm sozinhos.
+- Para o ano vir da chamada, marque o ano da turma: Turmas → ⋮ → Ano da turma.
+- O aluno escolhe para quem manda, entre os professores e as monitoras que já
+  abriram o app (quem está com o app aberto aparece como "online"). O nome que
+  ele vê é o de Ajustes → Seu nome.
+- Todos os professores veem a conversa, com o nome, o ano e para quem foi;
+  só quem o aluno escolheu recebe a notificação.
+- Cada mensagem tira uma foto da câmera do computador, guardada por 15 dias só
+  para saber quem escreveu, se for preciso. Ela não aparece no chat.
 
 ## 5. Extensão nos Chromebooks
 

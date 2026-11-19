@@ -129,7 +129,9 @@ class _LinhaDoPc extends StatelessWidget {
       ),
       title: Text(pc.titulo),
       subtitle: Text(linha),
-      trailing: const Icon(Icons.chevron_right),
+      trailing: pc.naoLidas > 0
+          ? Badge(label: Text('${pc.naoLidas}'), child: const Icon(Icons.chat_bubble_outline))
+          : const Icon(Icons.chevron_right),
       onTap: () => abrirPcDaMonitora(context, controller, pc),
     );
   }
@@ -410,6 +412,21 @@ Future<void> abrirPcDaMonitora(BuildContext context, MonitoraController c, PcDaM
                       child: Text('Ligue o computador pelo botão para usar estas ações.'),
                     ),
                   ListTile(
+                    leading: pc.naoLidas > 0
+                        ? Badge(label: Text('${pc.naoLidas}'), child: const Icon(Icons.chat_bubble_outline))
+                        : const Icon(Icons.chat_bubble_outline),
+                    title: const Text('Mensagens do aluno'),
+                    subtitle: Text(
+                      pc.conversa.isEmpty ? 'Nenhuma mensagem ainda' : pc.conversa.last.texto,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(sheet).push(
+                      MaterialPageRoute<void>(builder: (_) => ConversaDaMonitora(controller: c, pc: pc)),
+                    ),
+                  ),
+                  ListTile(
                     leading: const Icon(Icons.history),
                     title: const Text('Histórico de navegação'),
                     subtitle: const Text('Sites dos últimos 15 dias'),
@@ -620,6 +637,149 @@ class _HistoricoDaMonitoraState extends State<HistoricoDaMonitora> {
                 if (dia == null) return _aviso(textoDaMonitora('sem_chave'));
                 return _lista(dia);
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ConversaDaMonitora extends StatefulWidget {
+  const ConversaDaMonitora({super.key, required this.controller, required this.pc});
+
+  final MonitoraController controller;
+  final PcDaMonitora pc;
+
+  @override
+  State<ConversaDaMonitora> createState() => _ConversaDaMonitoraState();
+}
+
+class _ConversaDaMonitoraState extends State<ConversaDaMonitora> {
+  final _campo = TextEditingController();
+  bool _enviando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_mudou);
+    WidgetsBinding.instance.addPostFrameCallback((_) => widget.controller.marcarLidas(widget.pc));
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_mudou);
+    _campo.dispose();
+    super.dispose();
+  }
+
+  void _mudou() {
+    if (!mounted) return;
+    setState(() {});
+    if (widget.pc.naoLidas > 0) widget.controller.marcarLidas(widget.pc);
+  }
+
+  Future<void> _enviar() async {
+    final texto = _campo.text.trim();
+    if (texto.isEmpty || _enviando) return;
+    setState(() => _enviando = true);
+    final r = await widget.controller.responder(widget.pc, texto);
+    if (!mounted) return;
+    setState(() => _enviando = false);
+    if (r.ok) {
+      _campo.clear();
+    } else {
+      _avisar(context, textoDaMonitora(r.erro));
+    }
+  }
+
+  String _hora(int ts) {
+    final d = DateTime.fromMillisecondsSinceEpoch(ts);
+    return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tema = Theme.of(context);
+    final itens = widget.pc.conversa;
+    final meuUid = widget.controller.meuUid;
+    return Scaffold(
+      appBar: AppBar(title: Text('Mensagens da ${widget.pc.titulo}')),
+      body: Column(
+        children: [
+          Expanded(
+            child: itens.isEmpty
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text(
+                        'Quando o aluno escolher uma monitora no chat do computador, '
+                        'a mensagem aparece aqui.',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.all(12),
+                    children: [
+                      for (final m in itens)
+                        Align(
+                          alignment: m.doAluno ? Alignment.centerLeft : Alignment.centerRight,
+                          child: Container(
+                            margin: const EdgeInsets.symmetric(vertical: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                            constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.78),
+                            decoration: BoxDecoration(
+                              color: m.doAluno
+                                  ? tema.colorScheme.surfaceContainerHighest
+                                  : tema.colorScheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Texto da rede: Text puro.
+                                Text(m.texto),
+                                const SizedBox(height: 2),
+                                Text(
+                                  [
+                                    _hora(m.ts),
+                                    if (m.quem != null) m.quem!,
+                                    if (m.doAluno && m.para != null && m.para != meuUid) 'para outra monitora',
+                                  ].join(' · '),
+                                  style: tema.textTheme.labelSmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _campo,
+                      maxLength: 500,
+                      minLines: 1,
+                      maxLines: 4,
+                      decoration: const InputDecoration(hintText: 'Responder ao aluno', counterText: ''),
+                      onSubmitted: (_) => _enviar(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    tooltip: 'Enviar',
+                    onPressed: _enviando ? null : _enviar,
+                    icon: const Icon(Icons.send),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

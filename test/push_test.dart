@@ -6,6 +6,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:controle_de_aula/src/cloud/up_router.dart';
+import 'package:controle_de_aula/src/secure/crypto.dart';
 import 'package:controle_de_aula/src/secure/keypair.dart';
 import 'package:controle_de_aula/src/service/push_service.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,6 +49,30 @@ void main() {
       nome: (_, __) => 'Ana Souza',
     );
     expect(pedido!.corpo, 'Ana Souza: wikipedia.org');
+  });
+
+  test('chat para outra pessoa da equipe não toca; para mim ou sem destino, toca', () async {
+    final modelo = recados.firstWhere((r) => (r['esperado'] as Map?)?['k'] == 'chat');
+    final pc = await DeviceKeyPair.generate();
+    final cripto = SessionCrypto(await pc.deriveSessionKey((await professor()).publicBytes));
+    Future<RecadoDoPush?> com(String? para, {String? meuUid}) async {
+      final env = await cripto.seal({
+        'sid': 1,
+        'seq': 1,
+        'ts': agoraMs,
+        'v': 1,
+        'type': 'chat',
+        'mid': 'a' * 16,
+        'payload': {'texto': 'Socorro', if (para != null) 'para': para, 'nome': 'Ana', 'ano': 5},
+      });
+      final dados = {...Map<String, dynamic>.from(modelo['dados'] as Map), 'e': env, 'p': pubToB64url(pc.publicBytes)};
+      return abrirRecado(dados, professor: await professor(), nome: (_, l) => l, agoraMs: agoraMs, meuUid: meuUid);
+    }
+
+    expect(await com('uid-bia', meuUid: 'uid-eu'), isNull);
+    expect((await com('uid-eu', meuUid: 'uid-eu'))?.corpo, 'Socorro');
+    expect((await com(null, meuUid: 'uid-eu'))?.corpo, 'Socorro');
+    expect((await com('uid-bia'))?.corpo, 'Socorro', reason: 'sem uid guardado: toca como antes');
   });
 
   test('fora do formato não toca', () async {
