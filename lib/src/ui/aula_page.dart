@@ -16,6 +16,7 @@ import 'componentes.dart';
 import 'device_page.dart';
 import 'energia_controles.dart';
 import 'faixa_entrega.dart';
+import 'galeria_telas.dart';
 import 'fotos_de_entrada_page.dart';
 import 'grade_telas.dart';
 import 'home_sections.dart';
@@ -208,6 +209,11 @@ class _AulaPageState extends State<AulaPage> {
         toolbarHeight: aula ? 68 : null,
         title: aula ? _tituloDaAula() : const Text('Controle de Aula'),
         actions: [
+          IconButton(
+            tooltip: 'Telas dos computadores',
+            onPressed: () => abrirGaleriaDoProfessor(context, _pairing),
+            icon: const Icon(Icons.photo_library_outlined),
+          ),
           _botaoRecados(),
           _menuMais(),
           const SizedBox(width: 4),

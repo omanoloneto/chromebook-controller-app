@@ -30,13 +30,14 @@ ligados, também com o app fechado, e volta sozinha quando o celular reinicia.
 
 ## 2. Entrar no workspace da escola
 
-Na primeira abertura o app oferece **"Entrar no workspace da escola"**:
+O app só abre com a conta **Google**:
 
-1. Toque e entre com a sua conta **Google**.
-2. Pronto — você já vê os PCs, turmas, regras de sites e histórico
-   compartilhados pelos professores da escola.
-
-(Se pulou essa tela: **Ajustes → Escola → Entrar na escola**.)
+1. Toque em **Entrar com Google**.
+2. Se o seu e-mail já foi liberado pela coordenação, você já vê os PCs,
+   turmas, regras de sites e histórico da escola.
+3. Se ainda não foi, o app mostra o seu e-mail para você passar à
+   coordenação e abre sozinho assim que ela liberar. "Usar outra conta" troca
+   o e-mail.
 
 Depois, em **Ajustes → Conta → Nome do professor**, coloque o seu nome — é
 ele que aparece nos avisos e nas travas de aula ("Em aula com Fulano").
@@ -161,7 +162,8 @@ A monitora usa o mesmo app numa versão simples: **Sala** e **Carrinho**.
 
 - **Liberar:** quem criou a escola abre Ajustes → Monitoras da escola →
   Liberar uma monitora e digita o e-mail da conta Google dela.
-- **Entrar:** no celular da monitora, Ajustes → Entrar como monitora.
+- **Entrar:** a monitora abre o app e entra com a conta Google liberada. Se
+  ela abrir antes da liberação, o app espera e abre sozinho quando você liberar.
 - **Sala:** ver a tela, mandar mensagem, fechar abas, sair da conta, reiniciar
   e desligar, num computador ou em todos os ligados.
 - **Histórico de navegação:** os sites de cada computador nos últimos 15 dias,
@@ -178,7 +180,16 @@ A monitora usa o mesmo app numa versão simples: **Sala** e **Carrinho**.
   computador recebe o acesso das monitoras quando algum professor abre o app.
 - **Tirar o acesso:** Ajustes → Monitoras da escola → Tirar o acesso. Vale na hora.
 
-## 4.2 Chat do aluno (Celita OS 1.41.0)
+## 4.2 Telas dos computadores
+
+- Professor: na aba Aula, o ícone de galeria no alto. Monitora: Sala → Ver telas.
+- Mostra uma foto da tela de cada computador ligado, duas por linha, com a
+  unidade ou, se o aluno foi ligado na chamada, o nome e o ano.
+- Toque numa tela para abrir grande. O botão de baixar salva uma; o do alto
+  salva todas de uma vez na galeria do celular (álbum Controle de Aula).
+- O botão de atualizar tira as fotos de novo.
+
+## 4.2.1 Chat do aluno (Celita OS 1.41.0)
 
 - O aluno escreve pelo "Falar com o professor" no computador. Antes da
   primeira mensagem ele diz o nome e o ano. Se você já ligou o aluno ao

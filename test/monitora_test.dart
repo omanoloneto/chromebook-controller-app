@@ -28,6 +28,24 @@ void main() {
     expect(await chaveDoTexto(null), isNull);
   });
 
+  test('liberar a monitora já publica a chave nos PCs da escola', () async {
+    final banco = _Banco()..gravar('school/devices', {'pc1': true});
+    await SchoolMonitoras(database: banco).adicionar('bia@escola.com');
+    expect(banco.ler('devices/pc1/mon/pub'), isA<String>());
+  });
+
+  test('sem a chave, a monitora tenta de novo sozinha e entra quando ela chega', () async {
+    final banco = _Banco()..negados.add('school/monitorKey/keys');
+    final c = MonitoraController(database: banco, tentarDeNovo: const Duration(milliseconds: 30));
+    await c.start();
+    expect(c.estado, EstadoMonitora.semAcesso);
+    banco.negados.clear();
+    await SchoolMonitoras(database: banco).garantirChave();
+    banco.gravar('school/devices', {'pc1': true});
+    await _ate(() => c.estado == EstadoMonitora.pronto);
+    await c.stop();
+  });
+
   test('liberar cria a chave uma vez só e lista o e-mail', () async {
     final banco = _Banco();
     final m = SchoolMonitoras(database: banco);
@@ -145,6 +163,16 @@ void main() {
       expect(banco.ler('school/equipe/uid-mon'), isA<Map>());
       expect((banco.ler('school/equipe/uid-mon') as Map)['papel'], 'monitora');
       expect((banco.ler('school/equipe/uid-mon') as Map)['ek'], 'bia@escola,com');
+    });
+
+    test('aluno da chamada vem na carga e vira o rótulo da galeria', () async {
+      expect(c.pcs.single.rotulo, 'Unidade 7');
+      await pc.publicarCarga(level: 50, plugged: true, session: true, aluno: {'nome': 'Ana Lima', 'ano': 3});
+      await _ate(() => c.pcs.single.alunoNome != null);
+      expect(c.pcs.single.rotulo, 'Ana Lima · 3º ano');
+      await pc.publicarCarga(level: 50, plugged: true, session: true);
+      await _ate(() => c.pcs.single.alunoNome == null);
+      expect(c.pcs.single.rotulo, 'Unidade 7');
     });
 
     test('desligar vai pelo mon/cmd com a chave da monitora', () async {
@@ -333,9 +361,20 @@ class _PcDeMentira {
   Future<String> _selar(Map<String, dynamic> obj) =>
       cripto.seal({'sid': 1, 'seq': ++_seq, 'ts': DateTime.now().millisecondsSinceEpoch, 'v': 1, ...obj});
 
-  Future<void> publicarCarga({required int level, required bool plugged, required bool session}) async =>
+  Future<void> publicarCarga({
+    required int level,
+    required bool plugged,
+    required bool session,
+    Map<String, dynamic>? aluno,
+  }) async =>
       banco.gravar('devices/$id/mon/carga', {
-        'env': await _selar({'type': MessageType.cargaReport, 'level': level, 'plugged': plugged, 'session': session}),
+        'env': await _selar({
+          'type': MessageType.cargaReport,
+          'level': level,
+          'plugged': plugged,
+          'session': session,
+          if (aluno != null) 'aluno': aluno,
+        }),
         'ts': 1,
       });
 

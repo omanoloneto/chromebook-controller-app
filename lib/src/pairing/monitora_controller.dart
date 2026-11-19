@@ -24,6 +24,9 @@ const int kBateriaBaixa = 30;
 
 const Duration kEsperaDoPc = Duration(seconds: 25);
 
+/// Sem a chave da monitora (liberação ainda chegando): tenta de novo nisto.
+const Duration kTentarChaveDeNovo = Duration(seconds: 5);
+
 final RegExp _rotuloDaUnidade = RegExp(r'^Unidade ([0-9]{1,4})$');
 
 enum EstadoMonitora { carregando, semAcesso, pronto }
@@ -75,6 +78,13 @@ class PcDaMonitora {
   bool get temChave => _cripto != null;
 
   String get titulo => numero != null ? 'Unidade $numero' : (nome ?? 'Computador');
+
+  /// Aluno da chamada no PC (carga_report, Celita >= 1.42).
+  String? alunoNome;
+  int? alunoAno;
+
+  /// "Ana Lima · 3º ano" com aluno da chamada; senão a unidade.
+  String get rotulo => quemEscreveu(alunoNome, alunoAno) ?? titulo;
 }
 
 /// Resultado de um pedido: ok, ou o código de erro do ack (ou `sem_resposta`).
@@ -88,6 +98,7 @@ class MonitoraController extends ChangeNotifier {
     this.espera = kEsperaDoPc,
     this.presenca,
     this.meuUid,
+    this.tentarDeNovo = kTentarChaveDeNovo,
     String Function()? nome,
   })  : _nome = nome ?? (() => 'Monitora'),
         _db = database ?? Backend.instance.db,
@@ -103,6 +114,8 @@ class MonitoraController extends ChangeNotifier {
   final PresencaNaEquipe? presenca;
   final String? meuUid;
   final String Function() _nome;
+  final Duration tentarDeNovo;
+  Timer? _retentativa;
 
   EstadoMonitora estado = EstadoMonitora.carregando;
   final Map<String, PcDaMonitora> _pcs = {};
@@ -140,6 +153,11 @@ class MonitoraController extends ChangeNotifier {
     if (_chave == null) {
       estado = EstadoMonitora.semAcesso;
       notifyListeners();
+      _retentativa?.cancel();
+      _retentativa = Timer(tentarDeNovo, () {
+        if (_parado) return;
+        unawaited(stop().then((_) => start()));
+      });
       return;
     }
     unawaited(presenca?.iniciar());
@@ -156,6 +174,7 @@ class MonitoraController extends ChangeNotifier {
 
   Future<void> stop() async {
     _parado = true;
+    _retentativa?.cancel();
     presenca?.parar();
     for (final s in [..._gerais, for (final l in _porPc.values) ...l]) {
       await s.cancel();
@@ -236,6 +255,11 @@ class MonitoraController extends ChangeNotifier {
       pc.bateria = nivel is num && nivel >= 0 && nivel <= 100 ? nivel.toInt() : null;
       pc.naTomada = msg['plugged'] is bool ? msg['plugged'] as bool : null;
       pc.contaAberta = msg['session'] is bool ? msg['session'] as bool : null;
+      final aluno = msg['aluno'];
+      final nome = aluno is Map ? aluno['nome'] : null;
+      final ano = aluno is Map ? aluno['ano'] : null;
+      pc.alunoNome = nome is String && nome.trim().isNotEmpty ? nome.trim() : null;
+      pc.alunoAno = ano is int && ano >= 1 && ano <= 9 ? ano : null;
       pc.cargaEm = valor['ts'] is num ? (valor['ts'] as num).toInt() : null;
     } catch (_) {
       // Envelope de outra chave (troca em andamento): espera o próximo.

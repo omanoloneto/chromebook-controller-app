@@ -733,28 +733,19 @@ class PairingController extends ChangeNotifier {
     },),);
   }
 
-  /// Entra no modo monitora: conta Google com o e-mail em /school/monitores.
-  /// Null = liberada; senão, o texto para mostrar.
-  Future<String?> entrarComoMonitora() async {
+  /// Sai do Google e do Firebase: a próxima abertura pede o login de novo.
+  Future<void> sairDaConta() async {
     try {
-      if (!logadoComGoogle) {
-        final r = await entrarComGoogle();
-        if (r.startsWith('erro:')) return 'Não foi possível entrar com o Google. Tente de novo.';
+      if (!_googleInit) {
+        await GoogleSignIn.instance.initialize(serverClientId: _kWebClientId);
+        _googleInit = true;
       }
-      final user = _usuarioAtual;
-      final email = user?.email ?? emailGoogle;
-      if (user == null || email == null) return 'Não foi possível entrar com o Google. Tente de novo.';
-      await user.refreshIdToken();
-      if (!await SchoolMonitoras().liberada(email)) {
-        return 'Seu e-mail ($email) ainda não foi liberado como monitora. Peça '
-            'ao professor que criou a escola para liberar em Ajustes → '
-            'Monitoras da escola.';
-      }
-      return null;
+      await GoogleSignIn.instance.signOut();
     } catch (e) {
-      debugPrint('[CdA] entrar como monitora: $e');
-      return 'Não foi possível acessar a escola agora. Tente de novo.';
+      debugPrint('[CdA] sair do Google: $e');
     }
+    await Backend.instance.auth.signOut();
+    notifyListeners();
   }
 
   Future<bool> _liberadoNaEscola(AuthUser user) async {
@@ -1426,6 +1417,9 @@ class PairingController extends ChangeNotifier {
   bool get aulaAtiva => _session?.ativa ?? false;
 
   String get turmaDaAula => _session?.turma ?? '';
+
+  /// Ano (1..9) da turma da aula, marcado em Turmas; null sem aula ou sem ano.
+  int? get anoDaTurmaDaAula => aulaAtiva ? _students?.turmaPorNome(turmaDaAula)?.ano : null;
 
   /// Quando a aula começou (null = sem aula).
   DateTime? get inicioDaAula => aulaAtiva ? _session?.inicio : null;

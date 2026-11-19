@@ -10,6 +10,9 @@ abstract interface class AuthGateway {
   /// Vincula a conta Google ao usuário atual; se ela já for de outro usuário,
   /// entra nele ([GoogleLink.switched]).
   Future<GoogleLink> linkGoogle(String idToken);
+
+  /// Sai da conta (tela de "sem vínculo": entrar com outro e-mail).
+  Future<void> signOut();
 }
 
 abstract interface class AuthUser {

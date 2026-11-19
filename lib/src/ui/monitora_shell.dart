@@ -11,6 +11,7 @@ import '../pairing/monitora_controller.dart';
 import '../platform/host.dart';
 import 'archive_page.dart' show rotuloDoDia;
 import 'componentes.dart';
+import 'galeria_telas.dart';
 import 'device_page.dart' show dominioDe;
 import 'textos_erro.dart';
 
@@ -42,9 +43,9 @@ class _MonitoraShellState extends State<MonitoraShell> {
   Future<void> _sair() async {
     final ok = await confirmar(
       context,
-      titulo: 'Sair do modo monitora',
-      mensagem: 'O app volta para a tela inicial. Para entrar de novo, use '
-          'Ajustes → Entrar como monitora.',
+      titulo: 'Sair da conta',
+      mensagem: 'O app volta para a tela de entrar. Para usar de novo, entre com '
+          'a conta Google liberada pela coordenação.',
       acao: 'Sair',
     );
     if (ok) await widget.onSair();
@@ -60,7 +61,7 @@ class _MonitoraShellState extends State<MonitoraShell> {
           actions: [
             PopupMenuButton<void>(
               itemBuilder: (_) => [
-                PopupMenuItem<void>(onTap: _sair, child: const Text('Sair do modo monitora')),
+                PopupMenuItem<void>(onTap: _sair, child: const Text('Sair da conta')),
               ],
             ),
           ],
@@ -72,7 +73,7 @@ class _MonitoraShellState extends State<MonitoraShell> {
               titulo: 'Sem acesso de monitora',
               texto: 'Peça à coordenação para liberar seu e-mail em '
                   'Ajustes → Monitoras da escola.',
-              acao: FilledButton(onPressed: widget.onSair, child: const Text('Voltar')),
+              acao: FilledButton(onPressed: widget.onSair, child: const Text('Sair da conta')),
             ),
           EstadoMonitora.pronto => _aba == 0 ? _Sala(controller: _c) : _Carrinho(controller: _c),
         },
@@ -128,7 +129,7 @@ class _LinhaDoPc extends StatelessWidget {
         estado: ligado ? EstadoDoPc.online : EstadoDoPc.offline,
       ),
       title: Text(pc.titulo),
-      subtitle: Text(linha),
+      subtitle: Text(pc.alunoNome != null ? '${pc.rotulo} · $linha' : linha),
       trailing: pc.naoLidas > 0
           ? Badge(label: Text('${pc.naoLidas}'), child: const Icon(Icons.chat_bubble_outline))
           : const Icon(Icons.chevron_right),
@@ -179,8 +180,13 @@ class _Sala extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8),
           child: GradeDeAcoes(
-            colunas: 3,
+            colunas: 2,
             acoes: [
+              BotaoDeAcao(
+                icone: Icons.photo_library_outlined,
+                rotulo: 'Ver telas',
+                onPressed: ligados.isEmpty ? null : () => abrirGaleriaDaMonitora(context, controller),
+              ),
               BotaoDeAcao(
                 icone: Icons.tab_unselected,
                 rotulo: 'Fechar abas',

@@ -188,17 +188,6 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
     setState(() {});
   }
 
-  Future<void> _entrarComoMonitora() async {
-    _snack('Entrando como monitora…');
-    final erro = await widget.pairing.entrarComoMonitora();
-    if (!mounted) return;
-    if (erro != null) {
-      _snack(erro);
-      return;
-    }
-    await widget.settings.setModoMonitora(true);
-  }
-
   Future<void> _entrarComGoogle() async {
     _snack('Entrando com o Google…');
     final r = await widget.pairing.entrarComGoogle();
@@ -429,15 +418,6 @@ class _SettingsPageState extends State<SettingsPage> with WidgetsBindingObserver
                     'dados viram os da escola.',
                   ),
                   onTap: _criarWorkspace,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.support_agent_outlined),
-                  title: const Text('Entrar como monitora'),
-                  subtitle: const Text(
-                    'Com a conta Google liberada pela coordenação: só a sala '
-                    'e o carrinho.',
-                  ),
-                  onTap: _entrarComoMonitora,
                 ),
               ],
             ],

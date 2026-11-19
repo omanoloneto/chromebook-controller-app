@@ -158,6 +158,9 @@ class _PluginAuth implements AuthGateway {
       return GoogleLink.switched;
     }
   }
+
+  @override
+  Future<void> signOut() => _auth.signOut();
 }
 
 class _PluginUser implements AuthUser {

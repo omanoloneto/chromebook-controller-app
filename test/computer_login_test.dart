@@ -42,6 +42,9 @@ class _Auth implements AuthGateway {
     if (linkError != null) throw linkError!;
     return GoogleLink.switched;
   }
+
+  @override
+  Future<void> signOut() async => currentUser = null;
 }
 
 class _Snapshot implements DbSnapshot {

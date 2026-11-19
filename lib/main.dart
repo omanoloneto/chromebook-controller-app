@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'src/backend/backend.dart';
 import 'src/backend/open_backend.dart';
 import 'src/cloud/equipe.dart';
+import 'src/pairing/acesso_controller.dart';
 import 'src/pairing/computer_login.dart';
 import 'src/pairing/monitora_controller.dart';
 import 'src/pairing/pairing_controller.dart';
@@ -19,6 +20,7 @@ import 'src/platform/host.dart';
 import 'src/service/foreground_service.dart';
 import 'src/service/notification_service.dart';
 import 'src/service/push_service.dart';
+import 'src/ui/acesso_page.dart';
 import 'src/ui/app_shell.dart';
 import 'src/ui/chat_page.dart';
 import 'src/ui/computer_login_page.dart';
@@ -63,6 +65,23 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
   ComputerLogin? _login;
   MonitoraController? _monitora;
   bool _pairingIniciado = false;
+  late final AcessoController _acesso = AcessoController(
+    usuario: _usuarioAtual,
+    papelGuardado: _settings.modoMonitora
+        ? PapelNaEscola.monitora
+        : (_settings.schoolUid != null ? PapelNaEscola.professor : null),
+  );
+
+  /// Professor sem escola no celular: adotar a chave da escola falhou.
+  String? _erroAoEntrar;
+
+  AuthUser? _usuarioAtual() {
+    try {
+      return Backend.instance.auth.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   void initState() {
@@ -78,20 +97,61 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
     // Controller → preferências (marcar PC do professor acontece na UI da
     // Aula, que só conhece o pairing; o root persiste).
     _pairing.addListener(_persistirPcProfessor);
+    _acesso.addListener(_aoMudarAcesso);
     if (widget.autoStart) {
       _toques = _notificacoes.toques.listen(_abrirPc);
       _notificacoes.init().then((_) {
         final abertura = _notificacoes.consumirAbertura();
         if (abertura != null) _abrirPc(abertura);
       });
-      if (_settings.modoMonitora) {
-        _abrirMonitora();
-      } else if (onComputer && !_pairing.logadoComGoogle) {
-        _openComputerLogin();
-      } else {
-        _iniciarPairing();
-      }
+      unawaited(_acesso.verificar());
     }
+  }
+
+  // O portão decidiu: entrar, esperar a liberação ou abrir o app do papel.
+  Future<void> _aoMudarAcesso() async {
+    if (!mounted) return;
+    switch ((_acesso.estado, _acesso.papel)) {
+      case (EstadoDoAcesso.entrar, _) when onComputer && _login == null:
+        _openComputerLogin();
+      case (EstadoDoAcesso.liberado, PapelNaEscola.monitora):
+        await _settings.setModoMonitora(true);
+        if (_monitora == null) _abrirMonitora();
+      case (EstadoDoAcesso.liberado, PapelNaEscola.professor):
+        final antiga = _monitora;
+        _monitora = null;
+        antiga?.dispose();
+        await _settings.setModoMonitora(false);
+        if (!_pairingIniciado) {
+          if (_pairing.schoolUid == null) {
+            _erroAoEntrar = await _pairing.entrarNoWorkspace();
+            if (_erroAoEntrar != null) break;
+          }
+          _iniciarPairing();
+        }
+      default:
+        break;
+    }
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _entrarComGoogle() async {
+    final auth = Backend.instance.auth;
+    if (auth.currentUser == null) await auth.signInAnonymously();
+    final r = await _pairing.entrarComGoogle();
+    if (r.startsWith('erro:')) debugPrint('[CdA] login Google: ${r.substring(5)}');
+    await _acesso.verificar();
+  }
+
+  // "Usar outra conta" (sem vínculo) e "Sair" da monitora.
+  Future<void> _sairDaConta() async {
+    final antiga = _monitora;
+    _monitora = null;
+    antiga?.dispose();
+    await _settings.setModoMonitora(false);
+    await _pairing.sairDaConta();
+    _acesso.papelGuardado = null;
+    await _acesso.verificar();
   }
 
   void _iniciarPairing() {
@@ -111,19 +171,6 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
           ? PresencaNaEquipe(papel: PapelNaEquipe.monitora, uid: user.uid, email: email, nome: nome)
           : null,
     )..start();
-  }
-
-  // Ajustes ligou ou desligou o modo monitora: troca a tela inteira.
-  void _trocarModo() {
-    if (!widget.autoStart) return;
-    if (_settings.modoMonitora && _monitora == null) {
-      setState(_abrirMonitora);
-    } else if (!_settings.modoMonitora && _monitora != null) {
-      final antiga = _monitora!;
-      setState(() => _monitora = null);
-      antiga.dispose();
-      if (!_pairingIniciado) _iniciarPairing();
-    }
   }
 
   void _openComputerLogin() {
@@ -147,7 +194,7 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
     if (!mounted) return;
     setState(() => _login = null);
     login.dispose();
-    _iniciarPairing();
+    await _acesso.verificar();
   }
 
   // Toque numa notificação: alerta de site leva à tela do PC; recado de
@@ -182,7 +229,6 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
 
   void _sincronizarPrefs() {
     _pairing.notificarSites = _settings.notificarSites;
-    _trocarModo();
   }
 
   void _persistirPcProfessor() {
@@ -200,6 +246,8 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
     _toques?.cancel();
     _login?.dispose();
     _monitora?.dispose();
+    _acesso.removeListener(_aoMudarAcesso);
+    _acesso.dispose();
     _settings.removeListener(_sincronizarPrefs);
     _pairing.removeListener(_persistirPcProfessor);
     _pairing.stop();
@@ -220,15 +268,35 @@ class _ControleDeAulaAppState extends State<ControleDeAulaApp> {
         theme: buildTheme(Brightness.light),
         darkTheme: buildTheme(Brightness.dark),
         themeMode: _settings.themeMode,
-        home: switch ((_login, _monitora)) {
-          (final login?, _) => ComputerLoginPage(login: login),
-          (null, final monitora?) => MonitoraShell(
-              controller: monitora,
-              onSair: () => _settings.setModoMonitora(false),
-            ),
-          _ => AppShell(pairing: _pairing, settings: _settings),
-        },
+        home: _inicio(),
       ),
     );
+  }
+
+  Widget _inicio() {
+    final login = _login;
+    if (login != null) return ComputerLoginPage(login: login);
+    // Testes de widget montam o app sem portão nem transporte.
+    if (!widget.autoStart) return AppShell(pairing: _pairing, settings: _settings);
+    final monitora = _monitora;
+    if (monitora != null) return MonitoraShell(controller: monitora, onSair: _sairDaConta);
+    if (_erroAoEntrar != null) {
+      return TelaDeEspera(
+        texto: _erroAoEntrar!,
+        onTentarDeNovo: () {
+          setState(() => _erroAoEntrar = null);
+          unawaited(_aoMudarAcesso());
+        },
+      );
+    }
+    return switch (_acesso.estado) {
+      EstadoDoAcesso.entrar => TelaDeEntrar(onEntrar: _entrarComGoogle),
+      EstadoDoAcesso.semVinculo => TelaSemVinculo(email: _acesso.email, onOutraConta: _sairDaConta),
+      EstadoDoAcesso.verificando => TelaDeEspera(
+          texto: _acesso.semInternet ? 'Sem internet. Tentando de novo…' : null,
+        ),
+      EstadoDoAcesso.liberado when _pairingIniciado => AppShell(pairing: _pairing, settings: _settings),
+      EstadoDoAcesso.liberado => const TelaDeEspera(),
+    };
   }
 }

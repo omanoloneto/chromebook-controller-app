@@ -55,11 +55,14 @@ class SchoolMonitoras {
       });
 
   /// Só o fundador: libera o e-mail e cria a chave da monitora na primeira vez.
+  /// A pub vai para os PCs na hora: sem isso eles só a recebiam quando algum
+  /// professor reabria o app, e a monitora ficava sem os computadores.
   Future<String?> adicionar(String email) async {
     final e = normalizarEmail(email);
     if (e == null) return 'E-mail inválido. Confira e tente de novo.';
     await garantirChave();
     await _lista.child(emailKey(e)).set(true);
+    await publicarNosPcs();
     return null;
   }
 

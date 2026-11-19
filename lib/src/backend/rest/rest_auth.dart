@@ -247,6 +247,9 @@ final class RestAuth implements AuthGateway {
     if (before != uid) _accountChanges.add(null);
   }
 
+  @override
+  Future<void> signOut() async => _forget();
+
   void _forget() {
     _session = null;
     _idToken = null;
